@@ -30,14 +30,16 @@ combined_df = combine_distributors(clean_kehe_df, clean_unfi_df)
 
 combined_w_features = add_features(combined_df)
 
-monthly_summary_test = monthly_summary(combined_w_features, combined_w_features)
-sku_mix_test = sku_mix(combined_w_features)
-chain_test, chain_test_monthly = chain_table(combined_w_features, combined_w_features)
+monthly_summary = monthly_summary(combined_w_features, combined_w_features)
+sku_mix = sku_mix(combined_w_features)
+chain = chain_table(combined_w_features, combined_w_features)
 
-monthly_summary_test.to_csv("monthly_summary.csv", index=False)
-sku_mix_test.to_csv("sku_summary.csv", index=False)
-chain_test.to_csv("chain_summary.csv", index=False)
-chain_test_monthly.to_csv("chain_monthly_summary.csv", index=False)
+monthly_summary.to_parquet("monthly_summary.parquet", index=False)
+sku_mix.to_parquet("sku_mix.parquet", index=False)
+chain.to_parquet("chain.parquet", index=False)
+
+
+
 
 
 #clean_kehe_df.to_csv("kehe_output.csv", index=False)

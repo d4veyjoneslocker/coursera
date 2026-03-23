@@ -16,6 +16,21 @@ def add_features(df):
       .transform(lambda x: x.nlargest(2).iloc[-1] if len(x) > 1 else pd.NaT)
     )
 
+    df["first_store_flag"] = (
+        df["month_year"] == df["first_month_purchased"]
+    )
+
+    df["first_month_purchased_sku"] = (
+        df.groupby("pod_helper")["month_year"].transform("min")
+    )
+
+    df["first_pod_flag"] = (
+        df["month_year"] == df["first_month_purchased_sku"]
+    )
+
+    return df
+
+
     # ADD STATUS METRIC
 
 
