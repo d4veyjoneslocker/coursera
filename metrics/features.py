@@ -1,4 +1,5 @@
 import pandas as pd
+from data_validation.phase_1 import validate_first_pod_flag
 
 
 def add_features(df):
@@ -27,6 +28,10 @@ def add_features(df):
     df["first_pod_flag"] = (
         df["month_year"] == df["first_month_purchased_sku"]
     )
+
+    # ADD THIS TEST BACK IN
+
+    #validate_first_pod_flag(df)
 
     return df
 

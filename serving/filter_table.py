@@ -1,9 +1,11 @@
 
 
+# UPDATE SO BLANK FILTERS DONT COUNT
+
 def filter_table(df, **filters):
     for col, val in filters.items():
         if val is not None:
-            df = df[df[col] == val]
+            df = df[df[col].astype(str) == str(val)]
     return df
 
 def select_metric(df, metric):
