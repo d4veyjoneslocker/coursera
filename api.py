@@ -10,6 +10,7 @@ from tables import combined_df
 from tables import combined_w_features
 from metrics.metrics import calculate_monthly_active_pods
 from metrics.metrics import calculate_vpo
+from fastapi import Query
 
 
 app = FastAPI()
@@ -24,9 +25,7 @@ app.add_middleware(
 
 monthly_summary = pd.read_parquet("monthly_summary.parquet")
 
-# THE ISSUE I NEED TO FIX IS THAT METRIC_BY_MONTH ONLY WORKS FOR ADDITIVE METRICS, WHICH IS BASICALLY UNITS!
-# NEED TO ADD A DIFFERENT FUNCTION TO DO THE OTHER STUFF IM DOING
-# THERE'S A TEST THING OF THE CORRECT ADDITIVE LOGIC DOWN THERE
+# I NEED TO CLEAN UP THE WHOLE FILTERING THING IN THE DEF UNITS SHIT -- LITERALLY JUST CLEAN UP THO, IT WORKS
 
 def metric_by_month(df, metric):
     df = df.reset_index()
@@ -47,16 +46,37 @@ def metric_by_month(df, metric):
 # Units by Month Bar Graph
 
 @app.get("/units")
-def units(filters: Filters = Depends()):
-    df = filter_table(monthly_summary, **filters.dict())
+def units(
+    chain: list[str] | None = Query(None),
+    channel: list[str] | None = Query(None),
+    year: list[str] | None = Query(None),
+):
+
+    df = filter_table(
+        monthly_summary,
+        chain=chain,
+        channel=channel,
+        year=year,
+    )
+
+    print("rows after filter:", len(df))
+
     return metric_by_month(df, "units")
 
 
 # Buyers by Month Bar Graph
 
 @app.get("/buyers")
-def buying_stores(filters: Filters = Depends()):
-    df = filter_table(combined_df, **filters.dict())
+def buying_stores(
+    chain: list[str] | None = Query(None),
+    channel: list[str] | None = Query(None),
+    year: list[str] | None = Query(None),
+):
+    df = filter_table(
+        combined_df,
+        chain=chain,
+        channel=channel,
+        year=year,)
 
     result = (
         df.groupby("month_year", as_index=False)
@@ -72,10 +92,16 @@ def buying_stores(filters: Filters = Depends()):
 # VPO by Month Bar Graph
 
 @app.get("/velocity")
-def velocity(filters: Filters = Depends()):
-    filters = filters.dict()
+def velocity(
+    chain: list[str] | None = Query(None),
+    channel: list[str] | None = Query(None),
+    year: list[str] | None = Query(None),
+):
 
-    df = filter_table(combined_w_features, **filters)
+    df = filter_table(combined_w_features,
+        chain=chain,
+        channel=channel,
+        year=year,)
 
     units_by_month = (
         df.groupby("month_year", as_index=False)
@@ -85,7 +111,10 @@ def velocity(filters: Filters = Depends()):
 
     units_by_month["month_year"] = units_by_month["month_year"].astype(str)
 
-    pod_filters = {k: v for k, v in filters.items() if k not in ("year", "month")}
+    pod_filters = {
+    "chain": chain,
+    "channel": channel
+    }
 
     pod_df = filter_table(combined_w_features, **pod_filters)
     active_pods_by_month = calculate_monthly_active_pods(pod_df)
@@ -111,10 +140,16 @@ def velocity(filters: Filters = Depends()):
 # PODs by Month Bar Graph
 
 @app.get("/pods")
-def pods(filters: Filters = Depends()):
-    filters = filters.dict()
+def pods(
+    chain: list[str] | None = Query(None),
+    channel: list[str] | None = Query(None),
+    year: list[str] | None = Query(None)
+):
 
-    df = filter_table(combined_w_features, **filters)
+    df = filter_table(combined_w_features,
+        chain=chain,
+        channel=channel,
+        year=year,)
 
     visible_months = (
         df[["month_year"]]
@@ -124,7 +159,10 @@ def pods(filters: Filters = Depends()):
 
     visible_months["month_year"] = visible_months["month_year"].astype(str)
 
-    pod_filters = {k: v for k, v in filters.items() if k not in ("year", "month")}
+    pod_filters = {
+    "chain": chain,
+    "channel": channel
+    }
 
     pod_df = filter_table(combined_w_features, **pod_filters)
     active_pods_by_month = calculate_monthly_active_pods(pod_df)

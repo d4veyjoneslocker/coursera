@@ -12,11 +12,11 @@ monthly_filter = [
 ]
 
 class Filters(BaseModel):
-    chain: str | None = None
-    state: str | None = None
-    channel: str | None = None
-    sku: str | None = None
-    distributor: str | None = None
-    dc: str | None = None
-    year: int | None = None
-    month: int | None = None
+    chain: list[str] | None = None
+    state: list[str] | None = None
+    channel: list[str] | None = None
+    sku: list[str] | None = None
+    distributor: list[str] | None = None
+    dc: list[str] | None = None
+    year: list[str] | None = None
+    month: list[str] | None = None
