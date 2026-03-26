@@ -52,6 +52,18 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { useMemo} from "react"
 
+const theme = {
+  blue: "#92B9DC",
+  gold: "#F7B045",
+  brown: "#705C4F",
+  charcoal: "#343332",
+  cream: "#E9E2C8",
+  bg: "#F6F2EA",
+  line: "#E5DDD0",
+  chip: "#EEF4F8",
+  surface: "#FFFDF9",
+}
+
 /*
 TYPE DEFINITIONS
 These tell TypeScript what our API returns
@@ -183,19 +195,27 @@ function KpiCard({
   value: string
 }) {
   return (
-    <Card className="rounded-2xl border-0 shadow-sm">
-      <CardHeader className="pb-2">
-        <CardTitle style={{ color: BAR_COLOR }} className="text-sm">
-          {title}
-        </CardTitle>
-      </CardHeader>
+    <div
+      className="rounded-[22px] border p-4"
+      style={{
+        backgroundColor: "#FCFAF6",
+        borderColor: "#EEE5D8",
+      }}
+    >
+      <p
+        className="text-xs uppercase tracking-[0.12em]"
+        style={{ color: theme.brown }}
+      >
+        {title}
+      </p>
 
-      <CardContent>
-        <div className="text-2xl font-bold text-slate-900">
-          {value}
-        </div>
-      </CardContent>
-    </Card>
+      <div
+        className="mt-2 text-3xl font-semibold"
+        style={{ color: theme.charcoal }}
+      >
+        {value}
+      </div>
+    </div>
   )
 }
 
@@ -205,72 +225,51 @@ function KpiCard({
 Reusable bar chart component
 */
 function BarChartCard({
-  title,
   data,
+  accentColor,
 }: {
-  title: string
   data: MetricRow[]
+  accentColor: string
 }) {
   return (
-    <Card className="rounded-2xl border-0 shadow-sm">
+    <div className="w-full">
 
-      <CardHeader>
-        <CardTitle style={{ color: BAR_COLOR }}>
-          {title}
-        </CardTitle>
-      </CardHeader>
-
-      <CardContent>
-
-        <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
-
-          <BarChart data={data}>
-
-            <CartesianGrid vertical={false} strokeDasharray="3 3" />
-
-            <XAxis
-              dataKey="month_year"
-              tickFormatter={formatMonth}
-              tickLine={false}
-              axisLine={false}
-              tickMargin={10}
-            />
-
-            <YAxis
-              tickFormatter={formatNumber}
-              tickLine={false}
-              axisLine={false}
-              tickMargin={10}
-            />
-
-            <ChartTooltip
-              content={
-                <ChartTooltipContent
-                  formatter={(value) => formatNumber(value)}
-                />
-              }
-            />
-
-            <Bar
-              dataKey="value"
-              fill={BAR_COLOR}
-              radius={[6, 6, 0, 0]}
-
-              label={{
-                position: "top",
-                fill: BAR_COLOR,
-                fontWeight: 700,
-                formatter: formatNumber,
-              }}
-            />
-
-          </BarChart>
-
-        </ChartContainer>
-
-      </CardContent>
-
-    </Card>
+      <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
+        <BarChart data={data}>
+          <CartesianGrid vertical={false} strokeDasharray="3 3" />
+          <XAxis
+            dataKey="month_year"
+            tickFormatter={formatMonth}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={10}
+          />
+          <YAxis
+            tickFormatter={formatNumber}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={10}
+          />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent formatter={(value) => formatNumber(value)} />
+            }
+          />
+          <Bar
+            dataKey="value"
+            fill={accentColor}
+            radius={[6, 6, 0, 0]}
+            label={{
+              position: "top",
+              formatter: formatNumber,
+              fontSize: 11,
+              fontWeight: 800,
+              fill: accentColor,
+            }}
+          />
+        </BarChart>
+      </ChartContainer>
+    </div>
   )
 }
 
@@ -309,45 +308,64 @@ KPI KPI
 CHART
 */
 function ChartSection({
+  sectionLabel,
   chartTitle,
   data,
   kpi1Title,
   kpi1Value,
   kpi2Title,
   kpi2Value,
+  accentColor,
 }: {
+  sectionLabel: string
   chartTitle: string
   data: MetricRow[]
   kpi1Title: string
   kpi1Value: string
   kpi2Title: string
   kpi2Value: string
+  accentColor: string
 }) {
-
   return (
+    <Card
+      className="rounded-[28px] shadow-sm"
+      style={{
+        backgroundColor: theme.surface,
+        borderColor: theme.line,
+      }}
+    >
+      <CardContent className="pt-2 pb-4 px-6 space-y-6">
+          
+        <div className="flex items-center gap-3">
+          <div
+            className="h-[3px] w-24 rounded-full"
+            style={{ backgroundColor: accentColor + "CC"}}
+          />
 
-    <div className="space-y-6">
+          <p
+            className="text-[16px] uppercase tracking-[0.18em] font-medium"
+            style={{ color: "#6B6B6B" }}
+          >
+            {sectionLabel}
+          </p>
+        </div>
 
-      <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-3">
+          <KpiCard title={kpi1Title} value={kpi1Value} />
+          <KpiCard title={kpi2Title} value={kpi2Value} />
+        </div>
 
-        <KpiCard
-          title={kpi1Title}
-          value={kpi1Value}
-        />
-
-        <KpiCard
-          title={kpi2Title}
-          value={kpi2Value}
-        />
-
-      </div>
-
-      <BarChartCard
-        title={chartTitle}
-        data={data}
-      />
-
-    </div>
+        <div
+          className="rounded-[24px] border p-4"
+          style={{
+            backgroundColor: "#FCFAF6",
+            borderColor: "#EEE5D8",
+          }}
+        >
+          <BarChartCard data={data} accentColor={accentColor} />
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -437,17 +455,7 @@ export default function Home() {
   loadYears()
 }, [])
 
-  const theme = {
-  blue: "#92B9DC",
-  gold: "#F7B045",
-  brown: "#705C4F",
-  charcoal: "#343332",
-  cream: "#E9E2C8",
-  bg: "#F6F2EA",
-  line: "#E5DDD0",
-  chip: "#EEF4F8",
-  surface: "#FFFDF9",
-  }
+
 
   const filterConfigs = [
     {
@@ -547,21 +555,6 @@ export default function Home() {
         {/* HEADER */}
 
         <div className="flex items-center justify-between">
-
-          <div className="flex items-center gap-4">
-
-            <Image
-              src="/logo.png"
-              alt="Logo"
-              width={120}
-              height={40}
-            />
-
-            <h1 className="text-2xl font-bold">
-              CPG Dashboard
-            </h1>
-
-          </div>
 
 
           {/* FILTER */}
@@ -761,39 +754,47 @@ export default function Home() {
         <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">
 
           <ChartSection
+            sectionLabel="Sales"
             chartTitle="Units"
             data={unitsData}
             kpi1Title="Total Units"
             kpi1Value={formatNumber(unitsStats.total)}
             kpi2Title="Latest Month"
             kpi2Value={formatNumber(unitsStats.latest)}
+            accentColor={theme.blue}
           />
 
           <ChartSection
+            sectionLabel = "Distribution"
             chartTitle="Buyers"
             data={buyersData}
             kpi1Title="Total Buyers"
             kpi1Value={formatNumber(buyersStats.total)}
             kpi2Title="Peak Month"
             kpi2Value={formatNumber(buyersStats.max)}
+            accentColor={theme.gold}
           />
 
           <ChartSection
-            chartTitle="Velocity"
+            sectionLabel = "Velocity"
+            chartTitle="VPO"
             data={velocityData}
             kpi1Title="Avg Velocity"
             kpi1Value={formatNumber(velocityStats.avg)}
             kpi2Title="Latest Velocity"
             kpi2Value={formatNumber(velocityStats.latest)}
+            accentColor={theme.brown}
           />
 
           <ChartSection
+            sectionLabel = "Points of Distribution"
             chartTitle="PODs"
             data={podsData}
             kpi1Title="Total PODs"
             kpi1Value={formatNumber(podsStats.total)}
             kpi2Title="Peak PODs"
             kpi2Value={formatNumber(podsStats.max)}
+            accentColor={theme.charcoal}
           />
 
         </div>
