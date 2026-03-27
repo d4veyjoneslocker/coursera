@@ -25,6 +25,42 @@ app.add_middleware(
 
 monthly_summary = pd.read_parquet("monthly_summary.parquet")
 
+def generate_filter_api(df, filter_name):
+    column_name = filter_name
+
+    if column_name not in df.columns:
+        return []
+
+    return (
+        df[column_name]
+        .dropna()
+        .astype(str)
+        .sort_values()
+        .unique()
+        .tolist()
+    )
+
+def get_filters(
+    chain: list[str] | None = Query(None),
+    channel: list[str] | None = Query(None),
+    year: list[str] | None = Query(None),
+    brand: list[str] | None = Query(None),
+    flavor: list[str] | None = Query(None),
+    pack_size: list[str] | None = Query(None),
+    segment: list[str] | None = Query(None),
+    sku: list[str] | None = Query(None),
+):
+    return {
+        "chain": chain,
+        "channel": channel,
+        "year": year,
+        "brand": brand,
+        "flavor": flavor,
+        "pack_size": pack_size,
+        "segment": segment,
+        "sku": sku,
+    }
+
 # I NEED TO CLEAN UP THE WHOLE FILTERING THING IN THE DEF UNITS SHIT -- LITERALLY JUST CLEAN UP THO, IT WORKS
 
 def metric_by_month(df, metric):
@@ -46,37 +82,26 @@ def metric_by_month(df, metric):
 # Units by Month Bar Graph
 
 @app.get("/units")
-def units(
-    chain: list[str] | None = Query(None),
-    channel: list[str] | None = Query(None),
-    year: list[str] | None = Query(None),
-):
+def units(filters: dict = Depends(get_filters)):
+    df = filter_table(combined_df, **filters)
 
-    df = filter_table(
-        monthly_summary,
-        chain=chain,
-        channel=channel,
-        year=year,
+    result = (
+        df.groupby("month_year", as_index=False)
+        .agg(value=("units", "sum"))
+        .sort_values("month_year")
     )
 
-    print("rows after filter:", len(df))
+    result["month_year"] = result["month_year"].astype(str)
 
-    return metric_by_month(df, "units")
+    return result.to_dict(orient="records")
+
 
 
 # Buyers by Month Bar Graph
 
 @app.get("/buyers")
-def buying_stores(
-    chain: list[str] | None = Query(None),
-    channel: list[str] | None = Query(None),
-    year: list[str] | None = Query(None),
-):
-    df = filter_table(
-        combined_df,
-        chain=chain,
-        channel=channel,
-        year=year,)
+def buying_stores(filters: dict = Depends(get_filters)):
+    df = filter_table(combined_df, **filters)
 
     result = (
         df.groupby("month_year", as_index=False)
@@ -92,16 +117,9 @@ def buying_stores(
 # VPO by Month Bar Graph
 
 @app.get("/velocity")
-def velocity(
-    chain: list[str] | None = Query(None),
-    channel: list[str] | None = Query(None),
-    year: list[str] | None = Query(None),
-):
+def velocity(filters: dict = Depends(get_filters)):
 
-    df = filter_table(combined_w_features,
-        chain=chain,
-        channel=channel,
-        year=year,)
+    df = filter_table(combined_w_features, **filters)
 
     units_by_month = (
         df.groupby("month_year", as_index=False)
@@ -111,10 +129,9 @@ def velocity(
 
     units_by_month["month_year"] = units_by_month["month_year"].astype(str)
 
-    pod_filters = {
-    "chain": chain,
-    "channel": channel
-    }
+    pod_filters = filters.copy()
+    pod_filters.pop("year", None)
+    pod_filters.pop("month", None)
 
     pod_df = filter_table(combined_w_features, **pod_filters)
     active_pods_by_month = calculate_monthly_active_pods(pod_df)
@@ -140,16 +157,9 @@ def velocity(
 # PODs by Month Bar Graph
 
 @app.get("/pods")
-def pods(
-    chain: list[str] | None = Query(None),
-    channel: list[str] | None = Query(None),
-    year: list[str] | None = Query(None)
-):
+def pods(filters: dict = Depends(get_filters)):
 
-    df = filter_table(combined_w_features,
-        chain=chain,
-        channel=channel,
-        year=year,)
+    df = filter_table(combined_w_features, **filters)
 
     visible_months = (
         df[["month_year"]]
@@ -159,10 +169,9 @@ def pods(
 
     visible_months["month_year"] = visible_months["month_year"].astype(str)
 
-    pod_filters = {
-    "chain": chain,
-    "channel": channel
-    }
+    pod_filters = filters.copy()
+    pod_filters.pop("year", None)
+    pod_filters.pop("month", None)
 
     pod_df = filter_table(combined_w_features, **pod_filters)
     active_pods_by_month = calculate_monthly_active_pods(pod_df)
@@ -179,44 +188,56 @@ def pods(
 
     return result.to_dict(orient="records")
 
+# SKU bar graph
+
+@app.get("/skus")
+def skus(filters: dict = Depends(get_filters)):
+    df = filter_table(combined_df, **filters)
+
+    result = (
+        df.groupby("sku", as_index=False)
+        .agg(units=("units", "sum"))
+        .sort_values("units", ascending=False)
+    )
+
+    total_units = df["units"].sum()
+
+    result["value"] = result["units"]/total_units
+    result["name"] = result["sku"]
+    
+    result = result[["name","value"]]
+
+    return result.to_dict(orient="records")
+
+
 # filter endpoints
 
-@app.get("/filters/chains")
-def get_chains():
-    chains = (
-        combined_w_features["chain"]
-        #.dropna()
-        .astype(str)
-        .sort_values()
-        .unique()
-        .tolist()
-    )
+@app.get("/filters/{column_name}")
+def get_filter_options(
+    column_name: str,
+    chain: list[str] | None = Query(None),
+    region: list[str] | None = Query(None),
+    brand: list[str] | None = Query(None),
+    flavor: list[str] | None = Query(None),
+    pack_size: list[str] | None = Query(None),
+    segment: list[str] | None = Query(None),
+    sku: list[str] | None = Query(None),
+    month_year: list[str] | None = Query(None),
+):
 
-    return chains
+    filters = {
+        "chain": chain,
+        "region": region,
+        "brand": brand,
+        "flavor": flavor,
+        "pack_size": pack_size,
+        "segment": segment,
+        "sku": sku,
+        "month_year": month_year,
+    }
 
-@app.get("/filters/channels")
-def get_channels():
-    channels = (
-        combined_w_features["channel"]
-        #.dropna()
-        .fillna("NO CHANNEL ASSIGNED")
-        .astype(str)
-        .sort_values()
-        .unique()
-        .tolist()
-    )
+    filters.pop(column_name, None)
 
-    return channels
+    df = filter_table(combined_w_features, **filters)
 
-@app.get("/filters/years")
-def get_years():
-    years = (
-        combined_w_features["year"]
-        #.dropna()
-        .astype(str)
-        .sort_values()
-        .unique()
-        .tolist()
-    )
-
-    return years
+    return generate_filter_api(df, column_name)

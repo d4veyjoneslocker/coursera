@@ -64,6 +64,35 @@ const theme = {
   surface: "#FFFDF9",
 }
 
+const SKU_COLORS: Record<string, string> = {
+  "VANILLA BEAN": "#92B9DC",
+  "PEANUT BUTTER": "#F7B045",
+  "MOCHA JOE": "#705C4F",
+  "STRAWBERRY": "#F8AAB9",
+}
+
+const FILTER_KEYS = [
+  "chain",
+  "state",
+  "channel",
+  "sku",
+  "distributor",
+  "dc",
+  "year",
+  "month",
+]
+
+type FilterState = {
+  chain: string[]
+  channel: string[]
+  sku: string[]
+  distributor: string[]
+  dc: string[]
+  state: string[]
+  year: string[]
+  month: string[]
+}
+
 /*
 TYPE DEFINITIONS
 These tell TypeScript what our API returns
@@ -74,7 +103,7 @@ type MetricRow = {
 }
 
 /*
-Dummy pie chart data (you'll replace later)
+Establishing pie chart form
 */
 type PieRow = {
   name: string
@@ -97,26 +126,6 @@ const chartConfig = {
     color: BAR_COLOR,
   },
 }
-
-
-/*
-Fake pie data for now
-*/
-const pieData1: PieRow[] = [
-  { name: "A", value: 400 },
-  { name: "B", value: 300 },
-  { name: "C", value: 200 },
-]
-
-const pieData2: PieRow[] = [
-  { name: "X", value: 500 },
-  { name: "Y", value: 250 },
-  { name: "Z", value: 150 },
-]
-
-
-const pieColors1 = ["#3b82f6", "#93c5fd", "#dbeafe"]
-const pieColors2 = ["#10b981", "#6ee7b7", "#d1fae5"]
 
 
 
@@ -163,17 +172,13 @@ http://127.0.0.1:8000/units?chain=WholeFoods
 
 function buildMetricUrl(
   endpoint: string,
-  filters: {
-    chain: string[]
-    channel: string[]
-    year: string[]
-  }
+  filters: Record<string, string[]>
 ) {
   const params = new URLSearchParams()
 
-  filters.chain.forEach((value) => params.append("chain", value))
-  filters.channel.forEach((value) => params.append("channel", value))
-  filters.year.forEach((value) => params.append("year", value))
+  Object.entries(filters).forEach(([key, values]) => {
+    values.forEach((value) => params.append(key, value))
+  })
 
   const query = params.toString()
 
@@ -273,7 +278,76 @@ function BarChartCard({
   )
 }
 
+function PieChartCard({
+  data,
+  colorMap,
+}: {
+  data: PieRow[]
+  colorMap: Record<string, string>
+}) {
+  const safeData = Array.isArray(data) ? data : []
+  const total = safeData.reduce((sum, row) => sum + row.value, 0)
 
+  return (
+    <div className="w-full h-full">
+      <ChartContainer config={chartConfig} className="h-[300px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <ChartTooltip
+              content={
+                <ChartTooltipContent formatter={(value) => formatNumber(value)} />
+              }
+            />
+
+            <Pie
+              data={safeData}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              innerRadius={52}
+              outerRadius={95}
+              paddingAngle={2}
+              stroke="none"
+            >
+              {safeData.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={colorMap[entry.name] || "#D1D5DB"}
+                />
+              ))}
+            </Pie>
+
+            <text
+              x="50%"
+              y="46%"
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fill="#7A746B"
+              fontSize={11}
+              fontWeight={500}
+              letterSpacing="0.16em"
+            >
+              TOTAL
+            </text>
+
+            <text
+              x="50%"
+              y="55%"
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fill={theme.charcoal}
+              fontSize={22}
+              fontWeight={600}
+            >
+              {formatNumber(total)}
+            </text>
+          </PieChart>
+        </ResponsiveContainer>
+      </ChartContainer>
+    </div>
+  )
+}
 
 /*
 Calculates metrics used in the KPI cards
@@ -379,17 +453,29 @@ export default function Home() {
   /*
   FILTER STATE
   */
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<FilterState>({
     chain: [] as string[],
     channel: [] as string[],
+    sku: [] as string[],
+    distributor: [] as string[],
+    dc: [] as string[],
+    state: [] as string[],
     year: [] as string[],
+    month: [] as string[],
   })
 
-  const [chainOptions, setChainOptions] = useState<string[]>([])
-  const [channelOptions, setChannelOptions] = useState<string[]>([])
-  const [yearOptions, setYearOptions] = useState<string[]>([])
+  const [filterOptions, setFilterOptions] = useState<FilterState>({
+    chain: [],
+    channel: [],
+    sku: [],
+    distributor: [],
+    dc: [],
+    state: [],
+    year: [],
+    month: [],
+  })
 
-  const [activeFilter, setActiveFilter] = useState<"chain" | "channel" | "year" | null>(null)
+const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(null)
 
   function toggleFilterValue(filterKey: keyof typeof filters, value: string) {
   setFilters((prev) => {
@@ -416,7 +502,12 @@ export default function Home() {
     setFilters({
       chain: [],
       channel: [],
+      sku: [],
+      distributor: [],
+      dc: [],
+      state: [],
       year: [],
+      month: [],
     })
   }
 
@@ -427,54 +518,33 @@ export default function Home() {
   const [buyersData, setBuyersData] = useState<MetricRow[]>([])
   const [velocityData, setVelocityData] = useState<MetricRow[]>([])
   const [podsData, setPodsData] = useState<MetricRow[]>([])
-
-
-
-  useEffect(() => {
-    async function loadChains() {
-      const res = await fetch("http://127.0.0.1:8000/filters/chains")
-      const data = await res.json()
-      setChainOptions(data)
-    }
-
-    async function loadChannels() {
-      const res = await fetch("http://127.0.0.1:8000/filters/channels")
-      const data = await res.json()
-      setChannelOptions(data)
-    }
-
-    async function loadYears() {
-      const res = await fetch ("http://127.0.0.1:8000/filters/years")
-      const data = await res.json()
-      setYearOptions(data)
-    }
-
-
-  loadChains()
-  loadChannels()
-  loadYears()
-}, [])
-
+  const [skuPieData, setSkuPieData] = useState<PieRow[]>([])
 
 
   const filterConfigs = [
     {
       key: "chain",
       label: "Retailer",
-      options: chainOptions,
+      options: filterOptions.chain,
       accent: theme.blue,
     },
     {
       key: "channel",
       label: "Channel",
-      options: channelOptions,
+      options: filterOptions.channel,
       accent: theme.gold,
     },
     {
       key: "year",
       label: "Period",
-      options: yearOptions,
-      accent: theme.blue,
+      options: filterOptions.year,
+      accent: theme.brown,
+    },
+    {
+      key: "sku",
+      label: "SKU",
+      options: filterOptions.sku,
+      accent: theme.charcoal,
     },
   ] as const
 
@@ -491,8 +561,13 @@ export default function Home() {
   },
   {
     key: "year",
-    label: "Period",
+    label: "Year",
     value: filters.year.length ? filters.year.join(", ") : "All Time",
+  },
+  {
+    key: "sku",
+    label: "SKU",
+    value: filters.sku.length ? filters.sku.join(", ") : "All SKUs",
   },
   ] as const
 
@@ -508,24 +583,68 @@ export default function Home() {
   useEffect(() => {
 
     async function loadData() {
+      const filterKeys = Object.keys(filters)
+      const queryString = buildMetricUrl("temp", filters).split("?")[1] ?? ""
 
-      const urls = [
+      const filterOptionUrls = filterKeys.map(
+        (key) => `http://127.0.0.1:8000/filters/${key}${queryString ? `?${queryString}` : ""}`
+      )
+
+      const metricUrls = [
         buildMetricUrl("units", filters),
         buildMetricUrl("buyers", filters),
         buildMetricUrl("velocity", filters),
         buildMetricUrl("pods", filters),
+        buildMetricUrl("skus", filters)
       ]
 
-      /* console.log(urls) */
+      const responses = await Promise.all(
+        [...filterOptionUrls, ...metricUrls].map((url) => fetch(url))
+      )
 
-      const responses = await Promise.all(urls.map(url => fetch(url)))
+      const data = await Promise.all(responses.map((res) => res.json()))
 
-      const data = await Promise.all(responses.map(res => res.json()))
+      const filterOptionData = data.slice(0, filterKeys.length)
+      const metricData = data.slice(filterKeys.length)
 
-      setUnitsData(data[0])
-      setBuyersData(data[1])
-      setVelocityData(data[2])
-      setPodsData(data[3])
+    const nextFilterOptions: FilterState = {
+      chain: Array.isArray(filterOptionData[filterKeys.indexOf("chain")])
+        ? (filterOptionData[filterKeys.indexOf("chain")] as string[])
+        : [],
+      channel: Array.isArray(filterOptionData[filterKeys.indexOf("channel")])
+        ? (filterOptionData[filterKeys.indexOf("channel")] as string[])
+        : [],
+      sku: Array.isArray(filterOptionData[filterKeys.indexOf("sku")])
+        ? (filterOptionData[filterKeys.indexOf("sku")] as string[])
+        : [],
+      distributor: Array.isArray(filterOptionData[filterKeys.indexOf("distributor")])
+        ? (filterOptionData[filterKeys.indexOf("distributor")] as string[])
+        : [],
+      dc: Array.isArray(filterOptionData[filterKeys.indexOf("dc")])
+        ? (filterOptionData[filterKeys.indexOf("dc")] as string[])
+        : [],
+      state: Array.isArray(filterOptionData[filterKeys.indexOf("state")])
+        ? (filterOptionData[filterKeys.indexOf("state")] as string[])
+        : [],
+      year: Array.isArray(filterOptionData[filterKeys.indexOf("year")])
+        ? (filterOptionData[filterKeys.indexOf("year")] as string[])
+        : [],
+      month: Array.isArray(filterOptionData[filterKeys.indexOf("month")])
+        ? (filterOptionData[filterKeys.indexOf("month")] as string[])
+        : [],
+    }
+
+      console.log("filterKeys", filterKeys)
+      console.log("filterOptionData", filterOptionData)
+      console.log("nextFilterOptions", nextFilterOptions)
+
+      setFilterOptions(nextFilterOptions)
+
+      setUnitsData(metricData[0])
+      setBuyersData(metricData[1])
+      setVelocityData(metricData[2])
+      setPodsData(metricData[3])
+      setSkuPieData(metricData[4] as PieRow[])
     }
 
     loadData()
@@ -578,7 +697,15 @@ export default function Home() {
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[28px] font-medium tracking-tight">
                   {contextItems.map((item, i) => {
                     const accent =
-                      item.key === "channel" ? theme.gold : theme.blue
+                        item.key === "channel"
+                          ? theme.gold
+                          : item.key === "sku"
+                          ? theme.charcoal
+                          : item.key === "year"
+                          ? theme.brown
+                          : item.key === "chain"
+                          ? theme.blue
+                          : theme.blue
 
                     return (
                       <div key={item.key} className="flex items-center gap-3">
@@ -586,7 +713,7 @@ export default function Home() {
                           className="group relative w-[220px] truncate pb-1 text-left align-top transition"                          style={{ color: theme.charcoal }}
                           onClick={() =>
                             setActiveFilter((prev) =>
-                              prev === item.key ? null : (item.key as "chain" | "channel" | "year")
+                              prev === item.key ? null : item.key
                             )
                           }
                           title={item.value}
@@ -683,7 +810,7 @@ export default function Home() {
     />
 
         <div className="mt-4 max-h-[320px] space-y-2 overflow-y-auto pr-1">
-          {activeConfig.options.map((item) => {
+          {(Array.isArray(activeConfig.options) ? activeConfig.options : []).map((item) => {
             const isSelected = filters[activeConfig.key].includes(item)
 
             return (
@@ -796,7 +923,89 @@ export default function Home() {
             kpi2Value={formatNumber(podsStats.max)}
             accentColor={theme.charcoal}
           />
+        </div>
+        <div className="grid grid-cols-1 gap-10 xl:grid-cols-3">
+        <Card
+          className="rounded-[28px] shadow-sm"
+          style={{
+            backgroundColor: theme.surface,
+            borderColor: theme.line,
+          }}
+        >
+          <CardContent className="pt-2 pb-4 px-6 space-y-6">
 
+            {/* Header line (same style as others) */}
+            <div className="flex items-center gap-3">
+              <div
+                className="h-[3px] w-24 rounded-full"
+                style={{ backgroundColor: theme.charcoal + "CC" }}
+              />
+              <p
+                className="text-[16px] uppercase tracking-[0.18em] font-medium"
+                style={{ color: "#6B6B6B" }}
+              >
+                SKU MIX
+              </p>
+            </div>
+
+            {/* Chart container */}
+            <div
+              className="rounded-[24px] border p-4"
+              style={{
+                backgroundColor: "#FCFAF6",
+                borderColor: "#EEE5D8",
+              }}
+            >
+              <div className="h-[300px]">
+                <PieChartCard
+                  data={skuPieData}
+                  colorMap={SKU_COLORS}
+                />
+              </div>
+            </div>
+
+          </CardContent>
+        </Card><Card
+          className="rounded-[28px] shadow-sm"
+          style={{
+            backgroundColor: theme.surface,
+            borderColor: theme.line,
+          }}
+        >
+          <CardContent className="pt-2 pb-4 px-6 space-y-6">
+
+            {/* Header line (same style as others) */}
+            <div className="flex items-center gap-3">
+              <div
+                className="h-[3px] w-24 rounded-full"
+                style={{ backgroundColor: theme.charcoal + "CC" }}
+              />
+              <p
+                className="text-[16px] uppercase tracking-[0.18em] font-medium"
+                style={{ color: "#6B6B6B" }}
+              >
+                SKU MIX
+              </p>
+            </div>
+
+            {/* Chart container */}
+            <div
+              className="rounded-[24px] border p-4"
+              style={{
+                backgroundColor: "#FCFAF6",
+                borderColor: "#EEE5D8",
+              }}
+            >
+              <div className="h-[300px]">
+                <PieChartCard
+                  data={skuPieData}
+                  colorMap={SKU_COLORS}
+                />
+              </div>
+            </div>
+
+          </CardContent>
+        </Card>
         </div>
 
       </div>
