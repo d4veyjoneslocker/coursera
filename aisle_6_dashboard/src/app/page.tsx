@@ -40,11 +40,26 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  Legend
 } from "recharts"
+
+/*
+Table components
+:/
+
 
 /*
 Filter UI components
 */
+
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -69,6 +84,14 @@ const SKU_COLORS: Record<string, string> = {
   "PEANUT BUTTER": "#F7B045",
   "MOCHA JOE": "#705C4F",
   "STRAWBERRY": "#F8AAB9",
+}
+
+const CHANNEL_COLORS: Record<string, string> = {
+  "SUPERMARKET": "#6B8FD6",
+  "E-COMMERCE": "#5FA8A0",
+  "NATURAL": "#9A7FBF",
+  "INDEPENDENT": "#D8B98A",
+  "ALTERNATIVE": "#D97C6C",
 }
 
 const FILTER_KEYS = [
@@ -240,7 +263,7 @@ function BarChartCard({
     <div className="w-full">
 
       <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
-        <BarChart data={data}>
+        <BarChart data={data} margin={{ top: 20, right: 20, left: -10, bottom: 0 }}>
           <CartesianGrid vertical={false} strokeDasharray="3 3" />
           <XAxis
             dataKey="month_year"
@@ -254,6 +277,7 @@ function BarChartCard({
             tickLine={false}
             axisLine={false}
             tickMargin={10}
+            width={50}
           />
           <ChartTooltip
             content={
@@ -267,13 +291,43 @@ function BarChartCard({
             label={{
               position: "top",
               formatter: formatNumber,
-              fontSize: 11,
+              fontSize: 14,
               fontWeight: 800,
               fill: accentColor,
             }}
           />
         </BarChart>
       </ChartContainer>
+    </div>
+  )
+}
+
+function PieLegend({
+  data,
+  colorMap,
+}: {
+  data: PieRow[]
+  colorMap: Record<string, string>
+}) {
+  const safeData = Array.isArray(data) ? data : []
+  const isTwoColumn = safeData.length > 4
+
+  return (
+    <div
+      className="grid w-fit gap-x-8 gap-y-2 text-[12px]"
+      style={{
+        gridTemplateColumns: isTwoColumn ? "repeat(2, max-content)" : "max-content",
+      }}
+    >
+      {safeData.map((item) => (
+        <div key={item.name} className="flex items-center gap-2">
+          <div
+            className="h-2.5 w-2.5 rounded-full"
+            style={{ backgroundColor: colorMap[item.name] || "#D1D5DB" }}
+          />
+          <span style={{ color: "#6B6B6B" }}>{item.name}</span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -288,63 +342,104 @@ function PieChartCard({
   const safeData = Array.isArray(data) ? data : []
   const total = safeData.reduce((sum, row) => sum + row.value, 0)
 
+  const pieCx = "51%"
+  const pieCy = "50%"
+
   return (
-    <div className="w-full h-full">
-      <ChartContainer config={chartConfig} className="h-[300px] w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <ChartTooltip
-              content={
-                <ChartTooltipContent formatter={(value) => formatNumber(value)} />
-              }
-            />
+    <div className="grid h-full w-full grid-rows-[220px_12px_1fr]">
+      <div className="flex h-[220px] w-full items-center justify-center">
+        <div className="h-[220px] w-[220px]">
+          <ChartContainer config={chartConfig} className="h-full w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+              <ChartTooltip
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null
 
-            <Pie
-              data={safeData}
-              dataKey="value"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              innerRadius={52}
-              outerRadius={95}
-              paddingAngle={2}
-              stroke="none"
-            >
-              {safeData.map((entry, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={colorMap[entry.name] || "#D1D5DB"}
-                />
-              ))}
-            </Pie>
+                  const data = payload[0].payload
 
-            <text
-              x="50%"
-              y="46%"
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fill="#7A746B"
-              fontSize={11}
-              fontWeight={500}
-              letterSpacing="0.16em"
-            >
-              TOTAL
-            </text>
+                  return (
+                    <div
+                      className="rounded-[12px] border px-3 py-2 shadow-sm"
+                      style={{
+                        backgroundColor: "#FFFEFB",
+                        borderColor: "#E5DDD0",
+                      }}
+                    >
+                      <div
+                        className="text-sm font-semibold"
+                        style={{ color: theme.charcoal }}
+                      >
+                        {data.name}
+                      </div>
 
-            <text
-              x="50%"
-              y="55%"
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fill={theme.charcoal}
-              fontSize={22}
-              fontWeight={600}
-            >
-              {formatNumber(total)}
-            </text>
-          </PieChart>
-        </ResponsiveContainer>
-      </ChartContainer>
+                      <div
+                        className="mt-1 text-sm"
+                        style={{ color: "#7A746B" }}
+                      >
+                        {Math.round(Number(data.value) * 100)}%
+                      </div>
+                    </div>
+                  )
+                }}
+              />
+
+              <Pie
+                data={safeData}
+                dataKey="value"
+                nameKey="name"
+                cx={pieCx}
+                cy={pieCy}
+                innerRadius={52}
+                outerRadius={85}
+                paddingAngle={2}
+                stroke="none"
+              >
+                {safeData.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={colorMap[entry.name] || "#D1D5DB"}
+                  />
+                ))}
+              </Pie>
+
+              <text
+                x={pieCx}
+                y={pieCy}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="#7A746B"
+                fontSize={11}
+                fontWeight={500}
+                letterSpacing="0.16em"
+                dy={-10}
+              >
+                TOTAL
+              </text>
+
+              <text
+                x={pieCx}
+                y={pieCy}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill={theme.charcoal}
+                fontSize={22}
+                fontWeight={600}
+                dy={12}
+              >
+                {formatNumber(total)}
+              </text>
+            </PieChart>
+          </ResponsiveContainer>
+        </ChartContainer>
+        </div>
+      </div>
+
+      <div />
+
+      <div className="flex h-[88px] items-start justify-center pt-1">
+        <PieLegend data={safeData} colorMap={colorMap} />
+      </div>
     </div>
   )
 }
@@ -519,6 +614,8 @@ const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(nu
   const [velocityData, setVelocityData] = useState<MetricRow[]>([])
   const [podsData, setPodsData] = useState<MetricRow[]>([])
   const [skuPieData, setSkuPieData] = useState<PieRow[]>([])
+  const [channelPieData, setChannelPieData] = useState<PieRow[]>([])
+  const [chainTableData, setChainTableData] = useState<any[]>([])
 
 
   const filterConfigs = [
@@ -595,7 +692,9 @@ const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(nu
         buildMetricUrl("buyers", filters),
         buildMetricUrl("velocity", filters),
         buildMetricUrl("pods", filters),
-        buildMetricUrl("skus", filters)
+        buildMetricUrl("skus", filters),
+        buildMetricUrl("channels", filters),
+        buildMetricUrl("chain_table", filters)
       ]
 
       const responses = await Promise.all(
@@ -606,6 +705,7 @@ const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(nu
 
       const filterOptionData = data.slice(0, filterKeys.length)
       const metricData = data.slice(filterKeys.length)
+      const chainTableDataRaw = metricData[6]
 
     const nextFilterOptions: FilterState = {
       chain: Array.isArray(filterOptionData[filterKeys.indexOf("chain")])
@@ -645,6 +745,8 @@ const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(nu
       setVelocityData(metricData[2])
       setPodsData(metricData[3])
       setSkuPieData(metricData[4] as PieRow[])
+      setChannelPieData(metricData[5] as PieRow[])
+      setChainTableData(chainTableDataRaw)
     }
 
     loadData()
@@ -924,7 +1026,9 @@ const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(nu
             accentColor={theme.charcoal}
           />
         </div>
+
         <div className="grid grid-cols-1 gap-10 xl:grid-cols-3">
+
         <Card
           className="rounded-[28px] shadow-sm"
           style={{
@@ -956,7 +1060,7 @@ const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(nu
                 borderColor: "#EEE5D8",
               }}
             >
-              <div className="h-[300px]">
+              <div className="h-[340px]">
                 <PieChartCard
                   data={skuPieData}
                   colorMap={SKU_COLORS}
@@ -965,7 +1069,9 @@ const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(nu
             </div>
 
           </CardContent>
-        </Card><Card
+        </Card>
+
+        <Card
           className="rounded-[28px] shadow-sm"
           style={{
             backgroundColor: theme.surface,
@@ -978,13 +1084,13 @@ const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(nu
             <div className="flex items-center gap-3">
               <div
                 className="h-[3px] w-24 rounded-full"
-                style={{ backgroundColor: theme.charcoal + "CC" }}
+                style={{ backgroundColor: theme.blue + "CC" }}
               />
               <p
                 className="text-[16px] uppercase tracking-[0.18em] font-medium"
                 style={{ color: "#6B6B6B" }}
               >
-                SKU MIX
+                CHANNEL MIX
               </p>
             </div>
 
@@ -996,7 +1102,49 @@ const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(nu
                 borderColor: "#EEE5D8",
               }}
             >
-              <div className="h-[300px]">
+              <div className="h-[340px]">
+                <PieChartCard
+                  data={channelPieData}
+                  colorMap={CHANNEL_COLORS}
+                />
+              </div>
+            </div>
+
+          </CardContent>
+        </Card>
+
+        <Card
+          className="rounded-[28px] shadow-sm"
+          style={{
+            backgroundColor: theme.surface,
+            borderColor: theme.line,
+          }}
+        >
+          <CardContent className="pt-2 pb-4 px-6 space-y-6">
+
+            {/* Header line (same style as others) */}
+            <div className="flex items-center gap-3">
+              <div
+                className="h-[3px] w-24 rounded-full"
+                style={{ backgroundColor: theme.gold + "CC" }}
+              />
+              <p
+                className="text-[16px] uppercase tracking-[0.18em] font-medium"
+                style={{ color: "#6B6B6B" }}
+              >
+                STORE HEALTH
+              </p>
+            </div>
+
+            {/* Chart container */}
+            <div
+              className="rounded-[24px] border p-4"
+              style={{
+                backgroundColor: "#FCFAF6",
+                borderColor: "#EEE5D8",
+              }}
+            >
+              <div className="h-[340px]">
                 <PieChartCard
                   data={skuPieData}
                   colorMap={SKU_COLORS}
@@ -1006,7 +1154,175 @@ const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(nu
 
           </CardContent>
         </Card>
+
         </div>
+        <div className="mt-6 rounded-[28px] border border-black/10 bg-white/95 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
+          <div className="mb-4 flex items-center gap-3">
+            <div
+              className="h-[3px] w-24 rounded-full"
+              style={{ backgroundColor: theme.blue + "CC" }}
+            />
+            <p
+              className="text-[16px] uppercase tracking-[0.18em] font-medium"
+              style={{ color: "#6B6B6B" }}
+            >
+              CHAIN PERFORMANCE
+            </p>
+          </div>
+
+            <div className="overflow-hidden rounded-[20px] border border-black/10">
+              <div className="max-h-[420px] overflow-auto">
+                <Table>
+                  <TableHeader   
+                    className="sticky top-0 z-10 [&_th]:text-white [&_th]:text-[12px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.14em]"
+                    style={{ backgroundColor: theme.blue }}>
+                    <TableRow className="border-b border-black/10">
+                      <TableHead className="h-12 px-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                        Chain
+                      </TableHead>
+                      <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                        Revenue
+                      </TableHead>
+                      <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                        Units
+                      </TableHead>
+                      <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                        Buying Stores
+                      </TableHead>
+                      <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                        1M Growth
+                      </TableHead>
+                      <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                        3M Growth
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+
+                  <TableBody>
+                    {chainTableData.length > 0 ? (
+                      chainTableData.map((row, index) => (
+                        <TableRow
+                          key={index}
+                          className="border-b border-black/5 transition-colors hover:bg-neutral-50"
+                        >
+                          <TableCell className="px-4 py-3 text-sm font-medium text-neutral-900">
+                            {row.chain ?? "—"}
+                          </TableCell>
+
+                          <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
+                            {row.revenue != null
+                              ? `$${Number(row.revenue).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                              : "—"}
+                          </TableCell>
+
+                          <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
+                            {row.units != null
+                              ? Number(row.units).toLocaleString()
+                              : "—"}
+                          </TableCell>
+
+                          <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
+                            {row.buying_stores != null
+                              ? Number(row.buying_stores).toLocaleString()
+                              : "—"}
+                          </TableCell>
+
+                          <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
+                            {row.units_l1m_pct != null ? (
+                              <div className="inline-flex items-center justify-end gap-1">
+                                <span
+                                  className="text-xs"
+                                  style={{
+                                    color:
+                                      Number(row.units_l1m_pct) > 0
+                                        ? "#16A34A"
+                                        : Number(row.units_l1m_pct) < 0
+                                        ? "#DC2626"
+                                        : "#737373",
+                                  }}
+                                >
+                                  {Number(row.units_l1m_pct) > 0
+                                    ? "↑"
+                                    : Number(row.units_l1m_pct) < 0
+                                    ? "↓"
+                                    : "•"}
+                                </span>
+
+                                <span
+                                  style={{
+                                    color:
+                                      Number(row.units_l1m_pct) > 0
+                                        ? "#16A34A"
+                                        : Number(row.units_l1m_pct) < 0
+                                        ? "#DC2626"
+                                        : "#737373",
+                                  }}
+                                >
+                                  {Math.round(Number(row.units_l1m_pct) * 100)}%
+                                </span>
+                              </div>
+                            ) : (
+                              "—"
+                            )}
+                          </TableCell>
+
+                          <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
+                            {row.units_l3m_pct != null ? (
+                              <div className="inline-flex items-center justify-end gap-1">
+                                <span
+                                  className="text-xs"
+                                  style={{
+                                    color:
+                                      Number(row.units_l3m_pct) > 0
+                                        ? "#16A34A"
+                                        : Number(row.units_l3m_pct) < 0
+                                        ? "#DC2626"
+                                        : "#737373",
+                                  }}
+                                >
+                                  {Number(row.units_l3m_pct) > 0
+                                    ? "↑"
+                                    : Number(row.units_l3m_pct) < 0
+                                    ? "↓"
+                                    : "•"}
+                                </span>
+
+                                <span
+                                  style={{
+                                    color:
+                                      Number(row.units_l3m_pct) > 0
+                                        ? "#16A34A"
+                                        : Number(row.units_l3m_pct) < 0
+                                        ? "#DC2626"
+                                        : "#737373",
+                                  }}
+                                >
+                                  {Math.round(Number(row.units_l3m_pct) * 100)}%
+                                </span>
+                              </div>
+                            ) : (
+                              "—"
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell
+                          colSpan={6}
+                          className="px-4 py-10 text-center text-sm text-neutral-500"
+                        >
+                          No data matches the selected filters.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </div>
+        
+
 
       </div>
 
