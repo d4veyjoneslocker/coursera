@@ -120,7 +120,7 @@ def monthly_summary(df, df_clone):
 
 def sku_mix(df):
     df = (
-        df.groupby("sku").agg(
+        df.groupby(["sku"] + monthly_filter).agg(
             units = ("units", "sum"),
             revenue = ("revenue", "sum"),
             buying_stores = ("coded_customer", "nunique"),
@@ -140,6 +140,7 @@ def sku_mix(df):
             "buying_stores",
             "share",
         ]
+        + monthly_filter
     ]
 
     return df
@@ -268,22 +269,3 @@ def chain_table(df, df_clone):
 
 
     return chain_table
-
-    
-
-
-
-
-
-
-
-
-
-# distinct count month
-# skus selling
-# l1m growth
-# l3m growth
-# growth vs py
-# share of brand
-# buying stores (distinct count)
-# count (POD count)

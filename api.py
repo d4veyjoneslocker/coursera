@@ -1,5 +1,6 @@
 
 from fastapi import FastAPI
+import numpy as np
 import pandas as pd
 from serving.filter_table import filter_table
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +12,8 @@ from tables import combined_w_features
 from metrics.metrics import calculate_monthly_active_pods
 from metrics.metrics import calculate_vpo
 from fastapi import Query
+from metrics.core_metrics import chain_table
+from metrics.store_level_metrics import calculate_store_health_status
 
 
 app = FastAPI()
@@ -24,6 +27,7 @@ app.add_middleware(
 )
 
 monthly_summary = pd.read_parquet("monthly_summary.parquet")
+
 
 def generate_filter_api(df, filter_name):
     column_name = filter_name
@@ -44,20 +48,37 @@ def get_filters(
     chain: list[str] | None = Query(None),
     channel: list[str] | None = Query(None),
     year: list[str] | None = Query(None),
-    brand: list[str] | None = Query(None),
-    flavor: list[str] | None = Query(None),
-    pack_size: list[str] | None = Query(None),
-    segment: list[str] | None = Query(None),
+    dc: list[str] | None = Query(None),
+    distributor: list[str] | None = Query(None),
+    month: list[str] | None = Query(None),
+    state: list[str] | None = Query(None),
     sku: list[str] | None = Query(None),
 ):
     return {
         "chain": chain,
         "channel": channel,
         "year": year,
-        "brand": brand,
-        "flavor": flavor,
-        "pack_size": pack_size,
-        "segment": segment,
+        "dc": dc,
+        "distributor": distributor,
+        "month": month,
+        "state": state,
+        "sku": sku,
+    }
+
+def get_non_time_filters(
+    chain: list[str] | None = Query(None),
+    channel: list[str] | None = Query(None),
+    dc: list[str] | None = Query(None),
+    distributor: list[str] | None = Query(None),
+    state: list[str] | None = Query(None),
+    sku: list[str] | None = Query(None),
+):
+    return {
+        "chain": chain,
+        "channel": channel,
+        "dc": dc,
+        "distributor": distributor,
+        "state": state,
         "sku": sku,
     }
 
@@ -186,9 +207,10 @@ def pods(filters: dict = Depends(get_filters)):
  
     result = result[["month_year","value"]]
 
+
     return result.to_dict(orient="records")
 
-# SKU bar graph
+# SKU pie chart
 
 @app.get("/skus")
 def skus(filters: dict = Depends(get_filters)):
@@ -200,7 +222,7 @@ def skus(filters: dict = Depends(get_filters)):
         .sort_values("units", ascending=False)
     )
 
-    total_units = df["units"].sum()
+    total_units = result["units"].sum()
 
     result["value"] = result["units"]/total_units
     result["name"] = result["sku"]
@@ -208,6 +230,76 @@ def skus(filters: dict = Depends(get_filters)):
     result = result[["name","value"]]
 
     return result.to_dict(orient="records")
+
+# Channel pie chart
+
+@app.get("/channels")
+def channels(filters: dict = Depends(get_filters)):
+    df = filter_table(combined_df, **filters)
+
+    result = (
+        df.groupby("channel", as_index=False)
+        .agg(units=("units", "sum"))
+        .sort_values("units", ascending=False)
+    )
+
+    total_units = result["units"].sum()
+
+    result["value"] = result["units"]/total_units
+    result["name"] = result["channel"]
+    
+    result = result[["name","value"]]
+
+    return result.to_dict(orient="records")
+
+@app.get("/chain_table")
+def chain_table_api(filters: dict = Depends(get_filters)):
+    df = filter_table(combined_df, **filters)
+
+    no_time_filters = filters.copy()
+    no_time_filters.pop("year", None)
+    no_time_filters.pop("month", None)
+
+    df_clone = filter_table(combined_df, **no_time_filters)
+
+    result = chain_table(df, df_clone)
+
+    result = result.replace([np.inf, -np.inf], np.nan)
+    result = result.astype(object).where(pd.notnull(result), None)
+    result = result.sort_values("units", ascending=False)
+
+    return result.to_dict(orient="records")
+
+
+@app.get("/store_status")
+def store_status(filters: dict = Depends(get_non_time_filters)):
+    df = filter_table(combined_w_features, **filters)
+
+    result = calculate_store_health_status(df)
+    
+    result = result.groupby(
+        ["coded_customer",
+        "first_month_purchased",
+        "second_to_last_month_purchased",
+        "last_month_purchased",
+        "status"], dropna=False
+        ).agg(
+            units = ("units", "sum"),
+            revenue = ("revenue", "sum")
+        ).reset_index().sort_values("units", ascending=False)
+
+    result["first_month_purchased"] = result["first_month_purchased"].astype(str)
+    result["second_to_last_month_purchased"] = result["second_to_last_month_purchased"].astype(str)
+    result["last_month_purchased"] = result["last_month_purchased"].astype(str)
+
+    result = result.replace({np.nan: None}) 
+
+    print (len(result))
+
+    return result.to_dict(orient="records")
+
+
+    
 
 
 # filter endpoints

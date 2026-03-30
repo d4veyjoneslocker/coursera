@@ -11,6 +11,16 @@ monthly_filter = [
     "month",
 ]
 
+non_time_filter = [
+    "chain",
+    "state",
+    "channel",
+    "sku",
+    "distributor",
+    "dc",
+]
+
+
 class Filters(BaseModel):
     chain: list[str] | None = None
     state: list[str] | None = None

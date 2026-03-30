@@ -16,6 +16,8 @@ def filter_table(df, **filters):
             df = df[df[col].astype(str) == str(val)]
     return df
 
+
+
 def select_metric(df, metric):
     return df[["month_year", metric]]
 
