@@ -14,6 +14,8 @@ from metrics.metrics import calculate_vpo
 from fastapi import Query
 from metrics.core_metrics import chain_table
 from metrics.store_level_metrics import calculate_store_health_status
+from metrics.store_level_metrics import calculate_reorder_stats
+from metrics.store_level_metrics import calculate_store_vpo
 
 
 app = FastAPI()
@@ -298,8 +300,86 @@ def store_status(filters: dict = Depends(get_non_time_filters)):
 
     return result.to_dict(orient="records")
 
+@app.get("/store_level_reorder")
+def store_level_reorder(filters: dict = Depends(get_non_time_filters)):
+    df = filter_table(combined_w_features, **filters)
+    
+    result = calculate_reorder_stats(df)
+    vpo_result = calculate_store_vpo(df)
+    health_result = calculate_store_health_status(df)
+
+    result = result.merge(
+        vpo_result[["coded_customer", "vpo", "active_pods", "volume"]],
+        on="coded_customer",
+        how="left"
+    )
+
+    result = result.merge(
+        health_result[["coded_customer","first_month_purchased",
+        "second_to_last_month_purchased",
+        "last_month_purchased",
+        "status"]],
+        on="coded_customer",
+        how="left"
+    )
+
+    result = result.astype(object).where(pd.notna(result), None)
+    
+    result["first_month_purchased"] = result["first_month_purchased"].astype(str)
+    result["second_to_last_month_purchased"] = result["second_to_last_month_purchased"].astype(str)
+    result["last_month_purchased"] = result["last_month_purchased"].astype(str)
+
+    records = result.to_dict(orient="records")
+
+    for row in records:
+        for key, value in row.items():
+            if pd.isna(value):
+                row[key] = None
+
+    return records
+
+@app.get("/reorder_stats")
+def reorder_stats(filters: dict = Depends(get_non_time_filters)):
+    df = filter_table(combined_w_features, **filters)
+    
+    result = calculate_reorder_stats(df)
+    vpo_result = calculate_store_vpo(df)
+    health_result = calculate_store_health_status(df)
+
+    result = result.merge(
+        vpo_result[["coded_customer", "vpo", "active_pods", "volume"]],
+        on="coded_customer",
+        how="left"
+    )
+
+    result = result.merge(
+        health_result[["coded_customer","first_month_purchased",
+        "second_to_last_month_purchased",
+        "last_month_purchased",
+        "status"]],
+        on="coded_customer",
+        how="left"
+    )
+
+    healthy_count = (result["status"] == "Healthy").sum()
+    struggling_count = (result["status"] == "Struggling").sum()
+    revived_count = (result["status"] == "Revived").sum()
+    inactive_count = (result["status"] == "Inactive").sum()
+    new_count = (result["status"] == "New").sum()
+
+    return {
+    "Healthy": int(healthy_count),
+    "Struggling": int(struggling_count),
+    "Revived": int(revived_count),
+    "Inactive": int(inactive_count),
+    "New": int(new_count)
+    }
+
+
+
 
     
+
 
 
 # filter endpoints

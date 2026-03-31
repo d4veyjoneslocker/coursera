@@ -1,12 +1,15 @@
 import pandas as pd
 import numpy as np
 from filters.filters import non_time_filter
+from metrics.features import add_month_features
 
 
 def calculate_store_health_status(df):
+
+    current_month = df["month_year"].max()
+
     table = df.groupby(
         ["coded_customer"] + 
-        non_time_filter + 
         ["first_month_purchased",
         "second_to_last_month_purchased",
         "last_month_purchased"], dropna=False
@@ -15,7 +18,6 @@ def calculate_store_health_status(df):
             revenue = ("revenue", "sum")
         ).reset_index()
     
-    current_month = df["month_year"].max()
 
     table["status"] = ""
 
@@ -39,7 +41,6 @@ def calculate_store_health_status(df):
 
     table = table[
         ["coded_customer"] + 
-        non_time_filter + 
         ["first_month_purchased",
         "second_to_last_month_purchased",
         "last_month_purchased",
@@ -50,4 +51,38 @@ def calculate_store_health_status(df):
 
     return table
 
-#def calculate_reorder_rate(df):
+
+def calculate_reorder_stats(df):
+
+
+    df = df.groupby(["coded_customer","month_year"],as_index=False
+    ).agg(
+        units = ("units", "sum"),
+        revenue = ("revenue", "sum"),
+    ).reset_index().sort_values("month_year", ascending=False)
+
+    df_w_features = add_month_features(df)
+
+    table = df_w_features.groupby(
+        ["coded_customer"], dropna=False
+        ).agg(
+            units = ("units", "sum"),
+            revenue = ("revenue", "sum"),
+            reorders =("reorder_flag","sum")
+        ).reset_index().sort_values("reorders",ascending=False)
+    
+    return table
+
+def calculate_store_vpo(df):
+
+    result = (
+        df.groupby("coded_customer", dropna=False)
+            .agg(
+                active_pods = ("count", "sum"),
+                volume = ("units", "sum")
+            ).reset_index()
+        )
+
+    result["vpo"] = result["volume"]/result["active_pods"]/4
+
+    return result[["coded_customer", "vpo", "active_pods", "volume"]]
