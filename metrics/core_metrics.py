@@ -18,7 +18,7 @@ def get_chain_month(chain_table_monthly, month):
 
 def monthly_summary(df, df_clone):
     monthly = (
-        df.groupby(["month_year"] + monthly_filter).agg(
+        df.groupby(["month_year"]).agg(
             units = ("units", "sum"),
             revenue = ("revenue", "sum"),
             buying_stores = ("coded_customer", "nunique"),
@@ -26,13 +26,13 @@ def monthly_summary(df, df_clone):
             pod_purchases = ("pod_helper", "nunique") # THIS ISNT QUITE RIGHT BC IT SHLD BE ROLLING?
         )
         .reset_index()
-        .sort_values(["month_year"] + monthly_filter)
+        .sort_values(["month_year"])
     )
     
     # The comparison table is identical to the base table, except it doesn't respond to time filters!
 
     monthly_clone = (
-        df_clone.groupby(["month_year"] + monthly_filter).agg(
+        df_clone.groupby(["month_year"]).agg(
             units = ("units", "sum"),
             revenue = ("revenue", "sum"),
             pod_purchases = ("pod_helper", "nunique"),
@@ -40,7 +40,7 @@ def monthly_summary(df, df_clone):
             new_pods = ("first_pod_flag", "sum")
         )
         .reset_index()
-        .sort_values(["month_year"] + monthly_filter)
+        .sort_values(["month_year"])
     )
 
     monthly_clone["units_l1m"] = monthly_clone["units"].shift(1)
@@ -69,8 +69,8 @@ def monthly_summary(df, df_clone):
             "revenue_l3m",
             "units_py",
             "revenue_py",
-            "active_pods"] + monthly_filter],
-        on = ["month_year"] + monthly_filter,
+            "active_pods"]],
+        on = ["month_year"],
         how = "left"
     )
 
@@ -94,11 +94,7 @@ def monthly_summary(df, df_clone):
             "units",
             "revenue",
             "buying_stores",
-            "active_pods",]
-            +
-            monthly_filter
-            +
-        [
+            "active_pods",
             "vpo",
             "units_l1m",
             "units_l1m_pct",
@@ -113,8 +109,9 @@ def monthly_summary(df, df_clone):
             "units_py_pct",
             "revenue_py_pct",
         ]
+    ].sort_values(["month_year"])
 
-    ]
+    monthly["month_year"] = monthly["month_year"].astype(str)
 
     return monthly
 

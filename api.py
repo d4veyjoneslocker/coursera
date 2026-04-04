@@ -16,6 +16,8 @@ from metrics.core_metrics import chain_table
 from metrics.store_level_metrics import calculate_store_health_status
 from metrics.store_level_metrics import calculate_reorder_stats
 from metrics.store_level_metrics import calculate_store_vpo
+from metrics.core_metrics import monthly_summary
+from metrics.kpis import kpi_data
 
 
 app = FastAPI()
@@ -28,7 +30,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-monthly_summary = pd.read_parquet("monthly_summary.parquet")
 
 
 def generate_filter_api(df, filter_name):
@@ -233,6 +234,24 @@ def skus(filters: dict = Depends(get_filters)):
 
     return result.to_dict(orient="records")
 
+# KPI Cards
+
+@app.get("/kpis")
+def kpis(filters: dict = Depends(get_filters)):
+    df = filter_table(combined_w_features, **filters)
+
+    no_time_filters = filters.copy()
+    no_time_filters.pop("year", None)
+    no_time_filters.pop("month", None)
+
+    df_clone = filter_table(combined_df, **no_time_filters)
+
+    result = monthly_summary(df, df_clone)
+
+    result = kpi_data(result)
+
+    return result
+
 # Channel pie chart
 
 @app.get("/channels")
@@ -374,8 +393,6 @@ def reorder_stats(filters: dict = Depends(get_non_time_filters)):
     "Inactive": int(inactive_count),
     "New": int(new_count)
     }
-
-
 
 
     
