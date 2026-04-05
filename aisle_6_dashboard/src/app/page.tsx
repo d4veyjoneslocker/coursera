@@ -61,11 +61,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Badge } from "@/components/ui/badge"
-import { useMemo} from "react"
+import FilterBar, { FilterKey } from "@/components/ui/FilterBar"
+import DashboardHeader from "@/components/ui/DashboardHeader"
 
 const theme = {
   blue: "#92B9DC",
@@ -166,7 +163,22 @@ function formatMonth(month: string) {
   })
 }
 
+function formatWholeNumber(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 0,
+  }).format(value)
+}
 
+function formatPercent(value: number) {
+  const pct = Math.abs(value * 100)
+
+  if (pct >= 1000) {
+    const short = pct / 1000
+    return short >= 10 ? `${Math.round(short)}K` : `${short.toFixed(1)}K`
+  }
+
+  return Math.round(pct).toString()
+}
 
 /*
 Formats numbers into dashboard style
@@ -218,27 +230,124 @@ Used above each chart
 function KpiCard({
   title,
   value,
+  sideLabel,
+  sideValue,
 }: {
   title: string
   value: string
+  sideLabel?: string
+  sideValue?: number
 }) {
+  const isPositive = sideValue !== undefined && sideValue > 0
+  const isNegative = sideValue !== undefined && sideValue < 0
+
+  const chipStyles =
+    isPositive
+      ? {
+          bg: "#EEF6F0",
+          border: "#D7E8DB",
+          text: "#5F7F68",
+          arrowBg: "#E4F0E7",
+        }
+      : isNegative
+      ? {
+          bg: "#FBF0F0",
+          border: "#EEDADA",
+          text: "#A06161",
+          arrowBg: "#F6E6E6",
+        }
+      : {
+          bg: "#F4F1EC",
+          border: "#E7DED2",
+          text: "#7A746B",
+          arrowBg: "#ECE6DD",
+        }
+
   return (
     <div
-      className="rounded-[22px] border p-4"
+      className="rounded-[22px] border px-4 pt-5 pb-4"
       style={{
         backgroundColor: "#FCFAF6",
         borderColor: "#EEE5D8",
       }}
     >
-      <p
-        className="text-xs uppercase tracking-[0.12em]"
-        style={{ color: theme.brown }}
-      >
-        {title}
-      </p>
+      {/* Top row: title + pill */}
+      <div className="flex items-start justify-between gap-3">
+        <p
+          className="text-xs uppercase tracking-[0.12em]"
+          style={{ color: theme.brown }}
+        >
+          {title}
+        </p>
 
+        {sideValue !== undefined ? (
+          <div className="flex flex-col items-end gap-1">
+            <div
+              className="inline-flex items-center gap-1.5 rounded-full border px-2 py-1"
+              style={{
+                backgroundColor: chipStyles.bg,
+                borderColor: chipStyles.border,
+                color: chipStyles.text,
+              }}
+            >
+              <span
+                className="flex items-center justify-center rounded-full"
+                style={{ backgroundColor: chipStyles.arrowBg }}
+              >
+                {isPositive ? (
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <path
+                      d="M2 8L8 2M8 2H3.8M8 2V6.2"
+                      stroke="currentColor"
+                      strokeWidth="1.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                ) : isNegative ? (
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <path
+                      d="M2 2L8 8M8 8H3.8M8 8V3.8"
+                      stroke="currentColor"
+                      strokeWidth="1.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                ) : (
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <path
+                      d="M2 5H8"
+                      stroke="currentColor"
+                      strokeWidth="1.2"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                )}
+              </span>
+
+              <span className="text-[12px] font-semibold leading-none">
+                {formatPercent(sideValue)}%
+              </span>
+            </div>
+
+            {sideLabel && (
+              <span
+                className="text-[10px] uppercase tracking-[0.12em]"
+                style={{ color: theme.brown, opacity: 0.72 }}
+              >
+                {sideLabel}
+              </span>
+            )}
+          </div>
+        ) : (
+          <div className="w-[92px]" />
+        )}
+      </div>
+
+      {/* Value row */}
       <div
-        className="mt-2 text-3xl font-semibold"
+        className="mt-3 text-[28px] font-semibold leading-none tracking-[-0.01em]"
         style={{ color: theme.charcoal }}
       >
         {value}
@@ -281,7 +390,15 @@ function BarChartCard({
           />
           <ChartTooltip
             content={
-              <ChartTooltipContent formatter={(value) => formatNumber(value)} />
+              <ChartTooltipContent
+                labelFormatter={(label) => {
+                  const date = new Date(label)
+                  return date.toLocaleString("en-US", {
+                    month: "long",
+                    year: "numeric",
+                  })
+                }}
+              />
             }
           />
           <Bar
@@ -291,8 +408,8 @@ function BarChartCard({
             label={{
               position: "top",
               formatter: formatNumber,
-              fontSize: 14,
-              fontWeight: 800,
+              fontSize: 16,
+              fontWeight: 600,
               fill: accentColor,
             }}
           />
@@ -310,7 +427,7 @@ function PieLegend({
   colorMap: Record<string, string>
 }) {
   const safeData = Array.isArray(data) ? data : []
-  const isTwoColumn = safeData.length > 4
+  const isTwoColumn = safeData.length > 10
 
   return (
     <div
@@ -346,7 +463,7 @@ function PieChartCard({
   const pieCy = "50%"
 
   return (
-    <div className="grid h-full w-full grid-rows-[220px_12px_1fr]">
+    <div className="grid w-full grid-cols-[2fr_1fr] items-center gap-x-0">
       <div className="flex h-[220px] w-full items-center justify-center">
         <div className="h-[220px] w-[220px]">
           <ChartContainer config={chartConfig} className="h-full w-full">
@@ -435,9 +552,8 @@ function PieChartCard({
         </div>
       </div>
 
-      <div />
 
-      <div className="flex h-[88px] items-start justify-center pt-1">
+      <div className="flex h-full items-center justify-start">
         <PieLegend data={safeData} colorMap={colorMap} />
       </div>
     </div>
@@ -480,21 +596,22 @@ function ChartSection({
   sectionLabel,
   chartTitle,
   data,
-  kpi1Title,
-  kpi1Value,
-  kpi2Title,
-  kpi2Value,
+  kpis,
   accentColor,
 }: {
   sectionLabel: string
   chartTitle: string
   data: MetricRow[]
-  kpi1Title: string
-  kpi1Value: string
-  kpi2Title: string
-  kpi2Value: string
+  kpis: {
+    key: string
+    title: string
+    value: number
+    sideValue?: number | null
+    sideLabel?: string | null
+  }[]
   accentColor: string
 }) {
+  console.log("kpis", kpis)
   return (
     <Card
       className="rounded-[28px] shadow-sm"
@@ -504,11 +621,10 @@ function ChartSection({
       }}
     >
       <CardContent className="pt-2 pb-4 px-6 space-y-6">
-          
         <div className="flex items-center gap-3">
           <div
             className="h-[3px] w-24 rounded-full"
-            style={{ backgroundColor: accentColor + "CC"}}
+            style={{ backgroundColor: accentColor + "CC" }}
           />
 
           <p
@@ -519,9 +635,16 @@ function ChartSection({
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <KpiCard title={kpi1Title} value={kpi1Value} />
-          <KpiCard title={kpi2Title} value={kpi2Value} />
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          {Array.isArray(kpis) && kpis.map((kpi) => (
+            <KpiCard
+              key={kpi.key}
+              title={kpi.title}
+              value={formatNumber(kpi.value)}
+              sideValue={kpi.sideValue ?? undefined}
+              sideLabel={kpi.sideLabel ?? undefined}
+            />
+          ))}
         </div>
 
         <div
@@ -570,41 +693,15 @@ export default function Home() {
     month: [],
   })
 
-const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(null)
+    const [visibleFilters, setVisibleFilters] = useState<FilterKey[]>([
+    "chain",
+    "channel",
+    "sku",
+    "distributor",
+    "year"
+  ])
 
-  function toggleFilterValue(filterKey: keyof typeof filters, value: string) {
-  setFilters((prev) => {
-    const currentValues = prev[filterKey]
-    const alreadySelected = currentValues.includes(value)
 
-    return {
-      ...prev,
-      [filterKey]: alreadySelected
-        ? currentValues.filter((v) => v !== value)
-        : [...currentValues, value],
-    }
-  })
-  }
-
-  function clearFilter(filterKey: keyof typeof filters) {
-    setFilters((prev) => ({
-      ...prev,
-      [filterKey]: [],
-    }))
-  }
-
-  function clearAllFilters() {
-    setFilters({
-      chain: [],
-      channel: [],
-      sku: [],
-      distributor: [],
-      dc: [],
-      state: [],
-      year: [],
-      month: [],
-    })
-  }
 
   /*
   DATA STATES
@@ -616,60 +713,13 @@ const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(nu
   const [skuPieData, setSkuPieData] = useState<PieRow[]>([])
   const [channelPieData, setChannelPieData] = useState<PieRow[]>([])
   const [chainTableData, setChainTableData] = useState<any[]>([])
+  const [unitsKpis, setUnitsKpis] = useState<any[]>([])
+  const [buyersKpis, setBuyersKpis] = useState<any[]>([])
+  const [velocityKpis, setVelocityKpis] = useState<any[]>([])
+  const [podKpis, setPodKpis] = useState<any[]>([])
 
 
-  const filterConfigs = [
-    {
-      key: "chain",
-      label: "Retailer",
-      options: filterOptions.chain,
-      accent: theme.blue,
-    },
-    {
-      key: "channel",
-      label: "Channel",
-      options: filterOptions.channel,
-      accent: theme.gold,
-    },
-    {
-      key: "year",
-      label: "Period",
-      options: filterOptions.year,
-      accent: theme.brown,
-    },
-    {
-      key: "sku",
-      label: "SKU",
-      options: filterOptions.sku,
-      accent: theme.charcoal,
-    },
-  ] as const
-
-  const contextItems = [
-  {
-    key: "chain",
-    label: "Retailer",
-    value: filters.chain.length ? filters.chain.join(", ") : "All Retailers",
-  },
-  {
-    key: "channel",
-    label: "Channel",
-    value: filters.channel.length ? filters.channel.join(", ") : "All Channels",
-  },
-  {
-    key: "year",
-    label: "Year",
-    value: filters.year.length ? filters.year.join(", ") : "All Time",
-  },
-  {
-    key: "sku",
-    label: "SKU",
-    value: filters.sku.length ? filters.sku.join(", ") : "All SKUs",
-  },
-  ] as const
-
-  const activeConfig = filterConfigs.find((f) => f.key === activeFilter) ?? null
-
+  
   /*
   FETCH DATA
 
@@ -706,6 +756,16 @@ const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(nu
       const filterOptionData = data.slice(0, filterKeys.length)
       const metricData = data.slice(filterKeys.length)
       const chainTableDataRaw = metricData[6]
+
+      const kpiRes = await fetch(`http://127.0.0.1:8000/kpis${queryString ? `?${queryString}` : ""}`)
+      const kpiData = await kpiRes.json()
+
+      console.log("KPI URL:", kpiRes)
+
+      setUnitsKpis(kpiData.units_kpis ?? [])
+      setBuyersKpis(kpiData.buyers_kpis ?? [])
+      setVelocityKpis(kpiData.velocity_kpis ?? [])
+      setPodKpis(kpiData.pod_kpis ?? [])
 
     const nextFilterOptions: FilterState = {
       chain: Array.isArray(filterOptionData[filterKeys.indexOf("chain")])
@@ -771,210 +831,41 @@ const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(nu
             style={{ backgroundColor: theme.bg }}>
 
       <div className="mx-auto max-w-7xl space-y-8">
+        <DashboardHeader
+          brandName="Smearcase"
+          subtitle="National Retail Sales"
+          logoSrc="/smearcase_vanilla.png"
+          lastUpdated="Mar 2026"
+        />
 
+        <FilterBar
+          filters={filters}
+          setFilters={setFilters}
+          filterOptions={filterOptions}
+          availableFilters={[
+            "chain",
+            "channel",
+            "sku",
+            "distributor",
+            "dc",
+            "state",
+            "year",
+            "month",
+          ]}
+          visibleFilters={visibleFilters}
+          setVisibleFilters={setVisibleFilters}
+          filterLabels={{
+            chain: "Retailer",
+            channel: "Channel",
+            sku: "SKU",
+            distributor: "Distributor",
+            dc: "DC",
+            state: "State",
+            year: "Year",
+            month: "Month",
+          }}
+        />
 
-        {/* HEADER */}
-
-        <div className="flex items-center justify-between">
-
-
-          {/* FILTER */}
-
-          <div
-            className="relative rounded-[28px] border px-6 py-6 shadow-[0_10px_30px_rgba(52,51,50,0.05)]"
-            style={{
-              backgroundColor: theme.surface,
-              borderColor: theme.line,
-            }}
-          >
-            <div className="flex items-start gap-6">
-              <div className="space-y-3">
-                <p
-                  className="text-xs uppercase tracking-[0.2em]"
-                  style={{ color: theme.brown }}
-                >
-                  Viewing
-                </p>
-
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[28px] font-medium tracking-tight">
-                  {contextItems.map((item, i) => {
-                    const accent =
-                        item.key === "channel"
-                          ? theme.gold
-                          : item.key === "sku"
-                          ? theme.charcoal
-                          : item.key === "year"
-                          ? theme.brown
-                          : item.key === "chain"
-                          ? theme.blue
-                          : theme.blue
-
-                    return (
-                      <div key={item.key} className="flex items-center gap-3">
-                        <button
-                          className="group relative w-[220px] truncate pb-1 text-left align-top transition"                          style={{ color: theme.charcoal }}
-                          onClick={() =>
-                            setActiveFilter((prev) =>
-                              prev === item.key ? null : item.key
-                            )
-                          }
-                          title={item.value}
-                        >
-                          {item.value}
-                          <span
-                            className="absolute inset-x-0 bottom-0 h-[2px] rounded-full opacity-80"
-                            style={{ backgroundColor: accent }}
-                          />
-                        </button>
-
-                        {i < contextItems.length - 1 && (
-                          <span className="text-xl" style={{ color: "#B8AB97" }}>
-                            •
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-
-                <div className="flex flex-wrap gap-2 pt-1">
-                  <button
-                    className="rounded-full border px-3 py-1.5 text-xs font-medium"
-                    style={{
-                      borderColor: "#D8CFBF",
-                      color: theme.brown,
-                      backgroundColor: "#FAF7F1",
-                    }}
-                    onClick={() => setActiveFilter("chain")}
-                  >
-                    Change filters
-                  </button>
-
-                  <button
-                    className="rounded-full px-3 py-1.5 text-xs font-medium"
-                    style={{ color: theme.brown }}
-                    onClick={clearAllFilters}
-                  >
-                    Reset view
-                  </button>
-                </div>
-              </div>
-            </div>
-            {activeConfig && (
-  <div
-    className={`absolute left-6 top-[calc(100%+12px)] z-30 w-[360px] rounded-[28px] border p-5 shadow-[0_18px_40px_rgba(52,51,50,0.12)] transition-all duration-200 ease-out origin-top-left ${
-      activeConfig
-        ? "translate-y-0 scale-100 opacity-100"
-        : "pointer-events-none -translate-y-1 scale-[0.98] opacity-0"
-    }`}
-    style={{
-      backgroundColor: theme.surface,
-      borderColor: theme.line,
-    }}
-  >
-    <div className="flex items-center justify-between">
-      <div>
-        <p
-          className="text-xs uppercase tracking-[0.18em]"
-          style={{ color: theme.brown }}
-        >
-          Change {activeConfig.label.toLowerCase()}
-        </p>
-        <h2
-          className="mt-1 text-xl font-semibold"
-          style={{ color: theme.charcoal }}
-        >
-          {activeConfig.label} selector
-        </h2>
-      </div>
-
-      <button
-        className="rounded-full px-2.5 py-1 text-xs font-medium"
-        style={{
-          backgroundColor: theme.chip,
-          color: theme.charcoal,
-        }}
-        onClick={() => setActiveFilter(null)}
-      >
-        close
-      </button>
-    </div>
-
-    <input
-      readOnly
-      placeholder={`Search ${activeConfig.label.toLowerCase()}...`}
-      className="mt-4 w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-      style={{
-        borderColor: "#DDD4C6",
-        backgroundColor: "#FFFEFB",
-        color: theme.charcoal,
-      }}
-    />
-
-        <div className="mt-4 max-h-[320px] space-y-2 overflow-y-auto pr-1">
-          {(Array.isArray(activeConfig.options) ? activeConfig.options : []).map((item) => {
-            const isSelected = filters[activeConfig.key].includes(item)
-
-            return (
-              <button
-                key={item}
-                className="flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-left text-sm transition"
-                style={{
-                  borderColor: isSelected ? "#CFE0EE" : "#EEE6DA",
-                  backgroundColor: isSelected ? theme.chip : "#FFFEFB",
-                  color: theme.charcoal,
-                }}
-                onClick={() => toggleFilterValue(activeConfig.key, item)}
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <div
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold"
-                    style={{
-                      borderColor: isSelected ? activeConfig.accent : "#CFC3B1",
-                      backgroundColor: isSelected ? activeConfig.accent : "transparent",
-                      color: isSelected ? "white" : "transparent",
-                    }}
-                  >
-                    ✓
-                  </div>
-
-                  <span className="truncate">{item}</span>
-                </div>
-
-                {isSelected && (
-                  <span
-                    className="ml-3 shrink-0 text-xs font-medium"
-                    style={{ color: theme.brown }}
-                  >
-                    selected
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="mt-4 flex gap-3">
-          <button
-            className="text-sm font-medium"
-            style={{ color: activeConfig.accent }}
-            onClick={() => clearFilter(activeConfig.key)}
-          >
-            Clear
-          </button>
-
-          <button
-            className="text-sm font-medium"
-            style={{ color: theme.brown }}
-            onClick={() => setActiveFilter(null)}
-          >
-            Done
-          </button>
-        </div>
-      </div>
-    )}
-          </div>
-        </div>
 
 
 
@@ -986,48 +877,36 @@ const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(nu
             sectionLabel="Sales"
             chartTitle="Units"
             data={unitsData}
-            kpi1Title="Total Units"
-            kpi1Value={formatNumber(unitsStats.total)}
-            kpi2Title="Latest Month"
-            kpi2Value={formatNumber(unitsStats.latest)}
+            kpis={unitsKpis}
             accentColor={theme.blue}
           />
 
           <ChartSection
-            sectionLabel = "Distribution"
+            sectionLabel="Distribution"
             chartTitle="Buyers"
             data={buyersData}
-            kpi1Title="Total Buyers"
-            kpi1Value={formatNumber(buyersStats.total)}
-            kpi2Title="Peak Month"
-            kpi2Value={formatNumber(buyersStats.max)}
+            kpis={buyersKpis}
             accentColor={theme.gold}
           />
 
           <ChartSection
-            sectionLabel = "Velocity"
+            sectionLabel="Velocity"
             chartTitle="VPO"
             data={velocityData}
-            kpi1Title="Avg Velocity"
-            kpi1Value={formatNumber(velocityStats.avg)}
-            kpi2Title="Latest Velocity"
-            kpi2Value={formatNumber(velocityStats.latest)}
+            kpis={velocityKpis}
             accentColor={theme.brown}
           />
 
           <ChartSection
-            sectionLabel = "Points of Distribution"
+            sectionLabel="Points of Distribution"
             chartTitle="PODs"
             data={podsData}
-            kpi1Title="Total PODs"
-            kpi1Value={formatNumber(podsStats.total)}
-            kpi2Title="Peak PODs"
-            kpi2Value={formatNumber(podsStats.max)}
+            kpis={podKpis}
             accentColor={theme.charcoal}
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-10 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">
 
         <Card
           className="rounded-[28px] shadow-sm"
@@ -1060,7 +939,7 @@ const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(nu
                 borderColor: "#EEE5D8",
               }}
             >
-              <div className="h-[340px]">
+              <div className="h-[240px] flex items-center">
                 <PieChartCard
                   data={skuPieData}
                   colorMap={SKU_COLORS}
@@ -1102,7 +981,7 @@ const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(nu
                 borderColor: "#EEE5D8",
               }}
             >
-              <div className="h-[340px]">
+              <div className="h-[240px] flex items-center">
                 <PieChartCard
                   data={channelPieData}
                   colorMap={CHANNEL_COLORS}
@@ -1113,47 +992,6 @@ const [activeFilter, setActiveFilter] = useState<keyof typeof filters | null>(nu
           </CardContent>
         </Card>
 
-        <Card
-          className="rounded-[28px] shadow-sm"
-          style={{
-            backgroundColor: theme.surface,
-            borderColor: theme.line,
-          }}
-        >
-          <CardContent className="pt-2 pb-4 px-6 space-y-6">
-
-            {/* Header line (same style as others) */}
-            <div className="flex items-center gap-3">
-              <div
-                className="h-[3px] w-24 rounded-full"
-                style={{ backgroundColor: theme.gold + "CC" }}
-              />
-              <p
-                className="text-[16px] uppercase tracking-[0.18em] font-medium"
-                style={{ color: "#6B6B6B" }}
-              >
-                STORE HEALTH
-              </p>
-            </div>
-
-            {/* Chart container */}
-            <div
-              className="rounded-[24px] border p-4"
-              style={{
-                backgroundColor: "#FCFAF6",
-                borderColor: "#EEE5D8",
-              }}
-            >
-              <div className="h-[340px]">
-                <PieChartCard
-                  data={skuPieData}
-                  colorMap={SKU_COLORS}
-                />
-              </div>
-            </div>
-
-          </CardContent>
-        </Card>
 
         </div>
         <div className="mt-6 rounded-[28px] border border-black/10 bg-white/95 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.06)]">

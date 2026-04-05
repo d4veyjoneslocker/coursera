@@ -23,7 +23,7 @@ def monthly_summary(df, df_clone):
             revenue = ("revenue", "sum"),
             buying_stores = ("coded_customer", "nunique"),
             skus_selling = ("sku", "nunique"),
-            pod_purchases = ("pod_helper", "nunique") # THIS ISNT QUITE RIGHT BC IT SHLD BE ROLLING?
+            monthly_pods = ("pod_helper", "nunique") # THIS ISNT QUITE RIGHT BC IT SHLD BE ROLLING?
         )
         .reset_index()
         .sort_values(["month_year"])
@@ -35,7 +35,7 @@ def monthly_summary(df, df_clone):
         df_clone.groupby(["month_year"]).agg(
             units = ("units", "sum"),
             revenue = ("revenue", "sum"),
-            pod_purchases = ("pod_helper", "nunique"),
+            monthly_pods = ("pod_helper", "nunique"),
             new_buyers = ("first_store_flag", "sum"),
             new_pods = ("first_pod_flag", "sum")
         )
@@ -43,17 +43,28 @@ def monthly_summary(df, df_clone):
         .sort_values(["month_year"])
     )
 
-    monthly_clone["units_l1m"] = monthly_clone["units"].shift(1)
-    monthly_clone["revenue_l1m"] = monthly_clone["revenue"].shift(1)
+    months = sorted(df["month_year"].unique())
 
-    monthly_clone["units_3m"] = monthly_clone["units"].rolling(3, min_periods=3).sum()
-    monthly_clone["revenue_3m"] = monthly_clone["revenue"].rolling(3, min_periods=3).sum()
+    monthly_clone["buying_stores_total"] = [
+        df.loc[df["month_year"] <= m, "coded_customer"].nunique()
+        for m in months
+    ]
 
-    monthly_clone["units_l3m"] = monthly_clone["units"].shift(3).rolling(3, min_periods=3).sum()
-    monthly_clone["revenue_l3m"] = monthly_clone["revenue"].shift(3).rolling(3, min_periods=3).sum()
+    monthly_clone["buying_stores_3m"] = [
+        df.loc[
+            df["month_year"].isin(months[max(0, i-3):i]),
+            "coded_customer"
+        ].nunique()
+        for i in range(len(months))
+    ]
 
-    monthly_clone["units_py"] = monthly_clone["units"].shift(12)
-    monthly_clone["revenue_py"] = monthly_clone["revenue"].shift(12)
+    monthly_clone["buying_stores_l3m"] = [
+        df.loc[
+            df["month_year"].isin(months[i-6:i-3]),
+            "coded_customer"
+        ].nunique() if i >= 6 else None
+        for i in range(len(months))
+    ]
 
     monthly_clone["active_pods"] = monthly_clone["new_pods"].cumsum()
 
@@ -61,27 +72,14 @@ def monthly_summary(df, df_clone):
 
     monthly = monthly.merge(
         monthly_clone[["month_year", 
-            "units_l1m",
-            "revenue_l1m",
-            "units_3m",
-            "revenue_3m",
-            "units_l3m",
-            "revenue_l3m",
-            "units_py",
-            "revenue_py",
-            "active_pods"]],
+            "active_pods",
+            "buying_stores_total",
+            "buying_stores_3m",
+            "buying_stores_l3m"
+            ]],
         on = ["month_year"],
         how = "left"
     )
-
-    monthly["units_l1m_pct"] = pct_change(monthly["units"],monthly["units_l1m"])
-    monthly["revenue_l1m_pct"] = pct_change(monthly["revenue"],monthly["revenue_l1m"])
-
-    monthly["units_l3m_pct"] = pct_change(monthly["units_3m"],monthly["units_l3m"])
-    monthly["revenue_l3m_pct"] = pct_change(monthly["revenue_3m"],monthly["revenue_l3m"])
-
-    monthly["units_py_pct"] = pct_change(monthly["units"],monthly["units_py"])
-    monthly["revenue_py_pct"] = pct_change(monthly["revenue"],monthly["revenue_py"])
 
     monthly["vpo"] = monthly["units"] / monthly["active_pods"] / 4
 
@@ -96,20 +94,16 @@ def monthly_summary(df, df_clone):
             "buying_stores",
             "active_pods",
             "vpo",
-            "units_l1m",
-            "units_l1m_pct",
-            "revenue_l1m",
-            "revenue_l1m_pct",
-            "units_3m",
-            "units_l3m",
-            "units_l3m_pct",
-            "revenue_3m",
-            "revenue_l3m",
-            "revenue_l3m_pct",
-            "units_py_pct",
-            "revenue_py_pct",
+            "buying_stores_total",
+            "buying_stores_3m",
+            "buying_stores_l3m",
         ]
     ].sort_values(["month_year"])
+
+    # LOGIC TO REMOVE CURRENT MONTH
+
+    current_month = pd.Timestamp.today().to_period("M")
+    monthly = monthly[monthly["month_year"] != current_month].copy()
 
     monthly["month_year"] = monthly["month_year"].astype(str)
 
