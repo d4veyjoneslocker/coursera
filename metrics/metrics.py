@@ -29,3 +29,5 @@ def calculate_vpo(df):
     result["month_year"] = result["month_year"].astype(str)
 
     return result[["month_year", "value"]]
+
+

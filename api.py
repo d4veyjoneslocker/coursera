@@ -2,6 +2,7 @@
 from fastapi import FastAPI
 import numpy as np
 import pandas as pd
+import json
 from serving.filter_table import filter_table
 from fastapi.middleware.cors import CORSMiddleware
 from filters.filters import monthly_filter
@@ -18,6 +19,9 @@ from metrics.store_level_metrics import calculate_reorder_stats
 from metrics.store_level_metrics import calculate_store_vpo
 from metrics.core_metrics import monthly_summary
 from metrics.kpis import kpi_data
+from metrics.growth_metrics import add_time_metrics_simple
+from metrics.kpis import calculate_avg_skus_per_store
+from metrics.kpis import count_channels
 
 
 app = FastAPI()
@@ -248,9 +252,14 @@ def kpis(filters: dict = Depends(get_filters)):
 
     result = monthly_summary(df, df_clone)
 
-    result = kpi_data(result)
+    result = add_time_metrics_simple(result,["units"], ["buying_stores"], ["vpo"], ["active_pods","new_pods"])
 
-    return result
+    return {
+        **kpi_data(result),
+        **calculate_avg_skus_per_store(df),
+        **count_channels(df)
+    }
+
 
 # Channel pie chart
 

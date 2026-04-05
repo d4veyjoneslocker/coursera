@@ -43,9 +43,7 @@ import {
   Legend
 } from "recharts"
 
-/*
-Table components
-:/
+import CustomLegend from "@/components/ui/CustomLegend"
 
 
 /*
@@ -196,6 +194,28 @@ function formatNumber(value: unknown) {
   return num.toString()
 }
 
+function splitCenterLabel(label: string, maxWordsPerLine = 2) {
+  const words = label.toUpperCase().split(" ")
+
+  const lines: string[] = []
+  let currentLine = ""
+
+  const MAX_CHARS_PER_LINE = 11  // tweak this
+
+  words.forEach((word) => {
+    // if adding this word makes it too long → push current line
+    if ((currentLine + " " + word).trim().length > MAX_CHARS_PER_LINE) {
+      if (currentLine) lines.push(currentLine)
+      currentLine = word
+    } else {
+      currentLine = currentLine ? `${currentLine} ${word}` : word
+    }
+  })
+
+  if (currentLine) lines.push(currentLine)
+
+  return lines
+}
 
 
 /*
@@ -265,93 +285,100 @@ function KpiCard({
 
   return (
     <div
-      className="rounded-[22px] border px-4 pt-5 pb-4"
+      className="rounded-[22px] border px-3.5 pt-2 pb-3.5"
       style={{
         backgroundColor: "#FCFAF6",
         borderColor: "#EEE5D8",
       }}
     >
       {/* Top row: title + pill */}
-      <div className="flex items-start justify-between gap-3">
-        <p
-          className="text-xs uppercase tracking-[0.12em]"
-          style={{ color: theme.brown }}
-        >
-          {title}
-        </p>
+      <div className="mt-2">
+  <div className="min-w-0">
+    <p
+      className="text-xs uppercase tracking-[0.12em] leading-tight"
+      style={{ color: theme.brown }}
+    >
+      {title}
+    </p>
+  </div>
 
-        {sideValue !== undefined ? (
-          <div className="flex flex-col items-end gap-1">
-            <div
-              className="inline-flex items-center gap-1.5 rounded-full border px-2 py-1"
-              style={{
-                backgroundColor: chipStyles.bg,
-                borderColor: chipStyles.border,
-                color: chipStyles.text,
-              }}
-            >
-              <span
-                className="flex items-center justify-center rounded-full"
-                style={{ backgroundColor: chipStyles.arrowBg }}
-              >
-                {isPositive ? (
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                    <path
-                      d="M2 8L8 2M8 2H3.8M8 2V6.2"
-                      stroke="currentColor"
-                      strokeWidth="1.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                ) : isNegative ? (
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                    <path
-                      d="M2 2L8 8M8 8H3.8M8 8V3.8"
-                      stroke="currentColor"
-                      strokeWidth="1.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                ) : (
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                    <path
-                      d="M2 5H8"
-                      stroke="currentColor"
-                      strokeWidth="1.2"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                )}
-              </span>
-
-              <span className="text-[12px] font-semibold leading-none">
-                {formatPercent(sideValue)}%
-              </span>
-            </div>
-
-            {sideLabel && (
-              <span
-                className="text-[10px] uppercase tracking-[0.12em]"
-                style={{ color: theme.brown, opacity: 0.72 }}
-              >
-                {sideLabel}
-              </span>
-            )}
-          </div>
-        ) : (
-          <div className="w-[92px]" />
-        )}
-      </div>
-
-      {/* Value row */}
+  <div className="mt-1 flex justify-between gap-4">
+    <div className="flex min-w-0 items-end">
       <div
-        className="mt-3 text-[28px] font-semibold leading-none tracking-[-0.01em]"
+        className="text-[32px] font-semibold leading-none tracking-[-0.03em]"
         style={{ color: theme.charcoal }}
       >
         {value}
       </div>
+    </div>
+
+    <div className="flex min-h-[42px] flex-col items-end justify-end gap-1">
+      {sideValue !== undefined && (
+        <>
+          <div
+            className="inline-flex items-center gap-1.5 rounded-full border px-2 py-1"
+            style={{
+              backgroundColor: chipStyles.bg,
+              borderColor: chipStyles.border,
+              color: chipStyles.text,
+            }}
+          >
+            <span
+              className="flex items-center justify-center rounded-full"
+              style={{ backgroundColor: chipStyles.arrowBg }}
+            >
+              {isPositive ? (
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path
+                    d="M2 8L8 2M8 2H3.8M8 2V6.2"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ) : isNegative ? (
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path
+                    d="M2 2L8 8M8 8H3.8M8 8V3.8"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ) : (
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path
+                    d="M2 5H8"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              )}
+            </span>
+
+            <span className="text-[12px] font-semibold leading-none">
+              {formatPercent(sideValue)}%
+            </span>
+          </div>
+
+          {sideLabel && (
+            <span
+              className="text-[10px] uppercase tracking-[0.12em]"
+              style={{ color: theme.brown, opacity: 0.72 }}
+            >
+              {sideLabel}
+            </span>
+          )}
+        </>
+      )}
+    </div>
+  </div>
+</div>
+
+
     </div>
   )
 }
@@ -408,7 +435,7 @@ function BarChartCard({
             label={{
               position: "top",
               formatter: formatNumber,
-              fontSize: 16,
+              fontSize: 14,
               fontWeight: 600,
               fill: accentColor,
             }}
@@ -452,23 +479,33 @@ function PieLegend({
 function PieChartCard({
   data,
   colorMap,
+  centerValue,
+  centerLabel,
 }: {
   data: PieRow[]
   colorMap: Record<string, string>
+  centerValue?: number | string
+  centerLabel?: string
 }) {
   const safeData = Array.isArray(data) ? data : []
+
   const total = safeData.reduce((sum, row) => sum + row.value, 0)
+
+  const displayValue =
+    centerValue !== undefined ? centerValue : formatNumber(total)
+
+  const centerLines = splitCenterLabel(centerLabel ?? "TOTAL")
 
   const pieCx = "51%"
   const pieCy = "50%"
 
-  return (
-    <div className="grid w-full grid-cols-[2fr_1fr] items-center gap-x-0">
-      <div className="flex h-[220px] w-full items-center justify-center">
-        <div className="h-[220px] w-[220px]">
-          <ChartContainer config={chartConfig} className="h-full w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
+return (
+  <div className="flex w-full justify-center">
+    <div className="flex items-center gap-2">
+      <div className="h-[220px] w-[220px] shrink-0">
+        <ChartContainer config={chartConfig} className="h-full w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
               <ChartTooltip
                 content={({ active, payload }) => {
                   if (!active || !payload?.length) return null
@@ -524,14 +561,20 @@ function PieChartCard({
                 x={pieCx}
                 y={pieCy}
                 textAnchor="middle"
-                dominantBaseline="middle"
-                fill="#7A746B"
+                fill={theme.brown}
                 fontSize={11}
                 fontWeight={500}
-                letterSpacing="0.16em"
-                dy={-10}
+                letterSpacing="0.12em"
               >
-                TOTAL
+                {centerLines.map((line, index) => (
+                  <tspan
+                    key={index}
+                    x={pieCx}
+                    dy={index === 0 ? -12 : 12}
+                  >
+                    {line}
+                  </tspan>
+                ))}
               </text>
 
               <text
@@ -542,22 +585,21 @@ function PieChartCard({
                 fill={theme.charcoal}
                 fontSize={22}
                 fontWeight={600}
-                dy={12}
+                dy={22}
               >
-                {formatNumber(total)}
+                {formatNumber(displayValue)}
               </text>
             </PieChart>
           </ResponsiveContainer>
         </ChartContainer>
-        </div>
       </div>
 
-
-      <div className="flex h-full items-center justify-start">
-        <PieLegend data={safeData} colorMap={colorMap} />
+      <div className="shrink-0">
+        <CustomLegend data={safeData} colorMap={colorMap} />
       </div>
     </div>
-  )
+  </div>
+)
 }
 
 /*
@@ -717,6 +759,16 @@ export default function Home() {
   const [buyersKpis, setBuyersKpis] = useState<any[]>([])
   const [velocityKpis, setVelocityKpis] = useState<any[]>([])
   const [podKpis, setPodKpis] = useState<any[]>([])
+  const [skuPieKpis, setSkuPieKpis] = useState<{
+    key: string
+    title: string
+    value: number
+  } | null>(null)
+  const [channelPieKpis, setChannelPieKpis] = useState<{
+    key: string
+    title: string
+    value: number
+  } | null>(null)
 
 
   
@@ -766,6 +818,8 @@ export default function Home() {
       setBuyersKpis(kpiData.buyers_kpis ?? [])
       setVelocityKpis(kpiData.velocity_kpis ?? [])
       setPodKpis(kpiData.pod_kpis ?? [])
+      setSkuPieKpis(kpiData.skus_per_store ?? null)
+      setChannelPieKpis(kpiData.channel_count ?? null)
 
     const nextFilterOptions: FilterState = {
       chain: Array.isArray(filterOptionData[filterKeys.indexOf("chain")])
@@ -943,6 +997,8 @@ export default function Home() {
                 <PieChartCard
                   data={skuPieData}
                   colorMap={SKU_COLORS}
+                  centerValue={skuPieKpis?.value}
+                  centerLabel={skuPieKpis?.title}
                 />
               </div>
             </div>
@@ -985,6 +1041,8 @@ export default function Home() {
                 <PieChartCard
                   data={channelPieData}
                   colorMap={CHANNEL_COLORS}
+                  centerValue={channelPieKpis?.value}
+                  centerLabel={channelPieKpis?.title}
                 />
               </div>
             </div>

@@ -75,7 +75,8 @@ def monthly_summary(df, df_clone):
             "active_pods",
             "buying_stores_total",
             "buying_stores_3m",
-            "buying_stores_l3m"
+            "buying_stores_l3m",
+            "new_pods"
             ]],
         on = ["month_year"],
         how = "left"
@@ -93,6 +94,7 @@ def monthly_summary(df, df_clone):
             "revenue",
             "buying_stores",
             "active_pods",
+            "new_pods",
             "vpo",
             "buying_stores_total",
             "buying_stores_3m",
