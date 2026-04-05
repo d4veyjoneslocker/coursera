@@ -1,0 +1,39 @@
+
+crisp                        type           new name
+-------                      ----           --------   
+Brand                        str            REMOVE
+ChainCode                    str            REMOVE
+ChainName                    str            MODIFY: Will need to be modified to add in WF and fill in blanks with "Independent"
+ChannelDesc                  str            MODIFY: Map to channel
+City                         str            city
+CustomerAccount              str            CHECK: I think this is store number
+CustomerAddress              str            street_address
+CustomerName                 str            customer_name
+Zip                          str            MODIFY: if zip if only 4, add leading 0
+Uom                          str            REMOVE
+Upc                          str            MODIFY: map to UPC
+Warehouse                    str            dc
+WholeSalePrice           float64            REMOVE
+Description                  str            MODIFY: map to SKU
+EarliestSaleDate             str            REMOVE
+FirstTimePurchase            str            REMOVE
+LatestSaleDate               str            REMOVE
+ProductNumber                str            REMOVE
+PurchasedThisWeek            str            REMOVE
+Region                       str            REMOVE
+RemitId                      str            REMOVE
+ReportRunDate                str            REMOVE
+SalesPeriodEnd               str
+SalesPeriodStart_Week        str
+State                        str            state
+SupplierId                   str            REMOVE
+SupplierName                 str            REMOVE
+TotalQuantityShipped       int64            units
+TotalSales               float64            revenue
+TotalWeight                  str            REMOVE
+
+ADD:
+month (from XXXX)
+year (from XXXX)
+year/month (from XXXX)
+distributor (unfi)
