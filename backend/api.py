@@ -109,6 +109,10 @@ def metric_by_month(df, metric):
 
 # Units by Month Bar Graph
 
+@app.get("/")
+def root():
+    return {"status": "ok"}
+
 @app.get("/units")
 def units(filters: dict = Depends(get_filters)):
     df = filter_table(combined_df, **filters)
