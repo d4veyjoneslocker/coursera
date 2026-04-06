@@ -29,7 +29,7 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000",
-                   "https://crisp-dashboard-60w05b3w4-d4veyjoneslockers-projects.vercel.app"],
+                   "https://crisp-dashboard-3g9zxgj8c-d4veyjoneslockers-projects.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
