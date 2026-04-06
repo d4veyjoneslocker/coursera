@@ -6,7 +6,7 @@ export default function LoginPage() {
         {/* Title */}
         <div className="mb-6">
           <p className="text-xs uppercase tracking-[0.18em] text-[#705C4F]">
-            Crisp Dashboard
+            Aisle 6 Analytics Dashboard
           </p>
           <h1 className="mt-2 text-2xl font-semibold text-[#343332]">
             Enter Password
