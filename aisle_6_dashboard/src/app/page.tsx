@@ -7,6 +7,8 @@ This page is a CLIENT COMPONENT because we are:
 - fetching data from the API
 */
 
+console.log("API BASE URL:", process.env.NEXT_PUBLIC_API_BASE_URL)
+
 import { useEffect, useState } from "react"
 import Image from "next/image"
 
@@ -61,6 +63,8 @@ import {
 
 import FilterBar, { FilterKey } from "@/components/ui/FilterBar"
 import DashboardHeader from "@/components/ui/DashboardHeader"
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
 const theme = {
   blue: "#92B9DC",
@@ -238,8 +242,8 @@ function buildMetricUrl(
   const query = params.toString()
 
   return query
-    ? `http://127.0.0.1:8000/${endpoint}?${query}`
-    : `http://127.0.0.1:8000/${endpoint}`
+    ? `${API_BASE_URL}/${endpoint}?${query}`
+    : `${API_BASE_URL}/${endpoint}`
 }
 
 
@@ -786,7 +790,7 @@ export default function Home() {
       const queryString = buildMetricUrl("temp", filters).split("?")[1] ?? ""
 
       const filterOptionUrls = filterKeys.map(
-        (key) => `http://127.0.0.1:8000/filters/${key}${queryString ? `?${queryString}` : ""}`
+        (key) => `${API_BASE_URL}/filters/${key}${queryString ? `?${queryString}` : ""}`
       )
 
       const metricUrls = [
@@ -809,7 +813,7 @@ export default function Home() {
       const metricData = data.slice(filterKeys.length)
       const chainTableDataRaw = metricData[6]
 
-      const kpiRes = await fetch(`http://127.0.0.1:8000/kpis${queryString ? `?${queryString}` : ""}`)
+      const kpiRes = await fetch(`${API_BASE_URL}/kpis${queryString ? `?${queryString}` : ""}`)
       const kpiData = await kpiRes.json()
 
       console.log("KPI URL:", kpiRes)
