@@ -6,7 +6,7 @@ export async function POST(req: Request) {
   const password = String(formData.get("password") || "")
 
   if (password !== process.env.APP_PASSWORD) {
-    return NextResponse.redirect(new URL("/login", req.url))
+    return NextResponse.redirect(new URL("/login", req.url), 303)
   }
 
   const cookieStore = await cookies()
@@ -15,5 +15,5 @@ export async function POST(req: Request) {
     path: "/",
   })
 
-  return NextResponse.redirect(new URL("/", req.url))
+  return NextResponse.redirect(new URL("/", req.url), 303)
 }
