@@ -43,24 +43,24 @@ def monthly_summary(df, df_clone):
         .sort_values(["month_year"])
     )
 
-    months = sorted(df["month_year"].unique())
+    months = sorted(df_clone["month_year"].unique())
 
     monthly_clone["buying_stores_total"] = [
         df.loc[df["month_year"] <= m, "coded_customer"].nunique()
-        for m in months
+        for m in monthly_clone["month_year"]
     ]
 
     monthly_clone["buying_stores_3m"] = [
-        df.loc[
-            df["month_year"].isin(months[max(0, i-3):i]),
+        df_clone.loc[
+            df_clone["month_year"].isin(months[max(0, i-3):i]),
             "coded_customer"
         ].nunique()
         for i in range(len(months))
     ]
 
     monthly_clone["buying_stores_l3m"] = [
-        df.loc[
-            df["month_year"].isin(months[i-6:i-3]),
+        df_clone.loc[
+            df_clone["month_year"].isin(months[i-6:i-3]),
             "coded_customer"
         ].nunique() if i >= 6 else None
         for i in range(len(months))
