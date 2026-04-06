@@ -443,3 +443,10 @@ def get_filter_options(
     df = filter_table(combined_w_features, **filters)
 
     return generate_filter_api(df, column_name)
+
+import os
+import uvicorn
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("api:app", host="0.0.0.0", port=port)
