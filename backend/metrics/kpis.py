@@ -3,7 +3,7 @@ import numpy as np
 from filters.filters import monthly_filter
 
 def total(series):
-    return series.sum()
+    return series.sum() if len(series) else None
 
 def peak(series):
     return series.max() if len(series) else None
@@ -53,19 +53,19 @@ def kpi_data(df):
         {
         "key": "total_units",
         "title": "Total Units",
-        "value": int(total(df["units"])),
+        "value": safe_int(total(df["units"])),
         },
         {
         "key": "l1m_units",
         "title": "L1M Units",
-        "value": int(latest_month(df["units"])),
+        "value": safe_int(latest_month(df["units"])),
         "sideValue": safe_float(latest_month(df["units_l1m_pct"])),
         "sideLabel": "vs LM"
         },
         {
         "key": "l3m_units",
         "title": "L3M Units",
-        "value": int(latest_month(df["units_3m"])),
+        "value": safe_int(latest_month(df["units_3m"])),
         "sideValue": safe_float(latest_month(df["units_l3m_pct"])),
         "sideLabel": "vs L3M"
         },
