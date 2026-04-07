@@ -12,6 +12,21 @@ export type FilterKey =
   | "year"
   | "month"
 
+const MONTH_MAP: Record<string, string> = {
+    "1": "January",
+    "2": "February",
+    "3": "March",
+    "4": "April",
+    "5": "May",
+    "6": "June",
+    "7": "July",
+    "8": "August",
+    "9": "September",
+    "10": "October",
+    "11": "November",
+    "12": "December",
+  }
+
 export type FilterState = Record<FilterKey, string[]>
 
 type FilterBarProps = {
@@ -191,14 +206,23 @@ export default function FilterBar({
       if (filterKey === "chain") return "All Retailers"
       if (filterKey === "channel") return "All Channels"
       if (filterKey === "sku") return "All SKUs"
-      if (filterKey === "year" || filterKey === "month") return "All Time"
+      if (filterKey === "year") return "All Years"
+      if (filterKey === "month") return "All Months"
       return `All ${label}s`
     }
 
-    if (selected.length <= 2) return selected.join(", ")
+    if (selected.length <= 2) {
+      return selected
+        .map((value) =>
+          filterKey === "month" ? MONTH_MAP[value] ?? value : value
+        )
+        .join(", ")
+    }
+
     return `${selected.length} selected`
   }
 
+  
   function toggleFilterValue(filterKey: FilterKey, value: string) {
     setFilters((prev) => {
       const current = prev[filterKey] ?? []
@@ -252,11 +276,20 @@ export default function FilterBar({
   }
 
   function getFilteredOptions(filterKey: FilterKey) {
-    const raw = filterOptions[filterKey] ?? []
+    let raw = filterOptions[filterKey] ?? []
+
+    // 🔥 FIX: sort months numerically
+    if (filterKey === "month") {
+      raw = [...raw].sort((a, b) => Number(a) - Number(b))
+    }
+
     const q = (searchByFilter[filterKey] ?? "").trim().toLowerCase()
 
     if (!q) return raw
-    return raw.filter((option) => option.toLowerCase().includes(q))
+
+    return raw.filter((option) =>
+      option.toLowerCase().includes(q)
+    )
   }
 
   function activeCount(filterKey: FilterKey) {
@@ -314,7 +347,7 @@ export default function FilterBar({
             Viewing
           </p>
 
-          <div className="flex flex-wrap items-center gap-x-10 gap-y-2 text-[28px] font-medium tracking-tight">
+          <div className="flex items-center gap-x-8 text-[28px] font-medium tracking-tight overflow-x-auto whitespace-nowrap">
             {topFilters.map((filterKey, i) => {
               const accent = getAccent(filterKey)
 
@@ -510,7 +543,9 @@ export default function FilterBar({
                         ✓
                       </div>
 
-                      <span className="truncate">{item}</span>
+                      <span className="truncate">
+                        {openFilter === "month" ? MONTH_MAP[item] ?? item : item}
+                      </span>
                     </div>
 
                     {isSelected && (
@@ -620,7 +655,7 @@ export default function FilterBar({
                       className="text-xs uppercase tracking-[0.16em]"
                       style={{ color: theme.brown }}
                     >
-                      Slot {index + 1}
+                      Filter {index + 1}
                     </p>
                   </div>
 
@@ -767,7 +802,7 @@ export default function FilterBar({
                       }}
                     />
 
-                    <div className="mt-3 max-h-180px] space-y-2 overflow-y-auto pr-1">
+                    <div className="mt-3 max-h-[260px] space-y-2 overflow-y-auto pr-1">
                       {getFilteredOptions(filterKey).map((item) => {
                         const isSelected = filters[filterKey].includes(item)
                         const accent = getAccent(filterKey)
@@ -795,7 +830,9 @@ export default function FilterBar({
                                 ✓
                               </div>
 
-                              <span className="truncate">{item}</span>
+                              <span className="truncate">
+                                {filterKey === "month" ? MONTH_MAP[item] ?? item : item}
+                              </span>
                             </div>
 
                             {isSelected && (
