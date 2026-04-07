@@ -7,7 +7,7 @@ This page is a CLIENT COMPONENT because we are:
 - fetching data from the API
 */
 
-console.log("API BASE URL:", process.env.NEXT_PUBLIC_API_BASE_URL)
+
 
 import { useEffect, useState } from "react"
 import Image from "next/image"
@@ -64,7 +64,8 @@ import {
 import FilterBar, { FilterKey } from "@/components/ui/FilterBar"
 import DashboardHeader from "@/components/ui/DashboardHeader"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL 
+/* const API_BASE_URL = "http://127.0.0.1:8000" */
 
 const theme = {
   blue: "#92B9DC",
@@ -422,13 +423,9 @@ function BarChartCard({
           <ChartTooltip
             content={
               <ChartTooltipContent
-                labelFormatter={(label) => {
-                  const date = new Date(label)
-                  return date.toLocaleString("en-US", {
-                    month: "long",
-                    year: "numeric",
-                  })
-                }}
+                labelFormatter={(label) =>
+                  typeof label === "string" ? formatMonth(label) : String(label)
+                }
               />
             }
           />
@@ -606,27 +603,6 @@ return (
 )
 }
 
-/*
-Calculates metrics used in the KPI cards
-*/
-function getMetricStats(data: MetricRow[]) {
-
-  const total = data.reduce((sum, row) => sum + row.value, 0)
-
-  const latest = data.length
-    ? data[data.length - 1].value
-    : 0
-
-  const avg = data.length
-    ? Math.round(total / data.length)
-    : 0
-
-  const max = data.length
-    ? Math.max(...data.map((row) => row.value))
-    : 0
-
-  return { total, latest, avg, max }
-}
 
 
 
@@ -657,7 +633,6 @@ function ChartSection({
   }[]
   accentColor: string
 }) {
-  console.log("kpis", kpis)
   return (
     <Card
       className="rounded-[28px] shadow-sm"
@@ -816,7 +791,6 @@ export default function Home() {
       const kpiRes = await fetch(`${API_BASE_URL}/kpis${queryString ? `?${queryString}` : ""}`)
       const kpiData = await kpiRes.json()
 
-      console.log("KPI URL:", kpiRes)
 
       setUnitsKpis(kpiData.units_kpis ?? [])
       setBuyersKpis(kpiData.buyers_kpis ?? [])
@@ -852,9 +826,6 @@ export default function Home() {
         : [],
     }
 
-      console.log("filterKeys", filterKeys)
-      console.log("filterOptionData", filterOptionData)
-      console.log("nextFilterOptions", nextFilterOptions)
 
       setFilterOptions(nextFilterOptions)
 
@@ -871,15 +842,6 @@ export default function Home() {
 
   }, [filters])
 
-
-
-  /*
-  KPI CALCULATIONS
-  */
-  const unitsStats = getMetricStats(unitsData)
-  const buyersStats = getMetricStats(buyersData)
-  const velocityStats = getMetricStats(velocityData)
-  const podsStats = getMetricStats(podsData)
 
 
 
