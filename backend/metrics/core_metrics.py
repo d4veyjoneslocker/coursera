@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 from filters.filters import monthly_filter
+from metrics.growth_metrics import add_time_metrics_chain
+
 
 monthly_clone_filter =  [x for x in monthly_filter if x not in ("month", "year")]
 
@@ -112,6 +114,8 @@ def monthly_summary(df, df_clone):
     return monthly
 
 def sku_mix(df):
+
+
     df = (
         df.groupby(["sku"] + monthly_filter).agg(
             units = ("units", "sum"),
@@ -133,12 +137,22 @@ def sku_mix(df):
             "buying_stores",
             "share",
         ]
-        + monthly_filter
     ]
 
     return df
 
+
 def chain_table(df, df_clone):
+    real_current_month = pd.Timestamp.today().to_period("M")
+    visible_latest_month = df["month_year"].max() if not df.empty else None
+
+    if visible_latest_month == real_current_month:
+        df_full_months = df[df["month_year"] != real_current_month].copy()
+        latest_month = df_full_months["month_year"].max() if not df_full_months.empty else None
+    else:
+        latest_month = visible_latest_month
+
+
     chain_table = (
         df.groupby("chain").agg(
             units = ("units", "sum"),
@@ -156,73 +170,21 @@ def chain_table(df, df_clone):
             new_pods = ("first_pod_flag", "sum")
         )
         .reset_index()
-        .set_index("month_year")
-        .asfreq("M")
-        .reset_index()
+        .sort_values(["chain", "month_year"])
     )
     
-    chain_table_monthly = chain_table_monthly.sort_values(["chain", "month_year"])
 
     # Adding absolute values for L1M, 3M, L3M, and active PODs
-
-    chain_table_monthly["units_l1m"] = chain_table_monthly.groupby("chain")["units"].shift(1)
-    chain_table_monthly["revenue_l1m"] = chain_table_monthly.groupby("chain")["revenue"].shift(1)
-
-    chain_table_monthly["units_3m"] = (
-        chain_table_monthly.groupby("chain")["units"]
-        .transform(lambda x: x.rolling(3, min_periods=3).sum())
-    )
-
-    chain_table_monthly["revenue_3m"] = (
-        chain_table_monthly.groupby("chain")["revenue"]
-        .transform(lambda x: x.rolling(3, min_periods=3).sum())
-    )
-
-    chain_table_monthly["units_l3m"] = (
-        chain_table_monthly.groupby("chain")["units"]
-        .transform(lambda x: x.shift(3).rolling(3, min_periods=3).sum())
-    )
-
-    chain_table_monthly["revenue_l3m"] = (
-        chain_table_monthly.groupby("chain")["revenue"]
-        .transform(lambda x: x.shift(3).rolling(3, min_periods=3).sum())
-    )
 
     chain_table_monthly["active_pods"] = chain_table_monthly.groupby("chain")["new_pods"].cumsum()
 
     # Calculating % changes / vpo
 
-    chain_table_monthly["units_l1m_pct"] = pct_change(chain_table_monthly["units"],chain_table_monthly["units_l1m"])
-    chain_table_monthly["revenue_l1m_pct"] = pct_change(chain_table_monthly["revenue"],chain_table_monthly["revenue_l1m"])
-
-    chain_table_monthly["units_l3m_pct"] = pct_change(chain_table_monthly["units_3m"],chain_table_monthly["units_l3m"])
-    chain_table_monthly["revenue_l3m_pct"] = pct_change(chain_table_monthly["revenue_3m"],chain_table_monthly["revenue_l3m"])
-
     chain_table_monthly["vpo"] = chain_table_monthly["units"] / chain_table_monthly["active_pods"] / 4
 
-    chain_table_monthly = chain_table_monthly[
-        [
-            "chain",
-            "month_year",
-            "units",
-            "revenue",
-            "buying_stores",
-            "active_pods",
-            "vpo",
-            "units_l1m",
-            "revenue_l1m",
-            "units_l3m",
-            "revenue_l3m",
-            "units_l1m_pct",
-            "revenue_l1m_pct",
-            "units_l3m_pct",
-            "revenue_l3m_pct"
-        ]
-    ]
+    chain_table_monthly = add_time_metrics_chain(chain_table_monthly, ["units", "revenue"])
 
-    selected_month = pd.Period("2026-02", freq="M")
-
-    chain_table_selected_month = get_chain_month(chain_table_monthly, selected_month)
+    chain_table_selected_month = get_chain_month(chain_table_monthly, latest_month)
 
     chain_table = chain_table.merge(
         chain_table_selected_month[[

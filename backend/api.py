@@ -22,6 +22,9 @@ from metrics.kpis import kpi_data
 from metrics.growth_metrics import add_time_metrics_simple
 from metrics.kpis import calculate_avg_skus_per_store
 from metrics.kpis import count_channels
+from io import BytesIO
+from fastapi.responses import StreamingResponse
+
 
 
 app = FastAPI()
@@ -110,12 +113,13 @@ def metric_by_month(df, metric):
 
 # Units by Month Bar Graph
 
-@app.get("/")
-def root():
+#@app.get("/")
+#def root():
     return {"status": "ok"}
 
 @app.get("/units")
 def units(filters: dict = Depends(get_filters)):
+
     df = filter_table(combined_df, **filters)
 
     result = (
@@ -408,8 +412,34 @@ def reorder_stats(filters: dict = Depends(get_non_time_filters)):
     "New": int(new_count)
     }
 
+@app.get("/store_list")
+def store_list():
 
-    
+    df = combined_df
+
+    result = df.groupby(["coded_customer"]).agg({
+        "chain": "first",
+        "store_number": "first",
+        "street_address": "first",
+        "city": "first",
+        "state": "first",
+        "zip": "first"
+    }).reset_index()
+
+    output = BytesIO()
+
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        result.to_excel(writer, index=False, sheet_name="Store List")
+
+    output.seek(0)
+
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=store_list.xlsx"}
+    )
+
+    return result.to_dict(orient="records")    
 
 
 
