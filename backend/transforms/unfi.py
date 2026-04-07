@@ -47,8 +47,15 @@ def transform_unfi_natural_vendor_sales(df):
 
     # fix chains (Doordash)
 
-    df["chain"] = np.where(
-        df["ChainName"].str.startswith("DOOR"), "DOORDASH",
+    df["chain"] = np.select(
+        [
+         df["ChainName"].str.startswith("DOOR"),
+         df["ChainName"].str.startswith("WAKEFERN")   
+        ],
+        [
+         "DOORDASH",
+         "SHOPRITE"
+        ],
         df["ChainName"].str.upper()
     )
 
