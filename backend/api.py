@@ -16,6 +16,7 @@ from fastapi import Query
 from metrics.core_metrics import chain_table
 from metrics.store_level_metrics import calculate_store_health_status
 from metrics.store_level_metrics import calculate_reorder_stats
+from metrics.store_level_metrics import calculate_reorder_stats_monthly
 from metrics.store_level_metrics import calculate_store_vpo
 from metrics.core_metrics import monthly_summary
 from metrics.kpis import kpi_data
@@ -64,6 +65,7 @@ def get_filters(
     month: list[str] | None = Query(None),
     state: list[str] | None = Query(None),
     sku: list[str] | None = Query(None),
+    status: list[str] | None = Query(None)
 ):
     return {
         "chain": chain,
@@ -74,6 +76,7 @@ def get_filters(
         "month": month,
         "state": state,
         "sku": sku,
+        "status": status
     }
 
 def get_non_time_filters(
@@ -83,6 +86,7 @@ def get_non_time_filters(
     distributor: list[str] | None = Query(None),
     state: list[str] | None = Query(None),
     sku: list[str] | None = Query(None),
+    status: list[str] | None = Query(None)
 ):
     return {
         "chain": chain,
@@ -91,6 +95,7 @@ def get_non_time_filters(
         "distributor": distributor,
         "state": state,
         "sku": sku,
+        "status": status
     }
 
 # I NEED TO CLEAN UP THE WHOLE FILTERING THING IN THE DEF UNITS SHIT -- LITERALLY JUST CLEAN UP THO, IT WORKS
@@ -138,7 +143,7 @@ def units(filters: dict = Depends(get_filters)):
 
 @app.get("/buyers")
 def buying_stores(filters: dict = Depends(get_filters)):
-    df = filter_table(combined_df, **filters)
+    df = filter_table(combined_w_features, **filters)
 
     result = (
         df.groupby("month_year", as_index=False)
@@ -274,7 +279,7 @@ def kpis(filters: dict = Depends(get_filters)):
 
 @app.get("/channels")
 def channels(filters: dict = Depends(get_filters)):
-    df = filter_table(combined_df, **filters)
+    df = filter_table(combined_w_features, **filters)
 
     result = (
         df.groupby("channel", as_index=False)
@@ -339,11 +344,12 @@ def store_status(filters: dict = Depends(get_non_time_filters)):
 
 @app.get("/store_level_reorder")
 def store_level_reorder(filters: dict = Depends(get_non_time_filters)):
+
     df = filter_table(combined_w_features, **filters)
-    
+
     result = calculate_reorder_stats(df)
     vpo_result = calculate_store_vpo(df)
-    health_result = calculate_store_health_status(df)
+    #health_result = calculate_store_health_status(df)
 
     result = result.merge(
         vpo_result[["coded_customer", "vpo", "active_pods", "volume"]],
@@ -351,14 +357,14 @@ def store_level_reorder(filters: dict = Depends(get_non_time_filters)):
         how="left"
     )
 
-    result = result.merge(
-        health_result[["coded_customer","first_month_purchased",
-        "second_to_last_month_purchased",
-        "last_month_purchased",
-        "status"]],
-        on="coded_customer",
-        how="left"
-    )
+    #result = result.merge(
+        #health_result[["coded_customer","first_month_purchased",
+        #"second_to_last_month_purchased",
+        #"last_month_purchased",
+        #"status"]],
+        #on="coded_customer",
+        #how="left"
+    #)
 
     result = result.astype(object).where(pd.notna(result), None)
     
@@ -366,12 +372,15 @@ def store_level_reorder(filters: dict = Depends(get_non_time_filters)):
     result["second_to_last_month_purchased"] = result["second_to_last_month_purchased"].astype(str)
     result["last_month_purchased"] = result["last_month_purchased"].astype(str)
 
+
     records = result.to_dict(orient="records")
 
     for row in records:
         for key, value in row.items():
             if pd.isna(value):
                 row[key] = None
+
+
 
     return records
 
@@ -381,7 +390,7 @@ def reorder_stats(filters: dict = Depends(get_non_time_filters)):
     
     result = calculate_reorder_stats(df)
     vpo_result = calculate_store_vpo(df)
-    health_result = calculate_store_health_status(df)
+    #health_result = calculate_store_health_status(df)
 
     result = result.merge(
         vpo_result[["coded_customer", "vpo", "active_pods", "volume"]],
@@ -389,14 +398,14 @@ def reorder_stats(filters: dict = Depends(get_non_time_filters)):
         how="left"
     )
 
-    result = result.merge(
-        health_result[["coded_customer","first_month_purchased",
-        "second_to_last_month_purchased",
-        "last_month_purchased",
-        "status"]],
-        on="coded_customer",
-        how="left"
-    )
+    #result = result.merge(
+        #health_result[["coded_customer","first_month_purchased",
+        #"second_to_last_month_purchased",
+        #"last_month_purchased",
+        #"status"]],
+        #on="coded_customer",
+        #how="left"
+    #)
 
     healthy_count = (result["status"] == "Healthy").sum()
     struggling_count = (result["status"] == "Struggling").sum()
@@ -411,6 +420,21 @@ def reorder_stats(filters: dict = Depends(get_non_time_filters)):
     "Inactive": int(inactive_count),
     "New": int(new_count)
     }
+
+@app.get("/reorder_graph")
+def reorder_graph(filters: dict = Depends(get_non_time_filters)):
+    df = filter_table(combined_w_features, **filters)
+
+    result = calculate_reorder_stats_monthly(df)
+
+    result = result.sort_values("month_year")
+    result = result.iloc[1:]
+
+    result = result.rename(columns={"reorder_rate": "value"})
+    
+    return result.to_dict(orient="records")
+
+
 
 @app.get("/store_list")
 def store_list():
@@ -456,6 +480,7 @@ def get_filter_options(
     segment: list[str] | None = Query(None),
     sku: list[str] | None = Query(None),
     month_year: list[str] | None = Query(None),
+    status: list[str] | None = Query(None)
 ):
 
     filters = {
@@ -467,6 +492,7 @@ def get_filter_options(
         "segment": segment,
         "sku": sku,
         "month_year": month_year,
+        "status": status
     }
 
     filters.pop(column_name, None)

@@ -96,11 +96,8 @@ def add_time_metrics_chain(df, unit_metrics=[],buyer_metrics=[],vpo_metrics=[],p
 
     return df_full_months
 
-def add_time_metrics_simple(df, unit_metrics=[],buyer_metrics=[],vpo_metrics=[],pod_metrics=[]):
+def add_time_metrics_simple(df, unit_metrics=[],buyer_metrics=[],vpo_metrics=[],pod_metrics=[],reorder_metrics=[]):
 
-    unit_metrics = unit_metrics or []
-    vpo_metrics = vpo_metrics or []
-    pod_metrics = pod_metrics or []
 
     current_month = pd.Timestamp.today().to_period("M")
 
@@ -168,6 +165,21 @@ def add_time_metrics_simple(df, unit_metrics=[],buyer_metrics=[],vpo_metrics=[],
         df_full_months[f"{metric}_py_pct"] = pct_change(df_full_months[f"{metric}"],df_full_months[f"{metric}_py"])
     
     for metric in pod_metrics:
+        
+        # Calculating prior values
+
+        df_full_months[f"{metric}_3m"] = df_full_months[metric].rolling(3, min_periods=3).max()
+        df_full_months[f"{metric}_l1m"] = df_full_months[metric].shift(1)
+        df_full_months[f"{metric}_l3m"] = df_full_months[metric].shift(3)
+        df_full_months[f"{metric}_py"] = df_full_months[metric].shift(12)
+
+        # Calculating percent change
+
+        df_full_months[f"{metric}_l1m_pct"] = pct_change(df_full_months[f"{metric}"],df_full_months[f"{metric}_l1m"])
+        df_full_months[f"{metric}_l3m_pct"] = pct_change(df_full_months[f"{metric}"],df_full_months[f"{metric}_l3m"])
+        df_full_months[f"{metric}_py_pct"] = pct_change(df_full_months[f"{metric}"],df_full_months[f"{metric}_py"])
+    
+    for metric in reorder_metrics:
         
         # Calculating prior values
 

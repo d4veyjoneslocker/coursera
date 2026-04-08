@@ -4,23 +4,14 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 
 import { Card, CardContent } from "@/components/ui/card"
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart"
 
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from "recharts"
+import ChartSection from "@/components/ui/charts/ChartSection"
+import { PieChartCard } from "@/components/ui/charts/ChartCards"
+import { formatNumber } from "@/components/ui/charts/chartUtils"
+import { formatPercent } from "@/components/ui/charts/chartUtils"
+import type { MetricRow, PieRow } from "@/components/ui/charts/chartTypes"
+import FilterBar from "@/components/ui/filters/FilterBar"
+import DashboardHeader from "@/components/ui/DashboardHeader"
 
 const theme = {
   blue: "#92B9DC",
@@ -42,54 +33,45 @@ const PIE_COLORS: Record<string, string> = {
   New: theme.cream,
 }
 
-type FilterState = {
-  chain: string[]
-  channel: string[]
-  sku: string[]
-  distributor: string[]
-  dc: string[]
-  state: string[]
+const CHANNEL_COLOR_MAP: Record<string, string> = {
+  "SUPERMARKET": theme.blue,
+  "E-COMMERCE": theme.gold,
+  "NATURAL": theme.brown,
+  "INDEPENDENT": theme.charcoal,
+  "SPECIALTY": "#A8A29E",
+  "ALTERNATIVE": "#D6D3D1",
 }
 
-type MetricRow = {
-  month_year: string
-  value: number
-}
-
-type PieRow = {
-  name: string
-  value: number
-}
-
-const BAR_COLOR = "#3b82f6"
-
-const chartConfig = {
-  value: {
-    label: "Value",
-    color: BAR_COLOR,
+const STATUS_STYLES: Record<string, { bg: string; text: string; border: string }> = {
+  Healthy: {
+    bg: "#EEF6F0",
+    text: "#5F7F68",
+    border: "#D7E8DB",
+  },
+  Struggling: {
+    bg: "#FFF4E8",
+    text: "#A56A2A",
+    border: "#EFD9BC",
+  },
+  Inactive: {
+    bg: "#F4F1EC",
+    text: "#7A746B",
+    border: "#E7DED2",
+  },
+  New: {
+    bg: "#EEF4F8",        // light blue
+    text: "#4E6F8C",
+    border: "#D5E1EA",
+  },
+  Revived: {
+    bg: "#F3EEFF",        // light purple
+    text: "#6B4FB3",
+    border: "#DDD3F5",
   },
 }
 
-function formatMonth(month: string) {
-  const [year, monthNum] = month.split("-")
-  const date = new Date(Number(year), Number(monthNum) - 1)
 
-  return date.toLocaleString("en-US", {
-    month: "short",
-    year: "numeric",
-  })
-}
 
-function formatNumber(value: unknown) {
-  const num = Number(value)
-
-  if (Number.isNaN(num)) return ""
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M"
-  if (num >= 1000) return (num / 1000).toFixed(1) + "K"
-  if (num < 5) return num.toFixed(1)
-
-  return num.toString()
-}
 
 function buildMetricUrl(
   endpoint: string,
@@ -108,231 +90,7 @@ function buildMetricUrl(
     : `http://127.0.0.1:8000/${endpoint}`
 }
 
-function KpiCard({
-  title,
-  value,
-}: {
-  title: string
-  value: string
-}) {
-  return (
-    <div
-      className="rounded-[22px] border p-4"
-      style={{
-        backgroundColor: "#FCFAF6",
-        borderColor: "#EEE5D8",
-      }}
-    >
-      <p
-        className="text-xs uppercase tracking-[0.12em]"
-        style={{ color: theme.brown }}
-      >
-        {title}
-      </p>
 
-      <div
-        className="mt-2 text-3xl font-semibold"
-        style={{ color: theme.charcoal }}
-      >
-        {value}
-      </div>
-    </div>
-  )
-}
-
-function BarChartCard({
-  data,
-  accentColor,
-}: {
-  data: MetricRow[]
-  accentColor: string
-}) {
-  return (
-    <div className="w-full">
-      <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
-        <BarChart data={data} margin={{ top: 20, right: 20, left: -10, bottom: 0 }}>
-          <CartesianGrid vertical={false} strokeDasharray="3 3" />
-          <XAxis
-            dataKey="month_year"
-            tickFormatter={formatMonth}
-            tickLine={false}
-            axisLine={false}
-            tickMargin={10}
-          />
-          <YAxis
-            tickFormatter={formatNumber}
-            tickLine={false}
-            axisLine={false}
-            tickMargin={10}
-            width={50}
-          />
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                labelFormatter={(label) => {
-                  const date = new Date(label)
-                  return date.toLocaleString("en-US", {
-                    month: "long",
-                    year: "numeric",
-                  })
-                }}
-              />
-            }
-          />
-          <Bar
-            dataKey="value"
-            fill={accentColor}
-            radius={[6, 6, 0, 0]}
-            label={{
-              position: "top",
-              formatter: formatNumber,
-              fontSize: 16,
-              fontWeight: 600,
-              fill: accentColor,
-            }}
-          />
-        </BarChart>
-      </ChartContainer>
-    </div>
-  )
-}
-
-function PieLegend({
-  data,
-  colorMap,
-}: {
-  data: PieRow[]
-  colorMap: Record<string, string>
-}) {
-  const safeData = Array.isArray(data) ? data : []
-
-  return (
-    <div className="grid w-fit gap-x-8 gap-y-2 text-[12px]">
-      {safeData.map((item) => (
-        <div key={item.name} className="flex items-center gap-2">
-          <div
-            className="h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: colorMap[item.name] || "#D1D5DB" }}
-          />
-          <span style={{ color: "#6B6B6B" }}>{item.name}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function PieChartCard({
-  data,
-  colorMap,
-}: {
-  data: PieRow[]
-  colorMap: Record<string, string>
-}) {
-
-  const safeData = Array.isArray(data) ? data : []
-  const total = safeData.reduce((sum, row) => sum + row.value, 0)
-
-  const pieCx = "51%"
-  const pieCy = "50%"
-
-
-  return (
-    <div className="grid w-full grid-cols-[2fr_1fr] items-center gap-x-0">
-      <div className="flex h-[220px] w-full items-center justify-center">
-        <div className="h-[220px] w-[220px]">
-          <ChartContainer config={chartConfig} className="h-full w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <ChartTooltip
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null
-
-                    const data = payload[0].payload
-
-                    return (
-                      <div
-                        className="rounded-[12px] border px-3 py-2 shadow-sm"
-                        style={{
-                          backgroundColor: "#FFFEFB",
-                          borderColor: "#E5DDD0",
-                        }}
-                      >
-                        <div
-                          className="text-sm font-semibold"
-                          style={{ color: theme.charcoal }}
-                        >
-                          {data.name}
-                        </div>
-
-                        <div
-                            className="mt-1 text-sm"
-                            style={{ color: "#7A746B" }}
-                            >
-                            {Math.round((Number(data.value) / total) * 100)}%
-                            </div>
-                      </div>
-
-                    )
-                  }}
-                />
-
-                <Pie
-                  data={safeData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx={pieCx}
-                  cy={pieCy}
-                  innerRadius={52}
-                  outerRadius={85}
-                  paddingAngle={2}
-                  stroke="none"
-                >
-                  {safeData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={colorMap[entry.name] || "#D1D5DB"}
-                    />
-                  ))}
-                </Pie>
-
-                <text
-                  x={pieCx}
-                  y={pieCy}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fill="#7A746B"
-                  fontSize={11}
-                  fontWeight={500}
-                  letterSpacing="0.16em"
-                  dy={-10}
-                >
-                  TOTAL
-                </text>
-
-                <text
-                  x={pieCx}
-                  y={pieCy}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fill={theme.charcoal}
-                  fontSize={22}
-                  fontWeight={600}
-                  dy={12}
-                >
-                  {formatNumber(total)}
-                </text>
-              </PieChart>
-            </ResponsiveContainer>
-          </ChartContainer>
-        </div>
-      </div>
-
-      <div className="flex h-full items-center justify-start">
-        <PieLegend data={safeData} colorMap={colorMap} />
-      </div>
-    </div>
-  )
-}
 
 function getMetricStats(data: MetricRow[]) {
   const total = data.reduce((sum, row) => sum + row.value, 0)
@@ -352,168 +110,151 @@ function getMetricStats(data: MetricRow[]) {
   return { total, latest, avg, max }
 }
 
-function ChartSection({
-  sectionLabel,
-  data,
-  kpi1Title,
-  kpi1Value,
-  kpi2Title,
-  kpi2Value,
-  kpi3Title,
-  kpi3Value,
-  accentColor,
-}: {
-  sectionLabel: string
-  data: MetricRow[]
-  kpi1Title: string
-  kpi1Value: string
-  kpi2Title: string
-  kpi2Value: string
-  kpi3Title: string
-  kpi3Value: string
-  accentColor: string
-}) {
+function StatusPill({ status }: { status: string }) {
+  const style = STATUS_STYLES[status] ?? STATUS_STYLES.Inactive
+
   return (
-    <Card
-      className="rounded-[28px] shadow-sm"
+    <span
+      className="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium"
       style={{
-        backgroundColor: theme.surface,
-        borderColor: theme.line,
+        backgroundColor: style.bg,
+        color: style.text,
+        borderColor: style.border,
       }}
     >
-      <CardContent className="pt-2 pb-4 px-6 space-y-6">
-        <div className="flex items-center gap-3">
-          <div
-            className="h-[3px] w-24 rounded-full"
-            style={{ backgroundColor: accentColor + "CC" }}
-          />
-
-          <p
-            className="text-[16px] uppercase tracking-[0.18em] font-medium"
-            style={{ color: "#6B6B6B" }}
-          >
-            {sectionLabel}
-          </p>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          <KpiCard title={kpi1Title} value={kpi1Value} />
-          <KpiCard title={kpi2Title} value={kpi2Value} />
-          <KpiCard title={kpi3Title} value={kpi3Value} />
-        </div>
-
-        <div
-          className="rounded-[24px] border p-4"
-          style={{
-            backgroundColor: "#FCFAF6",
-            borderColor: "#EEE5D8",
-          }}
-        >
-          <BarChartCard data={data} accentColor={accentColor} />
-        </div>
-      </CardContent>
-    </Card>
+      {status}
+    </span>
   )
 }
 
+function SortableHeader({
+  label,
+  column,
+  sortKey,
+  sortDirection,
+  onSort,
+}: {
+  label: string
+  column: string
+  sortKey: string | null
+  sortDirection: "asc" | "desc"
+  onSort: (key: string) => void
+}) {
+  const isActive = sortKey === column
+
+  return (
+    <th
+      onClick={() => onSort(column)}
+      className="group cursor-pointer px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-white"
+    >
+      <div className="flex items-center gap-1">
+        <span>{label}</span>
+
+        <span
+          className={`text-[10px] transition-opacity ${
+            isActive ? "opacity-100" : "opacity-0 group-hover:opacity-60"
+          }`}
+        >
+          {isActive
+            ? sortDirection === "asc"
+              ? "↑"
+              : "↓"
+            : "↕"}
+        </span>
+      </div>
+    </th>
+  )
+}
+
+
 export default function StoresPage() {
-  const [filters, setFilters] = useState<FilterState>({
+  const [filters, setFilters] = useState<Record<string, string[]>>({
     chain: [],
     channel: [],
     sku: [],
     distributor: [],
     dc: [],
     state: [],
+    status: [],
   })
 
-  const [filterOptions, setFilterOptions] = useState<FilterState>({
+  const [filterOptions, setFilterOptions] = useState<Record<string, string[]>>({
     chain: [],
     channel: [],
     sku: [],
     distributor: [],
     dc: [],
     state: [],
+    status: [],
   })
 
-  const [activeFilter, setActiveFilter] =
-    useState<keyof typeof filters | null>(null)
+  const [visibleFilters, setVisibleFilters] = useState<string[]>([
+  "chain",
+  "channel",
+  "sku",
+  "distributor",
+  "status",
+  ])
+
 
   const [barOneData, setBarOneData] = useState<MetricRow[]>([])
   const [barTwoData, setBarTwoData] = useState<MetricRow[]>([])
   const [pieData, setPieData] = useState<PieRow[]>([])
+  const [channelMix, setChannelMix] = useState<PieRow[]>([])
+  const [storeTableData, setStoreTableData] = useState<any[]>([])
 
-  function toggleFilterValue(filterKey: keyof typeof filters, value: string) {
-    setFilters((prev) => {
-      const currentValues = prev[filterKey]
-      const alreadySelected = currentValues.includes(value)
+  /* States for sorting table columns */
+  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
 
-      return {
-        ...prev,
-        [filterKey]: alreadySelected
-          ? currentValues.filter((v) => v !== value)
-          : [...currentValues, value],
-      }
+  console.log("filters.status:", filters.status)
+  console.log("storeTableData sample:", storeTableData.slice(0, 10))
+  console.log(
+    "unique storeTableData statuses:",
+    [...new Set(storeTableData.map((row) => row.status))]
+  )
+
+  const processedStoreTableData = [...storeTableData]
+    .filter((row) => {
+      const selectedStatuses = filters.status ?? []
+      return selectedStatuses.length === 0
+        ? true
+        : selectedStatuses.includes(row.status)
     })
+  .sort((a, b) => {
+    if (!sortKey) return 0
+
+    const aVal = a[sortKey]
+    const bVal = b[sortKey]
+
+    if (aVal == null) return 1
+    if (bVal == null) return -1
+
+    if (typeof aVal === "number" && typeof bVal === "number") {
+      return sortDirection === "asc" ? aVal - bVal : bVal - aVal
+    }
+
+    return sortDirection === "asc"
+      ? String(aVal).localeCompare(String(bVal))
+      : String(bVal).localeCompare(String(aVal))
+  })
+
+
+  function handleSort(key: string) {
+  if (sortKey !== key) {
+    // first click on a new column
+    setSortKey(key)
+    setSortDirection("desc")
+  } else if (sortDirection === "desc") {
+    // second click
+    setSortDirection("asc")
+  } else {
+    // third click → reset
+    setSortKey(null)
+  }
   }
 
-  function clearFilter(filterKey: keyof typeof filters) {
-    setFilters((prev) => ({
-      ...prev,
-      [filterKey]: [],
-    }))
-  }
-
-  function clearAllFilters() {
-    setFilters({
-      chain: [],
-      channel: [],
-      sku: [],
-      distributor: [],
-      dc: [],
-      state: [],
-    })
-  }
-
-  const filterConfigs = [
-    {
-      key: "chain",
-      label: "Retailer",
-      options: filterOptions.chain,
-      accent: theme.blue,
-    },
-    {
-      key: "channel",
-      label: "Channel",
-      options: filterOptions.channel,
-      accent: theme.gold,
-    },
-    {
-      key: "sku",
-      label: "SKU",
-      options: filterOptions.sku,
-      accent: theme.charcoal,
-    },
-  ] as const
-
-  const contextItems = [
-    {
-      key: "chain",
-      label: "Retailer",
-      value: filters.chain.length ? filters.chain.join(", ") : "All Retailers",
-    },
-    {
-      key: "channel",
-      label: "Channel",
-      value: filters.channel.length ? filters.channel.join(", ") : "All Channels",
-    },
-    {
-      key: "sku",
-      label: "SKU",
-      value: filters.sku.length ? filters.sku.join(", ") : "All SKUs",
-    },
-  ] as const
-
-  const activeConfig = filterConfigs.find((f) => f.key === activeFilter) ?? null
+  
 
   useEffect(() => {
     async function loadData() {
@@ -527,8 +268,10 @@ export default function StoresPage() {
 
       const metricUrls = [
         buildMetricUrl("buyers", filters),
-        buildMetricUrl("velocity", filters),
+        buildMetricUrl("reorder_graph", filters),
         buildMetricUrl("reorder_stats", filters),
+        buildMetricUrl("channels", filters),
+        buildMetricUrl("store_level_reorder", filters),
       ]
 
       const responses = await Promise.all(
@@ -540,7 +283,7 @@ export default function StoresPage() {
       const filterOptionData = data.slice(0, filterKeys.length)
       const metricData = data.slice(filterKeys.length)
 
-      const nextFilterOptions: FilterState = {
+      const nextFilterOptions: Record<string, string[]> = {
         chain: Array.isArray(filterOptionData[filterKeys.indexOf("chain")])
           ? (filterOptionData[filterKeys.indexOf("chain")] as string[])
           : [],
@@ -559,6 +302,9 @@ export default function StoresPage() {
         state: Array.isArray(filterOptionData[filterKeys.indexOf("state")])
           ? (filterOptionData[filterKeys.indexOf("state")] as string[])
           : [],
+        status: Array.isArray(filterOptionData[filterKeys.indexOf("status")])
+          ? (filterOptionData[filterKeys.indexOf("status")] as string[])
+          : [],
       }
 
       setFilterOptions(nextFilterOptions)
@@ -573,7 +319,10 @@ export default function StoresPage() {
             }))
             : []
         )
+      setChannelMix(metricData[3] ?? [])
+      setStoreTableData(metricData[4] as any[])
     }
+    
 
     loadData()
   }, [filters])
@@ -598,6 +347,7 @@ export default function StoresPage() {
               Dashboard
             </Link>
 
+
             <Link
               href="/stores"
               className="rounded-full border px-4 py-2 text-sm font-medium transition"
@@ -612,228 +362,69 @@ export default function StoresPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-6 w-full">
-          <div
-            className="relative rounded-[28px] border px-6 py-6 shadow-[0_10px_30px_rgba(52,51,50,0.05)]"
-            style={{
-              backgroundColor: theme.surface,
-              borderColor: theme.line,
-            }}
-          >
-            <div className="flex items-start gap-6">
-              <div className="space-y-3">
-                <p
-                  className="text-xs uppercase tracking-[0.2em]"
-                  style={{ color: theme.brown }}
-                >
-                  Viewing
-                </p>
+        <DashboardHeader
+          brandName="Smearcase"
+          subtitle="Store Health"
+          logoSrc="/smearcase_vanilla.png"
+          lastUpdated="Mar 2026"
+        />
 
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[28px] font-medium tracking-tight">
-                  {contextItems.map((item, i) => {
-                    const accent =
-                      item.key === "channel"
-                        ? theme.gold
-                        : item.key === "sku"
-                        ? theme.charcoal
-                        : theme.blue
-
-                    return (
-                      <div key={item.key} className="flex items-center gap-3">
-                        <button
-                          className="group relative w-[220px] truncate pb-1 text-left align-top transition"
-                          style={{ color: theme.charcoal }}
-                          onClick={() =>
-                            setActiveFilter((prev) =>
-                              prev === item.key ? null : item.key
-                            )
-                          }
-                          title={item.value}
-                        >
-                          {item.value}
-                          <span
-                            className="absolute inset-x-0 bottom-0 h-[2px] rounded-full opacity-80"
-                            style={{ backgroundColor: accent }}
-                          />
-                        </button>
-
-                        {i < contextItems.length - 1 && (
-                          <span className="text-xl" style={{ color: "#B8AB97" }}>
-                            •
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-
-                <div className="flex flex-wrap gap-2 pt-1">
-                  <button
-                    className="rounded-full border px-3 py-1.5 text-xs font-medium"
-                    style={{
-                      borderColor: "#D8CFBF",
-                      color: theme.brown,
-                      backgroundColor: "#FAF7F1",
-                    }}
-                    onClick={() => setActiveFilter("chain")}
-                  >
-                    Change filters
-                  </button>
-
-                  <button
-                    className="rounded-full px-3 py-1.5 text-xs font-medium"
-                    style={{ color: theme.brown }}
-                    onClick={clearAllFilters}
-                  >
-                    Reset view
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {activeConfig && (
-              <div
-                className={`absolute left-6 top-[calc(100%+12px)] z-30 w-[360px] rounded-[28px] border p-5 shadow-[0_18px_40px_rgba(52,51,50,0.12)] transition-all duration-200 ease-out origin-top-left ${
-                  activeConfig
-                    ? "translate-y-0 scale-100 opacity-100"
-                    : "pointer-events-none -translate-y-1 scale-[0.98] opacity-0"
-                }`}
-                style={{
-                  backgroundColor: theme.surface,
-                  borderColor: theme.line,
-                }}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p
-                      className="text-xs uppercase tracking-[0.18em]"
-                      style={{ color: theme.brown }}
-                    >
-                      Change {activeConfig.label.toLowerCase()}
-                    </p>
-                    <h2
-                      className="mt-1 text-xl font-semibold"
-                      style={{ color: theme.charcoal }}
-                    >
-                      {activeConfig.label} selector
-                    </h2>
-                  </div>
-
-                  <button
-                    className="rounded-full px-2.5 py-1 text-xs font-medium"
-                    style={{
-                      backgroundColor: theme.chip,
-                      color: theme.charcoal,
-                    }}
-                    onClick={() => setActiveFilter(null)}
-                  >
-                    close
-                  </button>
-                </div>
-
-                <input
-                  readOnly
-                  placeholder={`Search ${activeConfig.label.toLowerCase()}...`}
-                  className="mt-4 w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-                  style={{
-                    borderColor: "#DDD4C6",
-                    backgroundColor: "#FFFEFB",
-                    color: theme.charcoal,
+        <FilterBar
+                  filters={filters}
+                  setFilters={setFilters}
+                  filterOptions={filterOptions}
+                  availableFilters={[
+                    "chain",
+                    "channel",
+                    "sku",
+                    "distributor",
+                    "dc",
+                    "state",
+                    "status",
+                  ]}
+                  visibleFilters={visibleFilters}
+                  setVisibleFilters={setVisibleFilters}
+                  filterLabels={{
+                    chain: "Retailer",
+                    channel: "Channel",
+                    sku: "SKU",
+                    distributor: "Distributor",
+                    dc: "DC",
+                    state: "State",
+                    status: "status",
                   }}
                 />
 
-                <div className="mt-4 max-h-[320px] space-y-2 overflow-y-auto pr-1">
-                  {(Array.isArray(activeConfig.options) ? activeConfig.options : []).map((item) => {
-                    const isSelected = filters[activeConfig.key].includes(item)
-
-                    return (
-                      <button
-                        key={item}
-                        className="flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-left text-sm transition"
-                        style={{
-                          borderColor: isSelected ? "#CFE0EE" : "#EEE6DA",
-                          backgroundColor: isSelected ? theme.chip : "#FFFEFB",
-                          color: theme.charcoal,
-                        }}
-                        onClick={() => toggleFilterValue(activeConfig.key, item)}
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <div
-                            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold"
-                            style={{
-                              borderColor: isSelected ? activeConfig.accent : "#CFC3B1",
-                              backgroundColor: isSelected ? activeConfig.accent : "transparent",
-                              color: isSelected ? "white" : "transparent",
-                            }}
-                          >
-                            ✓
-                          </div>
-
-                          <span className="truncate">{item}</span>
-                        </div>
-
-                        {isSelected && (
-                          <span
-                            className="ml-3 shrink-0 text-xs font-medium"
-                            style={{ color: theme.brown }}
-                          >
-                            selected
-                          </span>
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
-
-                <div className="mt-4 flex gap-3">
-                  <button
-                    className="text-sm font-medium"
-                    style={{ color: activeConfig.accent }}
-                    onClick={() => clearFilter(activeConfig.key)}
-                  >
-                    Clear
-                  </button>
-
-                  <button
-                    className="text-sm font-medium"
-                    style={{ color: theme.brown }}
-                    onClick={() => setActiveFilter(null)}
-                  >
-                    Done
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
         <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">
           <ChartSection
-            sectionLabel="Store Metric One"
+            sectionLabel="BUYING STORES"
             data={barOneData}
-            kpi1Title="Total"
-            kpi1Value={formatNumber(barOneStats.total)}
-            kpi2Title="Latest"
-            kpi2Value={formatNumber(barOneStats.latest)}
-            kpi3Title="Peak"
-            kpi3Value={formatNumber(barOneStats.max)}
+            kpis={[
+              { key: "total", title: "Total", value: barOneStats.total },
+              { key: "latest", title: "Latest", value: barOneStats.latest },
+              { key: "peak", title: "Peak", value: barOneStats.max },
+            ]}
             accentColor={theme.blue}
+            theme={theme}
           />
 
           <ChartSection
-            sectionLabel="Store Metric Two"
+            sectionLabel="REORDER RATE"
             data={barTwoData}
-            kpi1Title="Total"
-            kpi1Value={formatNumber(barTwoStats.total)}
-            kpi2Title="Latest"
-            kpi2Value={formatNumber(barTwoStats.latest)}
-            kpi3Title="Peak"
-            kpi3Value={formatNumber(barTwoStats.max)}
+            kpis={[
+              { key: "total", title: "Total", value: barTwoStats.total },
+              { key: "latest", title: "Latest", value: barTwoStats.latest },
+              { key: "peak", title: "Peak", value: barTwoStats.max },
+            ]}
             accentColor={theme.gold}
+            theme={theme}
+            valueFormatter={(v) => `${formatPercent(v)}%`}
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          {/* LEFT CARD — STORE HEALTH */}
           <Card
             className="rounded-[28px] shadow-sm"
             style={{
@@ -851,7 +442,7 @@ export default function StoresPage() {
                   className="text-[16px] uppercase tracking-[0.18em] font-medium"
                   style={{ color: "#6B6B6B" }}
                 >
-                  STORE MIX
+                  STORE HEALTH
                 </p>
               </div>
 
@@ -866,12 +457,239 @@ export default function StoresPage() {
                   <PieChartCard
                     data={pieData}
                     colorMap={PIE_COLORS}
+                    centerLabel="TOTAL"
+                    theme={theme}
                   />
                 </div>
               </div>
             </CardContent>
           </Card>
+
+          {/* RIGHT CARD — CHANNEL MIX */}
+          <Card
+            className="rounded-[28px] shadow-sm"
+            style={{
+              backgroundColor: theme.surface,
+              borderColor: theme.line,
+            }}
+          >
+            <CardContent className="pt-2 pb-4 px-6 space-y-6">
+              <div className="flex items-center gap-3">
+                <div
+                  className="h-[3px] w-24 rounded-full"
+                  style={{ backgroundColor: theme.blue + "CC" }}
+                />
+                <p
+                  className="text-[16px] uppercase tracking-[0.18em] font-medium"
+                  style={{ color: "#6B6B6B" }}
+                >
+                  CHANNEL MIX
+                </p>
+              </div>
+
+              <div
+                className="rounded-[24px] border p-4"
+                style={{
+                  backgroundColor: "#FCFAF6",
+                  borderColor: "#EEE5D8",
+                }}
+              >
+                <div className="h-[240px] flex items-center">
+                  <PieChartCard
+                    data={channelMix}
+                    colorMap={CHANNEL_COLOR_MAP}
+                    centerLabel="STORES"
+                    theme={theme}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
         </div>
+      <div
+      className="rounded-[28px] border p-6 shadow-sm"
+          style={{
+            backgroundColor: theme.surface,
+            borderColor: theme.line,
+          }}
+        >
+          <div className="mb-4 flex items-center gap-3">
+            <div
+              className="h-[3px] w-24 rounded-full"
+              style={{ backgroundColor: theme.brown + "CC" }}
+            />
+            <p
+              className="text-[16px] uppercase tracking-[0.18em] font-medium"
+              style={{ color: "#6B6B6B" }}
+            >
+              STORE STATUS DETAIL
+            </p>
+          </div>
+
+          <div className="mb-4 flex flex-wrap gap-2">
+            {["All", "Healthy", "Struggling", "Inactive", "Revived", "New"].map((status) => {
+              const selectedStatuses = filters.status ?? []
+              const isActive =
+                status === "All"
+                  ? selectedStatuses.length === 0
+                  : selectedStatuses.includes(status)
+              const style = STATUS_STYLES[status]
+
+              return (
+                <button
+                  key={status}
+                  className="rounded-full border px-3 py-1.5 text-xs font-medium transition"
+                  style={
+                    status === "All"
+                      ? {
+                          borderColor: isActive ? theme.charcoal : "#D8CFBF",
+                          backgroundColor: isActive ? theme.charcoal : "#FAF7F1",
+                          color: isActive ? "#FFFFFF" : theme.brown,
+                        }
+                      : {
+                          borderColor: isActive ? style.border : "#D8CFBF",
+                          backgroundColor: isActive ? style.bg : "#FAF7F1",
+                          color: isActive ? style.text : theme.brown,
+                        }
+                  }
+                  onClick={() =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      status: status === "All" ? [] : [status],
+                    }))
+                  }
+                >
+                  {status}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="overflow-hidden rounded-[20px] border border-black/10">
+            <div className="max-h-[420px] overflow-auto">
+              <table className="w-full text-sm">
+                <thead
+                  className="sticky top-0 z-10"
+                  style={{ backgroundColor: theme.blue }}
+                >
+                  <tr className="[&_th]:px-4 [&_th]:py-3 [&_th]:text-left [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.14em] [&_th]:text-white">
+                    <th onClick={() => handleSort("coded_customer")} className="cursor-pointer">
+                      Store
+                    </th>
+
+                    <SortableHeader
+                      label="Units"
+                      column="units"
+                      sortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={handleSort}
+                    />
+
+                    <SortableHeader
+                      label="Revenue"
+                      column="revenue"
+                      sortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={handleSort}
+                    />
+
+                    <SortableHeader
+                      label="Reorders"
+                      column="reorders"
+                      sortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={handleSort}
+                    />
+
+                    <SortableHeader
+                      label="VPO"
+                      column="vpo"
+                      sortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={handleSort}
+                    />
+
+                    <SortableHeader
+                      label="First Month"
+                      column="first_month_purchased"
+                      sortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={handleSort}
+                    />
+
+                    <SortableHeader
+                      label="Last Month"
+                      column="last_month_purchased"
+                      sortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={handleSort}
+                    />
+
+                    <SortableHeader
+                      label="Status"
+                      column="status"
+                      sortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={handleSort}
+                    />
+
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {processedStoreTableData.length > 0 ? (
+                    processedStoreTableData.map((row, index) => (
+                      <tr
+                        key={`${row.coded_customer}-${index}`}
+                        className="border-b border-black/5"
+                      >
+                        <td className="px-4 py-3 font-medium text-neutral-900">
+                          {row.coded_customer ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 text-neutral-700">
+                          {row.units != null ? Number(row.units).toLocaleString() : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-neutral-700">
+                          {row.revenue != null
+                            ? `$${Number(row.revenue).toLocaleString(undefined, {
+                                maximumFractionDigits: 0,
+                              })}`
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-neutral-700">
+                          {row.reorders != null ? Number(row.reorders).toLocaleString() : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-neutral-700">
+                          {row.vpo != null ? Number(row.vpo).toFixed(1) : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-neutral-700">
+                          {row.first_month_purchased ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 text-neutral-700">
+                          {row.last_month_purchased ?? "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusPill status={row.status ?? "Inactive"} />
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={8}
+                        className="px-4 py-10 text-center text-sm text-neutral-500"
+                      >
+                        No stores match the selected status.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
       </div>
     </main>
   )

@@ -9,6 +9,7 @@ monthly_filter = [
     "dc",
     "year",
     "month",
+    "status"
 ]
 
 non_time_filter = [
@@ -18,6 +19,7 @@ non_time_filter = [
     "sku",
     "distributor",
     "dc",
+    "status"
 ]
 
 
@@ -30,3 +32,4 @@ class Filters(BaseModel):
     dc: list[str] | None = None
     year: list[str] | None = None
     month: list[str] | None = None
+    status: list[str] | None = None

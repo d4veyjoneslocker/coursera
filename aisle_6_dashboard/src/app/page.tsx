@@ -61,11 +61,11 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-import FilterBar, { FilterKey } from "@/components/ui/FilterBar"
+import FilterBar from "@/components/ui/filters/FilterBar"
 import DashboardHeader from "@/components/ui/DashboardHeader"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL 
-/* const API_BASE_URL = "http://127.0.0.1:8000" */
+/* const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL */
+const API_BASE_URL = "http://127.0.0.1:8000"
 
 const theme = {
   blue: "#92B9DC",
@@ -105,16 +105,6 @@ const FILTER_KEYS = [
   "month",
 ]
 
-type FilterState = {
-  chain: string[]
-  channel: string[]
-  sku: string[]
-  distributor: string[]
-  dc: string[]
-  state: string[]
-  year: string[]
-  month: string[]
-}
 
 /*
 TYPE DEFINITIONS
@@ -692,7 +682,7 @@ export default function Home() {
   /*
   FILTER STATE
   */
-  const [filters, setFilters] = useState<FilterState>({
+  const [filters, setFilters] = useState<Record<string, string[]>>({
     chain: [] as string[],
     channel: [] as string[],
     sku: [] as string[],
@@ -703,7 +693,7 @@ export default function Home() {
     month: [] as string[],
   })
 
-  const [filterOptions, setFilterOptions] = useState<FilterState>({
+  const [filterOptions, setFilterOptions] = useState<Record<string, string[]>>({
     chain: [],
     channel: [],
     sku: [],
@@ -714,7 +704,7 @@ export default function Home() {
     month: [],
   })
 
-    const [visibleFilters, setVisibleFilters] = useState<FilterKey[]>([
+    const [visibleFilters, setVisibleFilters] = useState<string[]>([
     "chain",
     "channel",
     "sku",
@@ -799,7 +789,7 @@ export default function Home() {
       setSkuPieKpis(kpiData.skus_per_store ?? null)
       setChannelPieKpis(kpiData.channel_count ?? null)
 
-    const nextFilterOptions: FilterState = {
+    const nextFilterOptions: Record<string, string[]> = {
       chain: Array.isArray(filterOptionData[filterKeys.indexOf("chain")])
         ? (filterOptionData[filterKeys.indexOf("chain")] as string[])
         : [],

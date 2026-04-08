@@ -3,7 +3,9 @@ from data_validation.phase_1 import validate_first_pod_flag
 import numpy as np
 
 
+
 def add_features(df):
+
 
     df["first_month_purchased"] = (
         df.groupby("coded_customer")["month_year"].transform("min")
@@ -41,6 +43,16 @@ def add_features(df):
     df["reorder_flag_pod"] = ~df["first_pod_flag"]
 
     df["count"] = 1
+
+    from metrics.store_level_metrics import calculate_store_health_status_monthly
+
+    status_table = calculate_store_health_status_monthly(df)
+
+    df = df.merge(
+        status_table[["coded_customer", "status"]].drop_duplicates(),
+        on="coded_customer",
+        how="left")
+    
 
     # ADD THIS TEST BACK IN
 
@@ -80,9 +92,12 @@ def add_month_features(df):
     )
 
 
+
     # ADD THIS TEST BACK IN
 
     #validate_first_pod_flag(df)
+
+
 
     return df
 
