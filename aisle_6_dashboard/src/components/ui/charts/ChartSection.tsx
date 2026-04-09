@@ -42,7 +42,6 @@ export default function ChartSection({
       }}
     >
       <CardContent className="pt-2 pb-4 px-6 space-y-6">
-        {/* Header */}
         <div className="flex items-center gap-3">
           <div
             className="h-[3px] w-24 rounded-full"
@@ -57,7 +56,6 @@ export default function ChartSection({
           </p>
         </div>
 
-        {/* KPI Row */}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {kpis.map((kpi) => (
             <KpiCard
@@ -66,12 +64,12 @@ export default function ChartSection({
               value={String(formatValue(kpi.value))}
               sideValue={kpi.sideValue ?? undefined}
               sideLabel={kpi.sideLabel ?? undefined}
+              sideType={kpi.sideType ?? "percent"}
               theme={theme}
             />
           ))}
         </div>
 
-        {/* Chart */}
         <div
           className="rounded-[24px] border p-4"
           style={{

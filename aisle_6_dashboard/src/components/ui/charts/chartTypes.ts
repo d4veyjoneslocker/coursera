@@ -14,4 +14,5 @@ export type KpiItem = {
   value: number
   sideValue?: number | null
   sideLabel?: string | null
+  sideType?: "percent" | "absolute" | null
 }

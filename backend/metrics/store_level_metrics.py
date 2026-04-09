@@ -98,6 +98,7 @@ def calculate_store_health_status_monthly(df):
 
     return table
 
+# CUSTOMER LEVEL REORDER STATS
 
 def calculate_reorder_stats(df):
 
@@ -111,9 +112,13 @@ def calculate_reorder_stats(df):
         last_month_purchased=("last_month_purchased", "first")
     ).reset_index().sort_values("month_year", ascending=False)
 
-    df_w_features = add_month_features(df)
+    df["first_store_flag"] = (
+        df["month_year"] == df["first_month_purchased"]
+    )
 
-    table = df_w_features.groupby(
+    df["reorder_flag"] = ~df["first_store_flag"]
+
+    table = df.groupby(
         ["coded_customer"], dropna=False
         ).agg(
             units = ("units", "sum"),
@@ -126,6 +131,8 @@ def calculate_reorder_stats(df):
         ).reset_index().sort_values("reorders",ascending=False)
     
     return table
+
+# MONTH-LEVEL REORDER STATS
 
 def calculate_reorder_stats_monthly(df):
 

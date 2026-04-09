@@ -60,14 +60,16 @@ def kpi_data(df):
         "title": "L1M Units",
         "value": safe_int(latest_month(df["units"])),
         "sideValue": safe_float(latest_month(df["units_l1m_pct"])),
-        "sideLabel": "vs LM"
+        "sideLabel": "vs LM",
+        "sideType": "percent"
         },
         {
         "key": "l3m_units",
         "title": "L3M Units",
         "value": safe_int(latest_month(df["units_3m"])),
         "sideValue": safe_float(latest_month(df["units_l3m_pct"])),
-        "sideLabel": "vs L3M"
+        "sideLabel": "vs L3M",
+        "sideType": "percent"
         },
     ]
 
@@ -82,14 +84,16 @@ def kpi_data(df):
         "title": "L1M buyers",
         "value": safe_int(latest_month(df["buying_stores"])),
         "sideValue": safe_float(latest_month(df["buying_stores_l1m_pct"])),
-        "sideLabel": "vs L1M"
+        "sideLabel": "vs L1M",
+        "sideType": "percent"
         },
         {
         "key": "l3m_buyers",
         "title": "L3M buyers",
         "value": safe_int(latest_month(df["buying_stores_3m"])),
         "sideValue": safe_float(latest_month(df["buying_stores_l3m_pct"])),
-        "sideLabel": "vs L3M"
+        "sideLabel": "vs L3M",
+        "sideType": "percent"
         },
     ]
 
@@ -104,14 +108,16 @@ def kpi_data(df):
         "title": "L1M New PODs",
         "value": safe_int(latest_month(df["new_pods"])),
         "sideValue": safe_float(latest_month(df["new_pods_l1m_pct"])),
-        "sideLabel": "vs L1M"
+        "sideLabel": "vs L1M",
+        "sideType": "percent"
         },
         {
         "key": "l3m_new_pods",
         "title": "L3M New PODs",
         "value": safe_int(latest_month(df["new_pods_3m"])),
         "sideValue": safe_float(latest_month(df["new_pods_l3m_pct"])),
-        "sideLabel": "vs L3M"
+        "sideLabel": "vs L3M",
+        "sideType": "percent"
         },
     ]
 
@@ -126,14 +132,16 @@ def kpi_data(df):
         "title": "L1M velocity",
         "value": safe_float(latest_month(df["vpo"])),
         "sideValue": safe_float(latest_month(df["vpo_l1m_pct"])),
-        "sideLabel": "vs L1M"
+        "sideLabel": "vs L1M",
+        "sideType": "percent"
         },
         {
         "key": "l3m_velocity",
         "title": "L3M velocity",
         "value": safe_float(latest_month(df["vpo_3m"])),
         "sideValue": safe_float(latest_month(df["vpo_l3m_pct"])),
-        "sideLabel": "vs L3M"
+        "sideLabel": "vs L3M",
+        "sideType": "percent"
         },
     ]
 
@@ -145,3 +153,68 @@ def kpi_data(df):
         "velocity_kpis": velocity_kpis,
     }
 
+def store_health_kpis(df):
+    current_month = pd.Timestamp.today().to_period("M")
+    df = df[df["month_year"] != current_month].copy()
+
+    reorder_kpis = [
+        {
+        "key": "total_reorder_rate",
+        "title": "Total reorder rate",
+        "value": safe_float(latest_month(df["reorder_rate_lifetime"])),
+        },
+        {
+        "key": "l1m_reorder_rate",
+        "title": "L1M reorder rate",
+        "value": safe_float(latest_month(df["reorder_rate"])),
+        "sideValue": safe_float(latest_month(df["reorder_rate_l1m_abs"])),
+        "sideLabel": "vs L1M",
+        "sideType": "absolute"
+        },
+        {
+        "key": "l3m_reorder_rate",
+        "title": "L3M reorder rate",
+        "value": safe_float(latest_month(df["reorder_rate_3m"])),
+        "sideValue": safe_float(latest_month(df["reorder_rate_l3m_abs"])),
+        "sideLabel": "vs L3M",
+        "sideType": "absolute"
+        },
+    ]
+
+    return {
+        "reorder_kpis": reorder_kpis
+    }
+
+
+
+def buying_kpis(df):
+    current_month = pd.Timestamp.today().to_period("M")
+    df = df[df["month_year"] != current_month].copy()
+
+    buyers_kpis = [
+        {
+        "key": "total_buyers",
+        "title": "Total buyers",
+        "value": safe_int(latest_month(df["buying_stores_total"])),
+        },
+        {
+        "key": "l1m_buyers",
+        "title": "L1M buyers",
+        "value": safe_int(latest_month(df["buying_stores"])),
+        "sideValue": safe_float(latest_month(df["buying_stores_l1m_pct"])),
+        "sideLabel": "vs L1M",
+        "sideType": "percent"
+        },
+        {
+        "key": "l3m_buyers",
+        "title": "L3M buyers",
+        "value": safe_int(latest_month(df["buying_stores_3m"])),
+        "sideValue": safe_float(latest_month(df["buying_stores_l3m_pct"])),
+        "sideLabel": "vs L3M",
+        "sideType": "percent"
+        },
+    ]
+
+    return {
+        "buyers_kpis": buyers_kpis,
+    }

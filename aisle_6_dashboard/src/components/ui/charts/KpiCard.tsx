@@ -7,6 +7,7 @@ type KpiCardProps = {
   value: string
   sideLabel?: string
   sideValue?: number
+  sideType?: "percent" | "absolute"
   theme: {
     brown: string
     charcoal: string
@@ -18,6 +19,7 @@ export default function KpiCard({
   value,
   sideLabel,
   sideValue,
+  sideType = "percent",
   theme,
 }: KpiCardProps) {
   const isPositive = sideValue !== undefined && sideValue > 0
@@ -121,7 +123,9 @@ export default function KpiCard({
                   </span>
 
                   <span className="text-[12px] font-semibold leading-none">
-                    {formatPercent(sideValue)}%
+                    {sideType === "absolute"
+                      ? `${isPositive ? "+" : isNegative ? "-" : ""}${formatPercent(Math.abs(sideValue))}`
+                      : `${formatPercent(sideValue)}%`}
                   </span>
                 </div>
 

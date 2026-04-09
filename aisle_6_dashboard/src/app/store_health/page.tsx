@@ -202,6 +202,8 @@ export default function StoresPage() {
   const [pieData, setPieData] = useState<PieRow[]>([])
   const [channelMix, setChannelMix] = useState<PieRow[]>([])
   const [storeTableData, setStoreTableData] = useState<any[]>([])
+  const [buyersKpis, setBuyersKpis] = useState<any[]>([])
+  const [reorderKpis, setReorderKpis] = useState<any[]>([])
 
   /* States for sorting table columns */
   const [sortKey, setSortKey] = useState<string | null>(null)
@@ -321,6 +323,17 @@ export default function StoresPage() {
         )
       setChannelMix(metricData[3] ?? [])
       setStoreTableData(metricData[4] as any[])
+
+      const kpiRes = await fetch(`http://127.0.0.1:8000/kpis_store_health${queryString ? `?${queryString}` : ""}`)
+      const kpiData = await kpiRes.json()
+
+      console.log("queryString", queryString)
+      console.log("FULL KPI DATA", kpiData)
+      console.log("buyers_kpis", kpiData.buyers_kpis)
+      console.log("reorder_kpis", kpiData.reorder_kpis)
+
+      setBuyersKpis(kpiData.buyers_kpis ?? [])
+      setReorderKpis(kpiData.reorder_kpis ?? [])
     }
     
 
@@ -399,11 +412,7 @@ export default function StoresPage() {
           <ChartSection
             sectionLabel="BUYING STORES"
             data={barOneData}
-            kpis={[
-              { key: "total", title: "Total", value: barOneStats.total },
-              { key: "latest", title: "Latest", value: barOneStats.latest },
-              { key: "peak", title: "Peak", value: barOneStats.max },
-            ]}
+            kpis={buyersKpis}
             accentColor={theme.blue}
             theme={theme}
           />
@@ -411,11 +420,7 @@ export default function StoresPage() {
           <ChartSection
             sectionLabel="REORDER RATE"
             data={barTwoData}
-            kpis={[
-              { key: "total", title: "Total", value: barTwoStats.total },
-              { key: "latest", title: "Latest", value: barTwoStats.latest },
-              { key: "peak", title: "Peak", value: barTwoStats.max },
-            ]}
+            kpis={reorderKpis}
             accentColor={theme.gold}
             theme={theme}
             valueFormatter={(v) => `${formatPercent(v)}%`}

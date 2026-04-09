@@ -21,10 +21,12 @@ def add_features(df):
             lambda x: (
                 x.drop_duplicates().nlargest(2).iloc[-1]
                 if len(x.drop_duplicates()) > 1
-                else pd.NaT
+                else pd.Period("NaT", freq="M")
             )
     )
     )
+
+    df["second_to_last_month_purchased"] = df["second_to_last_month_purchased"].astype("period[M]")
 
     df["first_store_flag"] = (
         df["month_year"] == df["first_month_purchased"]
