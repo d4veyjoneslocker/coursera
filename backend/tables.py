@@ -1,4 +1,4 @@
-from crisp_data_pull_generic import pull_crisp_data
+from crisp_data_pull import pull_crisp_data
 from transforms.kehe import transform_kehe_full_pod_vendor
 from transforms.unfi import transform_unfi_natural_vendor_sales
 from transforms.combine_sources  import combine_distributors
