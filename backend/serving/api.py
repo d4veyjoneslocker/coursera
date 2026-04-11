@@ -197,7 +197,10 @@ def channels(filters: dict = Depends(get_filters)):
     return result.to_dict(orient="records")
 
 @app.get("/chain_table")
-def chain_table(filters: dict = Depends(get_filters)):
+def chain_table_api(filters: dict = Depends(get_filters)):
+    print("API combined_w_features has first_pod_flag:", "first_pod_flag" in combined_w_features.columns)
+    print("API combined_w_features columns:", combined_w_features.columns.tolist())
+
     df = filter_table(combined_w_features, **filters)
 
     no_time_filters = filters.copy()
@@ -205,6 +208,10 @@ def chain_table(filters: dict = Depends(get_filters)):
     no_time_filters.pop("month", None)
 
     df_clone = filter_table(combined_w_features, **no_time_filters)
+
+    print("df has first_pod_flag:", "first_pod_flag" in df.columns)
+    print("df_clone has first_pod_flag:", "first_pod_flag" in df_clone.columns)
+    print("df_clone columns:", df_clone.columns.tolist())
 
     result = chain_table(df, df_clone)
 
