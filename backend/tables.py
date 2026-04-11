@@ -36,6 +36,10 @@ combined_w_features = add_features(combined_df)
 
 #print("reorder_flag" in combined_w_features.columns)
 
+print("combined_df columns:", combined_df.columns.tolist())
+print("combined_w_features columns:", combined_w_features.columns.tolist())
+print("has first_pod_flag:", "first_pod_flag" in combined_w_features.columns)
+
 monthly_summary = monthly_summary(combined_w_features, combined_w_features)
 #sku_mix = sku_mix(combined_w_features)
 chain = chain_table(combined_w_features, combined_w_features)
