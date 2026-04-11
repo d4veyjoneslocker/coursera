@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from filters.filters import monthly_filter
+from metrics.core_metrics import monthly_summary
 
 def total(series):
     return series.sum() if len(series) else None
@@ -41,10 +42,15 @@ def count_channels(df):
                 "title": "Channel Count",
                 "value": df["channel"].nunique()}}
 
-def kpi_data(df):
+def kpi_data(df, df_full_months):
+
 
     current_month = pd.Timestamp.today().to_period("M")
+    full_df = df.copy()
     df = df[df["month_year"] != current_month].copy()
+    total_units = total(df_full_months["units"])
+    total_buyers = total(df_full_months["buying_stores_total"])
+
     #UNITS
 
     #total units
@@ -53,7 +59,7 @@ def kpi_data(df):
         {
         "key": "total_units",
         "title": "Total Units",
-        "value": safe_int(total(df["units"])),
+        "value": safe_int(total_units),
         },
         {
         "key": "l1m_units",
@@ -77,7 +83,7 @@ def kpi_data(df):
         {
         "key": "total_buyers",
         "title": "Total buyers",
-        "value": safe_int(latest_month(df["buying_stores_total"])),
+        "value": safe_int(total_buyers),
         },
         {
         "key": "l1m_buyers",

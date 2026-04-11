@@ -7,6 +7,8 @@ import pandas as pd
 import json
 import os
 import sys
+
+#THIS LINE ADJUSTS SO ALL THE MODULES USE /BACKEND
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 
@@ -14,6 +16,7 @@ from filters.filter_table import filter_table
 from filters.filters import (generate_filter_api, get_filters, get_non_time_filters, Filters) 
 from fastapi.middleware.cors import CORSMiddleware
 from tables import (combined_df, combined_w_features)
+#import raw_unfi_data above
 from metrics.core_metrics import (monthly_summary, chain_table, active_store_rate)
 from metrics.store_level_metrics import (
     calculate_store_health_status,
@@ -43,6 +46,11 @@ def prep_monthly_graph(df, metric):
 
     return df
 
+#@app.get("/date")
+#def date():
+#    report_date = raw_unfi_df["ReportRunDate"].max()[:10]
+
+#    return report_date
 
 
 @app.get("/units")
@@ -147,12 +155,12 @@ def kpis(filters: dict = Depends(get_filters)):
 
     df_clone = filter_table(combined_w_features, **no_time_filters)
 
-    result = monthly_summary(df, df_clone)
+    result_full_months = monthly_summary(df, df_clone)
 
-    result = add_time_metrics_simple(result,["units", "new_pods"], ["buying_stores"], ["vpo"], ["active_pods"])
+    result = add_time_metrics_simple(result_full_months,["units", "new_pods"], ["buying_stores"], ["vpo"], ["active_pods"])
 
     return {
-        **kpi_data(result),
+        **kpi_data(result, result_full_months),
         **calculate_avg_skus_per_store(df),
         **count_channels(df)
     }
