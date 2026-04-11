@@ -197,7 +197,7 @@ def channels(filters: dict = Depends(get_filters)):
     return result.to_dict(orient="records")
 
 @app.get("/chain_table")
-def chain_table_api(filters: dict = Depends(get_filters)):
+def chain_table(filters: dict = Depends(get_filters)):
     df = filter_table(combined_w_features, **filters)
 
     no_time_filters = filters.copy()
