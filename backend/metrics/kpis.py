@@ -48,7 +48,7 @@ def kpi_data(df, df_full_months):
     current_month = pd.Timestamp.today().to_period("M")
     full_df = df.copy()
     df = df[df["month_year"] != current_month].copy()
-    total_units = max(df_full_months["units"])
+    total_units = total(df_full_months["units"])
     total_buyers = max(df_full_months["buying_stores_total"])
 
     #UNITS
