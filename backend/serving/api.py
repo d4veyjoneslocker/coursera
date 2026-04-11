@@ -8,9 +8,7 @@ import json
 import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-print("CWD:", os.getcwd())
-print("FILES:", os.listdir())
-print("SYS PATH:", sys.path)
+
 
 from filters.filter_table import filter_table
 from filters.filters import (generate_filter_api, get_filters, get_non_time_filters, Filters) 
@@ -205,8 +203,6 @@ def channels(filters: dict = Depends(get_filters)):
 
 @app.get("/chain_table")
 def chain_table_api(filters: dict = Depends(get_filters)):
-
-    return {"debug": "NEW CHAIN TABLE VERSION"}
 
     print("API combined_w_features has first_pod_flag:", "first_pod_flag" in combined_w_features.columns)
     print("API combined_w_features columns:", combined_w_features.columns.tolist())
