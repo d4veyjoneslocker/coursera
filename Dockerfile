@@ -1,10 +1,10 @@
 FROM python:3.11-slim
 
-WORKDIR /app
+WORKDIR /app/backend
 
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY backend/ .
 
-CMD ["python", "-m", "uvicorn", "backend.serving.api:app", "--host", "0.0.0.0", "--port", $PORT]
+CMD ["sh", "-c", "python -m uvicorn serving.api:app --host 0.0.0.0 --port $PORT"]
