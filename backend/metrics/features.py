@@ -5,7 +5,7 @@ import numpy as np
 
 
 def add_features(df):
-
+    df = df.copy()
 
     df["first_month_purchased"] = (
         df.groupby("coded_customer")["month_year"].transform("min")

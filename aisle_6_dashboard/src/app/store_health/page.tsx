@@ -34,7 +34,7 @@ const PIE_COLORS: Record<string, string> = {
 }
 
 const CHANNEL_COLOR_MAP: Record<string, string> = {
-  "SUPERMARKET": theme.blue,
+  "GROCERY": theme.blue,
   "E-COMMERCE": theme.gold,
   "NATURAL": theme.brown,
   "INDEPENDENT": theme.charcoal,
@@ -70,7 +70,7 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; border: string }
   },
 }
 
-
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
 
 function buildMetricUrl(
@@ -86,8 +86,8 @@ function buildMetricUrl(
   const query = params.toString()
 
   return query
-    ? `http://127.0.0.1:8000/${endpoint}?${query}`
-    : `http://127.0.0.1:8000/${endpoint}`
+    ? `${API_BASE_URL}/${endpoint}?${query}`
+    : `${API_BASE_URL}/${endpoint}`
 }
 
 
@@ -204,6 +204,11 @@ export default function StoresPage() {
   const [storeTableData, setStoreTableData] = useState<any[]>([])
   const [buyersKpis, setBuyersKpis] = useState<any[]>([])
   const [reorderKpis, setReorderKpis] = useState<any[]>([])
+  const [channelPieKpis, setChannelPieKpis] = useState<{
+    key: string
+    title: string
+    value: number
+  } | null>(null)
 
   /* States for sorting table columns */
   const [sortKey, setSortKey] = useState<string | null>(null)
@@ -265,7 +270,7 @@ export default function StoresPage() {
 
       const filterOptionUrls = filterKeys.map(
         (key) =>
-          `http://127.0.0.1:8000/filters/${key}${queryString ? `?${queryString}` : ""}`
+          `${API_BASE_URL}/filters/${key}${queryString ? `?${queryString}` : ""}`
       )
 
       const metricUrls = [
@@ -324,7 +329,7 @@ export default function StoresPage() {
       setChannelMix(metricData[3] ?? [])
       setStoreTableData(metricData[4] as any[])
 
-      const kpiRes = await fetch(`http://127.0.0.1:8000/kpis_store_health${queryString ? `?${queryString}` : ""}`)
+      const kpiRes = await fetch(`${API_BASE_URL}/kpis_store_health${queryString ? `?${queryString}` : ""}`)
       const kpiData = await kpiRes.json()
 
       console.log("queryString", queryString)
@@ -334,6 +339,7 @@ export default function StoresPage() {
 
       setBuyersKpis(kpiData.buyers_kpis ?? [])
       setReorderKpis(kpiData.reorder_kpis ?? [])
+      setChannelPieKpis(kpiData.channel_count ?? null)
     }
     
 
@@ -346,40 +352,13 @@ export default function StoresPage() {
   return (
     <main className="min-h-screen p-8" style={{ backgroundColor: theme.bg }}>
       <div className="mx-auto max-w-7xl space-y-8">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="rounded-full border px-4 py-2 text-sm font-medium transition"
-              style={{
-                borderColor: "#D8CFBF",
-                color: theme.brown,
-                backgroundColor: "#FAF7F1",
-              }}
-            >
-              Dashboard
-            </Link>
-
-
-            <Link
-              href="/stores"
-              className="rounded-full border px-4 py-2 text-sm font-medium transition"
-              style={{
-                borderColor: theme.line,
-                color: theme.charcoal,
-                backgroundColor: theme.surface,
-              }}
-            >
-              Stores
-            </Link>
-          </div>
-        </div>
 
         <DashboardHeader
           brandName="Smearcase"
           subtitle="Store Health"
           logoSrc="/smearcase_vanilla.png"
-          lastUpdated="Mar 2026"
+          lastUpdated="April 2026"
+          activePage="store-health"
         />
 
         <FilterBar
@@ -462,8 +441,9 @@ export default function StoresPage() {
                   <PieChartCard
                     data={pieData}
                     colorMap={PIE_COLORS}
-                    centerLabel="TOTAL"
+                    centerLabel="TOTAL STORES"
                     theme={theme}
+                    tooltipValueType="number"
                   />
                 </div>
               </div>
@@ -503,8 +483,10 @@ export default function StoresPage() {
                   <PieChartCard
                     data={channelMix}
                     colorMap={CHANNEL_COLOR_MAP}
-                    centerLabel="STORES"
+                    centerValue={channelPieKpis?.value}
+                    centerLabel={channelPieKpis?.title}
                     theme={theme}
+                    tooltipValueType="percent"
                   />
                 </div>
               </div>

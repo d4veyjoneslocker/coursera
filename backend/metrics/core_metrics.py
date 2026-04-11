@@ -71,9 +71,9 @@ def monthly_summary(df, df_clone):
 
     monthly_clone["buying_stores_l3m"] = [
         df_clone.loc[
-            df_clone["month_year"].isin(months[i-6:i-3]),
+            df_clone["month_year"].isin(months[i-5:i-2]),
             "coded_customer"
-        ].nunique() if i >= 6 else None
+        ].nunique() if i >= 5 else None
         for i in range(len(months))
     ]
 
@@ -113,12 +113,6 @@ def monthly_summary(df, df_clone):
         ]
     ].sort_values(["month_year"])
 
-    # LOGIC TO REMOVE CURRENT MONTH
-
-    current_month = pd.Timestamp.today().to_period("M")
-    monthly = monthly[monthly["month_year"] != current_month].copy()
-
-    monthly["month_year"] = monthly["month_year"].astype(str)
 
     return monthly
 

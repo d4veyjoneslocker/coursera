@@ -1,24 +1,40 @@
 "use client"
 
 import Image from "next/image"
+import Link from "next/link"
+
+type DashboardPage = "overview" | "store-health"
 
 type DashboardHeaderProps = {
   brandName: string
   subtitle?: string
   logoSrc?: string
   lastUpdated?: string
+  activePage: DashboardPage
 }
 
 const theme = {
+  blue: "#92B9DC",
+  gold: "#F7B045",
+  brown: "#705C4F",
   charcoal: "#343332",
   line: "#E5DDD0",
+  muted: "#7A746B",
+  greenBg: "#EAF6EE",
+  greenText: "#2E7D32",
 }
+
+const pages: { label: string; value: DashboardPage; href: string }[] = [
+  { label: "Overview", value: "overview", href: "/" },
+  { label: "Store Health", value: "store-health", href: "/store_health" },
+]
 
 export default function DashboardHeader({
   brandName,
   subtitle = "Sales Dashboard",
   logoSrc,
   lastUpdated,
+  activePage,
 }: DashboardHeaderProps) {
   return (
     <div className="space-y-4">
@@ -58,59 +74,100 @@ export default function DashboardHeader({
 
             <p
               className="mt-1 text-[12px] uppercase tracking-[0.18em]"
-              style={{ color: "#7A746B" }}
+              style={{ color: theme.muted }}
             >
               {subtitle}
             </p>
           </div>
         </div>
 
-
-
         {/* RIGHT SIDE */}
-        
-        <div className="flex items-center gap-3">
-          {/*
-          <button
-            className="rounded-full border px-3 py-1.5 text-xs font-medium"
+        <div className="flex items-center gap-5">
+          {/* PAGE SWITCHER */}
+          <div
+            className="inline-flex items-center rounded-full border p-1.5"
             style={{
               borderColor: "#D8CFBF",
-              color: "#705C4F",
-              backgroundColor: "#FAF7F1",
+              backgroundColor: "#F6F1E8",
             }}
           >
-            Pages ▾
-          </button>
+            {pages.map((page) => {
+              const isActive = activePage === page.value
 
-          <button
-            className="rounded-full border px-3 py-1.5 text-xs font-medium"
-            style={{
-              borderColor: "#D8CFBF",
-              color: "#705C4F",
-              backgroundColor: "#FAF7F1",
-            }}
-          >
-            Actions ▾
-          </button>
-          */}
+              return (
+                <Link
+                  key={page.value}
+                  href={page.href}
+                  className="group relative rounded-full px-5 py-2.5 text-[13px] font-medium transition-all duration-200"
+                  style={{
+                    backgroundColor: isActive
+                      ? `${theme.blue}15`
+                      : "transparent",
+                    color: isActive ? theme.charcoal : theme.brown,
+                    boxShadow: isActive
+                      ? "0 1px 2px rgba(52,51,50,0.08), inset 0 0 0 1px #E5DDD0"
+                      : "none",
+                  }}
+                >
+                  {/* LABEL */}
+                  <span
+                    className="relative z-10 transition-colors duration-200"
+                    style={{
+                      color: isActive ? theme.charcoal : theme.brown,
+                    }}
+                  >
+                    {page.label}
+                  </span>
 
+                  {/* HOVER BACKGROUND (inactive only) */}
+                  {!isActive && (
+                    <span
+                      className="absolute inset-0 rounded-full opacity-0 transition-all duration-200 group-hover:opacity-100"
+                      style={{
+                        backgroundColor: `${theme.brown}15`,
+                      }}
+                    />
+                  )}
 
-          {/* DATE + STATUS STACK */}
-          <div className="ml-3 flex flex-col items-end text-right">
+                  {/* ACTIVE UNDERLINE */}
+                  <span
+                    className="absolute left-4 right-4 bottom-1.5 h-[2px] rounded-full transition-all duration-200"
+                    style={{
+                      backgroundColor: theme.blue,
+                      opacity: isActive ? 1 : 0,
+                    }}
+                  />
+
+                  {/* HOVER UNDERLINE (inactive) */}
+                  {!isActive && (
+                    <span
+                      className="absolute left-4 right-4 bottom-1.5 h-[2px] rounded-full opacity-0 transition-all duration-200 group-hover:opacity-60"
+                      style={{
+                        backgroundColor: theme.brown,
+                      }}
+                    />
+                  )}
+                </Link>
+              )
+            })}
+          </div>
+
+          {/* DATE + STATUS */}
+          <div className="flex flex-col items-end text-right">
             {lastUpdated && (
               <p
-                className="pr-3 text-xs font-medium"
-                style={{ color: "#7A746B" }}
+                className="pr-2 text-xs font-medium"
+                style={{ color: theme.muted }}
               >
                 {lastUpdated}
               </p>
             )}
 
             <div
-              className="mt-1 inline-flex items-center gap-2 self-end rounded-full px-3 py-1 text-[11px] font-medium"
+              className="mt-1 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-medium"
               style={{
-                backgroundColor: "#EAF6EE",
-                color: "#2E7D32",
+                backgroundColor: theme.greenBg,
+                color: theme.greenText,
               }}
             >
               <div className="h-2 w-2 rounded-full bg-green-600" />
@@ -120,7 +177,7 @@ export default function DashboardHeader({
         </div>
       </div>
 
-      {/* SUBTLE DIVIDER */}
+      {/* DIVIDER */}
       <div
         className="h-[1px] w-full"
         style={{ backgroundColor: theme.line }}

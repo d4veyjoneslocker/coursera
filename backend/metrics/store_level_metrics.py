@@ -72,7 +72,7 @@ def calculate_store_health_status_monthly(df):
         table["first_month_purchased"] >= (current_month - 1),
         table["last_month_purchased"] <= (current_month - 5),
         table["last_month_purchased"] <= (current_month - 3),
-        (table["last_month_purchased"] >= (current_month - 2)) & (table["last_month_purchased"] <= (current_month - 5)),
+        (table["last_month_purchased"] >= (current_month - 2)) & (table["second_to_last_month_purchased"] <= (current_month - 5)),
         table["last_month_purchased"] >= (current_month - 2),
     ]
 
@@ -179,3 +179,4 @@ def calculate_store_vpo(df):
     result["vpo"] = result["volume"]/result["active_pods"]/4
 
     return result[["coded_customer", "vpo", "active_pods", "volume"]]
+

@@ -65,8 +65,8 @@ import FilterBar from "@/components/ui/filters/FilterBar"
 import DashboardHeader from "@/components/ui/DashboardHeader"
 import KpiCard from "@/components/ui/charts/KpiCard"
 
-/* const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL */
-const API_BASE_URL = "http://127.0.0.1:8000"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+/* const API_BASE_URL = "http://127.0.0.1:8000" */
 
 const theme = {
   blue: "#92B9DC",
@@ -88,7 +88,7 @@ const SKU_COLORS: Record<string, string> = {
 }
 
 const CHANNEL_COLORS: Record<string, string> = {
-  "SUPERMARKET": "#6B8FD6",
+  "GROCERY": "#6B8FD6",
   "E-COMMERCE": "#5FA8A0",
   "NATURAL": "#9A7FBF",
   "INDEPENDENT": "#D8B98A",
@@ -634,6 +634,12 @@ export default function Home() {
         buildMetricUrl("chain_table", filters)
       ]
 
+      console.log("filterOptionUrls", filterOptionUrls)
+      console.log("metricUrls", metricUrls)
+
+      const allUrls = [...filterOptionUrls, ...metricUrls]
+      console.log("allUrls", allUrls)
+
       const responses = await Promise.all(
         [...filterOptionUrls, ...metricUrls].map((url) => fetch(url))
       )
@@ -711,7 +717,8 @@ export default function Home() {
           brandName="Smearcase"
           subtitle="National Retail Sales"
           logoSrc="/smearcase_vanilla.png"
-          lastUpdated="Mar 2026"
+          lastUpdated="April 2026"
+          activePage="overview"
         />
 
         <FilterBar

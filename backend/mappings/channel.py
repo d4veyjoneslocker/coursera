@@ -1,11 +1,16 @@
 channel_map = {
     "Alternative Channel" : "ALTERNATIVE",
     "E-Commerce" : "E-COMMERCE",
-    "SuperMarket" : "SUPERMARKET",
-    "SuperMarket Independent" : "SUPERMARKET",
-    "SuperMarket Chain" : "SUPERMARKET",
+    "SuperMarket" : "GROCERY",
+    "SuperMarket Independent" : "GROCERY",
+    "SuperMarket Chain" : "GROCERY",
     "Independents" : "INDEPENDENT",
     "Chain Natural" : "NATURAL",
     "Independent East" : "INDEPENDENT",
-    "Alternative Channel" : "ALTERNATIVE",
+    "Alternate Channel" : "ALTERNATIVE",
+    "Grocery - Chain (National)": "GROCERY",
+    "Grocery - Independent": "GROCERY"
 }
+
+
+

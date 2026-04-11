@@ -160,7 +160,7 @@ def store_health_kpis(df):
     reorder_kpis = [
         {
         "key": "total_reorder_rate",
-        "title": "Total reorder rate",
+        "title": "Ttl reorder rate",
         "value": safe_float(latest_month(df["reorder_rate_lifetime"])),
         },
         {

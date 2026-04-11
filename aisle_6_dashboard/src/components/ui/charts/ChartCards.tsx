@@ -124,12 +124,14 @@ export function PieChartCard({
   centerValue,
   centerLabel,
   theme,
+  tooltipValueType = "percent",
 }: {
   data: PieRow[]
   colorMap: Record<string, string>
   centerValue?: number | string
   centerLabel?: string
   theme: Theme
+  tooltipValueType?: "percent" | "number"
 }) {
   const safeData = Array.isArray(data) ? data : []
   const total = safeData.reduce((sum, row) => sum + row.value, 0)
@@ -141,6 +143,14 @@ export function PieChartCard({
 
   const pieCx = "51%"
   const pieCy = "50%"
+
+  const formatTooltipValue = (value: number) => {
+    if (tooltipValueType === "number") {
+      return formatNumber(value)
+    }
+
+    return `${Math.round(value * 100)}%`
+  }
 
   return (
     <div className="flex w-full justify-center">
@@ -174,7 +184,7 @@ export function PieChartCard({
                           className="mt-1 text-sm"
                           style={{ color: "#7A746B" }}
                         >
-                          {Math.round(Number(data.value) * 100)}%
+                          {formatTooltipValue(Number(data.value))}
                         </div>
                       </div>
                     )
