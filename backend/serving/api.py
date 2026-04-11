@@ -5,20 +5,20 @@ from io import BytesIO
 import numpy as np
 import pandas as pd
 import json
-from backend.filters.filter_table import filter_table
-from backend.filters.filters import (generate_filter_api, get_filters, get_non_time_filters, Filters) 
+from filters.filter_table import filter_table
+from filters.filters import (generate_filter_api, get_filters, get_non_time_filters, Filters) 
 from fastapi.middleware.cors import CORSMiddleware
-from backend.tables import (combined_df, combined_w_features)
-from backend.metrics.core_metrics import (monthly_summary, chain_table, active_store_rate)
-from backend.metrics.store_level_metrics import (
+from tables import (combined_df, combined_w_features)
+from metrics.core_metrics import (monthly_summary, chain_table, active_store_rate)
+from metrics.store_level_metrics import (
     calculate_store_health_status,
     calculate_reorder_stats,
     calculate_reorder_stats_monthly,
     calculate_store_vpo,
     )
-from backend.metrics.kpis import (kpi_data, store_health_kpis, count_channels, calculate_avg_skus_per_store, buying_kpis)
-from backend.metrics.growth_metrics import add_time_metrics_simple
-from backend.serving.json_cleaner import clean_for_json
+from metrics.kpis import (kpi_data, store_health_kpis, count_channels, calculate_avg_skus_per_store, buying_kpis)
+from metrics.growth_metrics import add_time_metrics_simple
+from serving.json_cleaner import clean_for_json
 
 
 app = FastAPI()
