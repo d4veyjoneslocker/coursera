@@ -198,6 +198,9 @@ def channels(filters: dict = Depends(get_filters)):
 
 @app.get("/chain_table")
 def chain_table_api(filters: dict = Depends(get_filters)):
+
+    return {"debug": "NEW CHAIN TABLE VERSION"}
+
     print("API combined_w_features has first_pod_flag:", "first_pod_flag" in combined_w_features.columns)
     print("API combined_w_features columns:", combined_w_features.columns.tolist())
 
