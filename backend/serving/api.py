@@ -211,7 +211,7 @@ def chain_table_api(filters: dict = Depends(get_filters)):
 
     print("df has first_pod_flag:", "first_pod_flag" in df.columns)
     print("df_clone has first_pod_flag:", "first_pod_flag" in df_clone.columns)
-    print("df_clone columns:", df_clone.columns.tolist())
+    print("df_clone columns: ", df_clone.columns.tolist())
 
     result = chain_table(df, df_clone)
 
