@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-from crisp_data_pull_generic import pull_crisp_data
 
 def combine_distributors(unfi, kehe):
 

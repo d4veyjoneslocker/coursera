@@ -1,0 +1,17 @@
+helper,pod_helper,coded_customer,customer_name,store_number,chain,street_address,city,state,zip,channel,upc,sku,distributor,dc,year,month,month_year,revenue,units
+NEW_001-Spicy Beef Ramen-2026-03,NEW_001-Spicy Beef Ramen,NEW_001,New Store,NEW-001,Whole Foods,123 A St,Miami,FL,33101,Natural,111,Spicy Beef Ramen,UNFI,FL,2026,3,2026-03,59.9,10
+NEW_001-Spicy Beef Ramen-2026-04,NEW_001-Spicy Beef Ramen,NEW_001,New Store,NEW-001,Whole Foods,123 A St,Miami,FL,33101,Natural,111,Spicy Beef Ramen,UNFI,FL,2026,4,2026-04,71.9,12
+INACTIVE_001-Tom Yum Shrimp Ramen-2025-09,INACTIVE_001-Tom Yum Shrimp Ramen,INACTIVE_001,Inactive Store,INA-001,Whole Foods,456 B St,Miami,FL,33102,Natural,112,Tom Yum Shrimp Ramen,UNFI,FL,2025,9,2025-09,59.9,10
+INACTIVE_001-Tom Yum Shrimp Ramen-2025-10,INACTIVE_001-Tom Yum Shrimp Ramen,INACTIVE_001,Inactive Store,INA-001,Whole Foods,456 B St,Miami,FL,33102,Natural,112,Tom Yum Shrimp Ramen,UNFI,FL,2025,10,2025-10,71.9,12
+STRUGGLE_001-Black Garlic Chicken Ramen-2025-11,STRUGGLE_001-Black Garlic Chicken Ramen,STRUGGLE_001,Struggle Store,STR-001,Sprouts,789 C St,Miami,FL,33103,Natural,113,Black Garlic Chicken Ramen,UNFI,FL,2025,11,2025-11,47.9,8
+STRUGGLE_001-Black Garlic Chicken Ramen-2025-12,STRUGGLE_001-Black Garlic Chicken Ramen,STRUGGLE_001,Struggle Store,STR-001,Sprouts,789 C St,Miami,FL,33103,Natural,113,Black Garlic Chicken Ramen,UNFI,FL,2025,12,2025-12,53.9,9
+STRUGGLE_001-Black Garlic Chicken Ramen-2026-01,STRUGGLE_001-Black Garlic Chicken Ramen,STRUGGLE_001,Struggle Store,STR-001,Sprouts,789 C St,Miami,FL,33103,Natural,113,Black Garlic Chicken Ramen,UNFI,FL,2026,1,2026-01,41.9,7
+HEALTHY_001-Spicy Beef Ramen-2026-01,HEALTHY_001-Spicy Beef Ramen,HEALTHY_001,Healthy Store 1,HLT-001,Sprouts,101 D St,Miami,FL,33104,Natural,114,Spicy Beef Ramen,UNFI,FL,2026,1,2026-01,59.9,10
+HEALTHY_001-Spicy Beef Ramen-2026-02,HEALTHY_001-Spicy Beef Ramen,HEALTHY_001,Healthy Store 1,HLT-001,Sprouts,101 D St,Miami,FL,33104,Natural,114,Spicy Beef Ramen,UNFI,FL,2026,2,2026-02,71.9,12
+HEALTHY_001-Spicy Beef Ramen-2026-03,HEALTHY_001-Spicy Beef Ramen,HEALTHY_001,Healthy Store 1,HLT-001,Sprouts,101 D St,Miami,FL,33104,Natural,114,Spicy Beef Ramen,UNFI,FL,2026,3,2026-03,83.9,14
+HEALTHY_002-Tom Yum Shrimp Ramen-2025-12,HEALTHY_002-Tom Yum Shrimp Ramen,HEALTHY_002,Healthy Store 2,HLT-002,The Fresh Market,202 E St,Miami,FL,33105,Specialty,115,Tom Yum Shrimp Ramen,UNFI,FL,2025,12,2025-12,35.9,6
+HEALTHY_002-Tom Yum Shrimp Ramen-2026-02,HEALTHY_002-Tom Yum Shrimp Ramen,HEALTHY_002,Healthy Store 2,HLT-002,The Fresh Market,202 E St,Miami,FL,33105,Specialty,115,Tom Yum Shrimp Ramen,UNFI,FL,2026,2,2026-02,53.9,9
+HEALTHY_002-Tom Yum Shrimp Ramen-2026-03,HEALTHY_002-Tom Yum Shrimp Ramen,HEALTHY_002,Healthy Store 2,HLT-002,The Fresh Market,202 E St,Miami,FL,33105,Specialty,115,Tom Yum Shrimp Ramen,UNFI,FL,2026,3,2026-03,65.9,11
+REVIVED_001-Spicy Beef Ramen-2025-10,REVIVED_001-Spicy Beef Ramen,REVIVED_001,Revived Store,REV-001,Whole Foods,303 F St,Miami,FL,33106,Natural,116,Spicy Beef Ramen,UNFI,FL,2025,10,2025-10,59.9,10
+REVIVED_001-Spicy Beef Ramen-2025-11,REVIVED_001-Spicy Beef Ramen,REVIVED_001,Revived Store,REV-001,Whole Foods,303 F St,Miami,FL,33106,Natural,116,Spicy Beef Ramen,UNFI,FL,2025,11,2025-11,65.9,11
+REVIVED_001-Spicy Beef Ramen-2026-03,REVIVED_001-Spicy Beef Ramen,REVIVED_001,Revived Store,REV-001,Whole Foods,303 F St,Miami,FL,33106,Natural,116,Spicy Beef Ramen,UNFI,FL,2026,3,2026-03,77.9,13

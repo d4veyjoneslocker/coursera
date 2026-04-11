@@ -1,0 +1,14 @@
+helper,pod_helper,coded_customer,customer_name,store_number,chain,street_address,city,state,zip,channel,upc,sku,distributor,dc,year,month,month_year,revenue,units
+SINGLE_001-Spicy Beef Ramen-2026-03,SINGLE_001-Spicy Beef Ramen,SINGLE_001,Single Month Store,SNG-001,Whole Foods,1 Edge St,Miami,FL,33101,Natural,201,Spicy Beef Ramen,UNFI,FL,2026,3,2026-03,59.9,10
+GAP_001-Tom Yum Shrimp Ramen-2026-01,GAP_001-Tom Yum Shrimp Ramen,GAP_001,Gap Store,GAP-001,Sprouts,2 Edge St,Miami,FL,33102,Natural,202,Tom Yum Shrimp Ramen,UNFI,FL,2026,1,2026-01,47.92,8
+GAP_001-Tom Yum Shrimp Ramen-2026-03,GAP_001-Tom Yum Shrimp Ramen,GAP_001,Gap Store,GAP-001,Sprouts,2 Edge St,Miami,FL,33102,Natural,202,Tom Yum Shrimp Ramen,UNFI,FL,2026,3,2026-03,59.9,10
+ZERO_001-Black Garlic Chicken Ramen-2026-01,ZERO_001-Black Garlic Chicken Ramen,ZERO_001,Zero Unit Store,ZER-001,The Fresh Market,3 Edge St,Miami,FL,33103,Specialty,203,Black Garlic Chicken Ramen,UNFI,FL,2026,1,2026-01,53.91,9
+ZERO_001-Black Garlic Chicken Ramen-2026-02,ZERO_001-Black Garlic Chicken Ramen,ZERO_001,Zero Unit Store,ZER-001,The Fresh Market,3 Edge St,Miami,FL,33103,Specialty,203,Black Garlic Chicken Ramen,UNFI,FL,2026,2,2026-02,0.0,0
+ZERO_001-Black Garlic Chicken Ramen-2026-03,ZERO_001-Black Garlic Chicken Ramen,ZERO_001,Zero Unit Store,ZER-001,The Fresh Market,3 Edge St,Miami,FL,33103,Specialty,203,Black Garlic Chicken Ramen,UNFI,FL,2026,3,2026-03,65.89,11
+MULTI_001-Spicy Beef Ramen-2026-01,MULTI_001-Spicy Beef Ramen,MULTI_001,Multi SKU Store,MLT-001,Whole Foods,4 Edge St,Miami,FL,33104,Natural,204,Spicy Beef Ramen,UNFI,FL,2026,1,2026-01,71.88,12
+MULTI_001-Tom Yum Shrimp Ramen-2026-01,MULTI_001-Tom Yum Shrimp Ramen,MULTI_001,Multi SKU Store,MLT-001,Whole Foods,4 Edge St,Miami,FL,33104,Natural,205,Tom Yum Shrimp Ramen,UNFI,FL,2026,1,2026-01,47.92,8
+MULTI_001-Spicy Beef Ramen-2026-02,MULTI_001-Spicy Beef Ramen,MULTI_001,Multi SKU Store,MLT-001,Whole Foods,4 Edge St,Miami,FL,33104,Natural,204,Spicy Beef Ramen,UNFI,FL,2026,2,2026-02,77.87,13
+MULTI_001-Spicy Beef Ramen-2026-03,MULTI_001-Spicy Beef Ramen,MULTI_001,Multi SKU Store,MLT-001,Whole Foods,4 Edge St,Miami,FL,33104,Natural,204,Spicy Beef Ramen,UNFI,FL,2026,3,2026-03,83.86,14
+ORDER_001-Spicy Beef Ramen-2026-03,ORDER_001-Spicy Beef Ramen,ORDER_001,Out of Order Store,ORD-001,Sprouts,5 Edge St,Miami,FL,33105,Natural,206,Spicy Beef Ramen,UNFI,FL,2026,3,2026-03,71.88,12
+ORDER_001-Spicy Beef Ramen-2026-01,ORDER_001-Spicy Beef Ramen,ORDER_001,Out of Order Store,ORD-001,Sprouts,5 Edge St,Miami,FL,33105,Natural,206,Spicy Beef Ramen,UNFI,FL,2026,1,2026-01,59.9,10
+ORDER_001-Spicy Beef Ramen-2026-02,ORDER_001-Spicy Beef Ramen,ORDER_001,Out of Order Store,ORD-001,Sprouts,5 Edge St,Miami,FL,33105,Natural,206,Spicy Beef Ramen,UNFI,FL,2026,2,2026-02,65.89,11
