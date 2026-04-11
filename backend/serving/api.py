@@ -175,14 +175,14 @@ def kpis(filters: dict = Depends(get_filters)):
 
     df_clone = filter_table(combined_w_features, **no_time_filters)
 
-    result_buyers = monthly_summary(df, df_clone)
-    result_buyers = add_time_metrics_simple(result_buyers, buyer_metrics=["buying_stores"])
+    result_buyers_full_months = monthly_summary(df, df_clone)
+    result_buyers = add_time_metrics_simple(result_buyers_full_months, buyer_metrics=["buying_stores"])
 
     result_reorder = active_store_rate(df)
     result_reorder = add_time_metrics_simple(result_reorder, reorder_metrics=["reorder_rate"])
 
     return {
-        **buying_kpis(result_buyers),
+        **buying_kpis(result_buyers, result_buyers_full_months),
         **store_health_kpis(result_reorder),
         **count_channels(df)
     }

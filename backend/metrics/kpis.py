@@ -193,15 +193,17 @@ def store_health_kpis(df):
 
 
 
-def buying_kpis(df):
+def buying_kpis(df, df_full_months):
     current_month = pd.Timestamp.today().to_period("M")
+
+    total_buyers = max(df_full_months["buying_stores_total"])
     df = df[df["month_year"] != current_month].copy()
 
     buyers_kpis = [
         {
         "key": "total_buyers",
         "title": "Total buyers",
-        "value": safe_int(latest_month(df["buying_stores_total"])),
+        "value": safe_int(total_buyers),
         },
         {
         "key": "l1m_buyers",
