@@ -5,6 +5,13 @@ from io import BytesIO
 import numpy as np
 import pandas as pd
 import json
+import os
+import sys
+
+print("CWD:", os.getcwd())
+print("FILES:", os.listdir())
+print("SYS PATH:", sys.path)
+
 from filters.filter_table import filter_table
 from filters.filters import (generate_filter_api, get_filters, get_non_time_filters, Filters) 
 from fastapi.middleware.cors import CORSMiddleware
