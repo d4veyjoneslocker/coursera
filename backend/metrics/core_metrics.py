@@ -204,10 +204,6 @@ def active_store_rate(df):
 
 
 
-  
-
-
-
 
 
 def chain_table(df, df_clone):
@@ -229,6 +225,8 @@ def chain_table(df, df_clone):
         )
         .reset_index()
     )
+
+    print("CHAIN TABLE COLUMNS:", df_clone.columns.tolist())
 
     chain_table_monthly = (
         df_clone.groupby(["chain","month_year"]).agg(
