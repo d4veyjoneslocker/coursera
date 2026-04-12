@@ -27,6 +27,7 @@ from metrics.store_level_metrics import (
 from metrics.kpis import (kpi_data, store_health_kpis, count_channels, calculate_avg_skus_per_store, buying_kpis)
 from metrics.growth_metrics import add_time_metrics_simple
 from serving.json_cleaner import clean_for_json
+from metrics.features import add_features
 
 
 app = FastAPI()
@@ -166,20 +167,37 @@ def kpis(filters: dict = Depends(get_filters)):
     }
 
 @app.get("/kpis_store_health")
-def kpis(filters: dict = Depends(get_filters)):
-    df = filter_table(combined_w_features, **filters)
+def kpis_store_health(filters: dict = Depends(get_filters)):
+    feature_filter_keys = {"status"}  # add any other feature-derived filters here
 
-    no_time_filters = filters.copy()
-    no_time_filters.pop("year", None)
-    no_time_filters.pop("month", None)
+    base_filters = {k: v for k, v in filters.items() if k not in feature_filter_keys}
+    feature_filters = {k: v for k, v in filters.items() if k in feature_filter_keys}
 
-    df_clone = filter_table(combined_w_features, **no_time_filters)
+    no_time_base_filters = base_filters.copy()
+    no_time_base_filters.pop("year", None)
+    no_time_base_filters.pop("month", None)
+
+    # filtered slice
+    df = filter_table(combined_df, **base_filters)
+    df = add_features(df)
+    df = filter_table(df, **feature_filters)
+
+    # clone without time filters
+    df_clone = filter_table(combined_df, **no_time_base_filters)
+    df_clone = add_features(df_clone)
+    df_clone = filter_table(df_clone, **feature_filters)
 
     result_buyers_full_months = monthly_summary(df, df_clone)
-    result_buyers = add_time_metrics_simple(result_buyers_full_months, buyer_metrics=["buying_stores"])
+    result_buyers = add_time_metrics_simple(
+        result_buyers_full_months,
+        buyer_metrics=["buying_stores"]
+    )
 
     result_reorder = active_store_rate(df)
-    result_reorder = add_time_metrics_simple(result_reorder, reorder_metrics=["reorder_rate"])
+    result_reorder = add_time_metrics_simple(
+        result_reorder,
+        reorder_metrics=["reorder_rate"]
+    )
 
     return {
         **buying_kpis(result_buyers, result_buyers_full_months),
@@ -302,17 +320,25 @@ def reorder_stats(filters: dict = Depends(get_non_time_filters)):
 
 @app.get("/reorder_graph")
 def reorder_graph(filters: dict = Depends(get_non_time_filters)):
-    df = filter_table(combined_w_features, **filters)
+
+    # FILTERS FIRST BY ALL FILTERS THAT AREN'T ADDED IN FEATURES SO THAT ADDING FLAGS WORKS PROPERLY
+    # WHEN FILTERING TO SKU LEVEL
+
+    feature_filter_keys = {"status"}
+
+    base_filters = {k: v for k, v in filters.items() if k not in feature_filter_keys}
+    feature_filters = {k: v for k, v in filters.items() if k in feature_filter_keys}
+
+    df = filter_table(combined_df, **base_filters)
+    df = add_features(df)
+    df = filter_table(df, **feature_filters)
 
     result = calculate_reorder_stats_monthly(df)
-
     result = result.sort_values("month_year")
     result = result.iloc[1:]
-
     result = result.rename(columns={"reorder_rate": "value"})
-
     result = clean_for_json(result)
-    
+
     return result.to_dict(orient="records")
 
 @app.get("/active_stores")
