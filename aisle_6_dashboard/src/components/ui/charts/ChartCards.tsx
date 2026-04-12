@@ -10,6 +10,9 @@ import {
   ResponsiveContainer,
   XAxis,
   YAxis,
+  Line,
+  LineChart,
+  LabelList,
 } from "recharts"
 import {
   ChartContainer,
@@ -26,8 +29,54 @@ import {
 import CustomLegend from "@/components/ui/CustomLegend"
 
 type Theme = {
+  surface: string
+  line: string
   brown: string
   charcoal: string
+}
+
+function SoftLinePointLabel({
+  x,
+  y,
+  value,
+  theme,
+  valueFormatter,
+}: {
+  x?: number
+  y?: number
+  value?: number | string
+  theme: Theme
+  valueFormatter: (value: number) => string
+}) {
+  if (x == null || y == null || value == null) return null
+
+  const label = valueFormatter(Number(value))
+  const width = Math.max(34, label.length * 7 + 12)
+
+  return (
+    <g>
+      <rect
+        x={x - width / 2}
+        y={y - 28}
+        width={width}
+        height={20}
+        rx={10}
+        fill="#FFFEFB"
+        stroke="#E5DDD0"
+      />
+      <text
+        x={x}
+        y={y}
+        textAnchor="middle"
+        dy="0.10em"
+        fontSize={14}
+        fontWeight={600}
+        fill={theme.surface}
+      >
+        {label}
+      </text>
+    </g>
+  )
 }
 
 export function BarChartCard({
@@ -81,6 +130,150 @@ export function BarChartCard({
             }}
           />
         </BarChart>
+      </ChartContainer>
+    </div>
+  )
+}
+
+export function LineChartCard({
+  data,
+  accentColor,
+  theme,
+  valueFormatter = formatNumber,
+  showPointLabels = true,
+}: {
+  data: MetricRow[]
+  accentColor: string
+  theme: Theme
+  valueFormatter?: (value: number) => string
+  showPointLabels?: boolean
+}) {
+  function LinePointPillLabel({
+    x,
+    y,
+    value,
+    index,
+    dataLength,
+    accentColor,
+    valueFormatter,
+  }: {
+    x?: number
+    y?: number
+    value?: number | string
+    index?: number
+    dataLength: number
+    accentColor: string
+    valueFormatter: (value: number) => string
+  }) {
+    if (x == null || y == null || value == null || index == null) return null
+
+    const isFirst = index === 0
+    const isLast = index === dataLength - 1
+    const isEveryOtherMiddle = index % 2 === 0
+
+    if (!(isFirst || isLast || isEveryOtherMiddle)) return null
+
+    const label = valueFormatter(Number(value))
+    const width = Math.max(40, label.length * 8 + 16)
+    const height = 22
+
+    // 👇 KEY: anchor everything to the rect, not the point
+    const rectY = y - height / 2
+    const textY = rectY + height / 2 + 4
+
+    return (
+      <g>
+        <rect
+          x={x - width / 2}
+          y={rectY}
+          width={width}
+          height={height}
+          rx={11}
+          fill={accentColor}
+        />
+        <text
+          x={x}
+          y={textY}
+          textAnchor="middle"
+          fontSize={14}
+          fontWeight={600}
+          fill={theme.surface}
+        >
+          {label}
+        </text>
+      </g>
+    )
+  }
+
+  return (
+    <div className="w-full">
+      <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
+        <LineChart data={data} margin={{ top: 24, right: 20, left: -10, bottom: 0 }}>
+          <CartesianGrid
+            vertical={false}
+            stroke={theme.line}
+            strokeDasharray="3 3"
+          />
+          <XAxis
+            dataKey="month_year"
+            tickFormatter={formatMonth}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={10}
+          />
+          <YAxis
+            tickFormatter={valueFormatter}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={10}
+            width={50}
+          />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                formatter={(value) => valueFormatter(Number(value))}
+                labelFormatter={(label) =>
+                  typeof label === "string" ? formatMonth(label) : String(label)
+                }
+              />
+            }
+          />
+          <Line
+            type="monotone"
+            dataKey="value"
+            stroke={accentColor}
+            strokeWidth={3}
+            dot={{
+              r: 4,
+              fill: accentColor,
+              stroke: theme.surface,
+              strokeWidth: 2,
+            }}
+            activeDot={{
+              r: 5,
+              fill: theme.surface,
+              stroke: accentColor,
+              strokeWidth: 2,
+            }}
+          >
+            {showPointLabels && (
+              <LabelList
+                dataKey="value"
+                content={(props: any) => (
+                  <LinePointPillLabel
+                    x={props.x}
+                    y={props.y}
+                    value={props.value}
+                    index={props.index}
+                    dataLength={data.length}
+                    accentColor={accentColor}
+                    valueFormatter={valueFormatter}
+                  />
+                )}
+              />
+            )}
+          </Line>
+        </LineChart>
       </ChartContainer>
     </div>
   )

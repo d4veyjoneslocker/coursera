@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import KpiCard from "./KpiCard"
-import { BarChartCard } from "./ChartCards"
+import { BarChartCard, LineChartCard } from "./ChartCards"
 import type { MetricRow, KpiItem } from "./chartTypes"
 import { formatNumber } from "./chartUtils"
 
@@ -20,6 +20,7 @@ type ChartSectionProps = {
   accentColor: string
   theme: Theme
   valueFormatter?: (value: number) => string
+  chartType?: "bar" | "line"
 }
 
 export default function ChartSection({
@@ -29,6 +30,7 @@ export default function ChartSection({
   accentColor,
   theme,
   valueFormatter,
+  chartType = "bar",
 }: ChartSectionProps) {
   const formatValue = (v: number) =>
     valueFormatter ? valueFormatter(v) : formatNumber(v)
@@ -77,11 +79,20 @@ export default function ChartSection({
             borderColor: "#EEE5D8",
           }}
         >
-          <BarChartCard
-            data={data}
-            accentColor={accentColor}
-            valueFormatter={valueFormatter}
-          />
+          {chartType === "line" ? (
+            <LineChartCard
+              data={data}
+              accentColor={accentColor}
+              theme={theme}
+              valueFormatter={valueFormatter}
+            />
+          ) : (
+            <BarChartCard
+              data={data}
+              accentColor={accentColor}
+              valueFormatter={valueFormatter}
+            />
+          )}
         </div>
       </CardContent>
     </Card>

@@ -71,7 +71,7 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; border: string }
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
-
+/* const API_BASE_URL = "http://127.0.0.1:8000" */
 
 function buildMetricUrl(
   endpoint: string,
@@ -402,6 +402,7 @@ export default function StoresPage() {
             kpis={reorderKpis}
             accentColor={theme.gold}
             theme={theme}
+            chartType="line"
             valueFormatter={(v) => `${formatPercent(v)}%`}
           />
         </div>
