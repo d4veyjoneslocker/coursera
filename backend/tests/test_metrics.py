@@ -1,15 +1,15 @@
 import pandas as pd
 import pytest
-from filters.filter_table import filter_table
-from metrics.features import add_features
-from metrics.core_metrics import monthly_summary, active_store_rate
-from metrics.growth_metrics import add_time_metrics_simple
-from metrics.store_level_metrics import calculate_reorder_stats
+from backend.filters.filter_table import filter_table
+from backend.metrics.features import add_features
+from backend.metrics.core_metrics import monthly_summary, active_store_rate
+from backend.metrics.growth_metrics import add_time_metrics_simple
+from backend.metrics.store_level_metrics import calculate_reorder_stats
 
 import pandas as pd
 
 def load_test_data():
-    df = pd.read_csv("tests/data/testing_data.csv")
+    df = pd.read_csv("backend/tests/data/testing_data.csv")
 
     string_cols = [
         "helper", "pod_helper", "coded_customer", "customer_name",
@@ -28,7 +28,7 @@ def load_test_data():
     return df
 
 def load_test_data_6m():
-    df = pd.read_csv("tests/data/testing_data_6m.csv")
+    df = pd.read_csv("backend/tests/data/testing_data_6m.csv")
 
     string_cols = [
         "helper", "pod_helper", "coded_customer", "customer_name",
@@ -47,7 +47,7 @@ def load_test_data_6m():
     return df
 
 def load_test_data_status():
-    df = pd.read_csv("tests/data/testing_data_status.csv")
+    df = pd.read_csv("backend/tests/data/testing_data_status.csv")
 
     string_cols = [
     "helper", "pod_helper", "coded_customer", "customer_name",
@@ -68,7 +68,7 @@ def load_test_data_status():
 
 
 def load_edge_case_test_data():
-    df = pd.read_csv("tests/data/testing_data_edge_cases.csv")
+    df = pd.read_csv("backend/tests/data/testing_data_edge_cases.csv")
 
     string_cols = [
         "helper", "pod_helper", "coded_customer", "customer_name",
@@ -446,6 +446,80 @@ def test_reorder_rate_growth_metrics():
     assert pd.isna(feb_row["reorder_rate_l3m_abs"])
     assert mar_row["reorder_rate_l3m_abs"] == pytest.approx(0)
 
+
+
+def test_reorder_rate_sku_level_with_growth():
+    df = load_test_data_6m()
+
+    # mimic endpoint logic: filter first, then add features
+    df = filter_table(df, sku=["Spicy Beef Ramen"])
+    df = add_features(df)
+
+    result_reorder = active_store_rate(df)
+    result_reorder = add_time_metrics_simple(
+        result_reorder,
+        reorder_metrics=["reorder_rate"]
+    )
+
+    result_reorder = result_reorder.sort_values("month_year").reset_index(drop=True)
+
+    oct_row = result_reorder[result_reorder["month_year"].astype(str) == "2025-10"].iloc[0]
+    nov_row = result_reorder[result_reorder["month_year"].astype(str) == "2025-11"].iloc[0]
+    dec_row = result_reorder[result_reorder["month_year"].astype(str) == "2025-12"].iloc[0]
+    jan_row = result_reorder[result_reorder["month_year"].astype(str) == "2026-01"].iloc[0]
+    feb_row = result_reorder[result_reorder["month_year"].astype(str) == "2026-02"].iloc[0]
+    mar_row = result_reorder[result_reorder["month_year"].astype(str) == "2026-03"].iloc[0]
+
+    # base reorder rate
+    # denominator = possible reorder events = buying stores - new buyers
+    assert pd.isna(oct_row["reorder_rate"])
+    assert nov_row["reorder_rate"] == pytest.approx(1)
+    assert dec_row["reorder_rate"] == pytest.approx(1)
+    assert jan_row["reorder_rate"] == pytest.approx(1)
+    assert feb_row["reorder_rate"] == pytest.approx(1)
+    assert mar_row["reorder_rate"] == pytest.approx(1)
+
+    # l1m
+    assert pd.isna(oct_row["reorder_rate_l1m"])
+    assert pd.isna(nov_row["reorder_rate_l1m"])
+    assert dec_row["reorder_rate_l1m"] == pytest.approx(1)
+    assert jan_row["reorder_rate_l1m"] == pytest.approx(1)
+    assert feb_row["reorder_rate_l1m"] == pytest.approx(1)
+    assert mar_row["reorder_rate_l1m"] == pytest.approx(1)
+
+    # l1m abs
+    assert pd.isna(oct_row["reorder_rate_l1m_abs"])
+    assert pd.isna(nov_row["reorder_rate_l1m_abs"])
+    assert dec_row["reorder_rate_l1m_abs"] == pytest.approx(0)
+    assert jan_row["reorder_rate_l1m_abs"] == pytest.approx(0)
+    assert feb_row["reorder_rate_l1m_abs"] == pytest.approx(0)
+    assert mar_row["reorder_rate_l1m_abs"] == pytest.approx(0)
+
+    # 3m
+    assert pd.isna(oct_row["reorder_rate_3m"])
+    assert pd.isna(nov_row["reorder_rate_3m"])
+    assert dec_row["reorder_rate_3m"] == pytest.approx(1)
+    assert jan_row["reorder_rate_3m"] == pytest.approx(1)
+    assert feb_row["reorder_rate_3m"] == pytest.approx(1)
+    assert mar_row["reorder_rate_3m"] == pytest.approx(1)
+
+    # l3m
+    assert pd.isna(oct_row["reorder_rate_l3m"])
+    assert pd.isna(nov_row["reorder_rate_l3m"])
+    assert pd.isna(dec_row["reorder_rate_l3m"])
+    assert pd.isna(jan_row["reorder_rate_l3m"])
+    assert pd.isna(feb_row["reorder_rate_l3m"])
+    assert mar_row["reorder_rate_l3m"] == pytest.approx(1)
+
+    # l3m abs
+    assert pd.isna(oct_row["reorder_rate_l3m_abs"])
+    assert pd.isna(nov_row["reorder_rate_l3m_abs"])
+    assert pd.isna(dec_row["reorder_rate_l3m_abs"])
+    assert pd.isna(jan_row["reorder_rate_l3m_abs"])
+    assert pd.isna(feb_row["reorder_rate_l3m_abs"])
+    assert mar_row["reorder_rate_l3m_abs"] == pytest.approx(0)
+
+# EDGE CASES
 
 
 def test_single_month_store_has_no_reorder():

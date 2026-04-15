@@ -89,6 +89,21 @@ def add_time_metrics_chain(df, attribute, unit_metrics=[],buyer_metrics=[],vpo_m
     
     # NOT CURRENTLY USING VPO OR POD SO THESE MAY NEED TO BE CLEANED UP
 
+    for metric in pod_metrics:
+        
+        # Calculating prior values
+
+        df_full_months[f"{metric}_3m"] = df_full_months.groupby(attribute)[metric].rolling(3, min_periods=3).max().reset_index(level=0, drop=True)
+        df_full_months[f"{metric}_l1m"] = df_full_months.groupby(attribute)[metric].shift(1)
+        df_full_months[f"{metric}_l3m"] = df_full_months.groupby(attribute)[metric].shift(3)
+        df_full_months[f"{metric}_py"] = df_full_months.groupby(attribute)[metric].shift(12)
+
+        # Calculating percent change
+
+        df_full_months[f"{metric}_l1m_pct"] = pct_change(df_full_months[f"{metric}"],df_full_months[f"{metric}_l1m"])
+        df_full_months[f"{metric}_l3m_pct"] = pct_change(df_full_months[f"{metric}"],df_full_months[f"{metric}_l3m"])
+        df_full_months[f"{metric}_py_pct"] = pct_change(df_full_months[f"{metric}"],df_full_months[f"{metric}_py"])
+
     for metric in vpo_metrics:
 
         df_full_months[f"{metric}_lifetime_average"] = df_full_months.groupby(attribute)["units"].cumsum().reset_index(level=0, drop=True)/df_full_months.groupby(attribute)["active_pods"].cumsum().reset_index(level=0, drop=True)/4
@@ -106,21 +121,6 @@ def add_time_metrics_chain(df, attribute, unit_metrics=[],buyer_metrics=[],vpo_m
 
         df_full_months[f"{metric}_l1m_pct"] = pct_change(df_full_months[f"{metric}"],df_full_months[f"{metric}_l1m"])
         df_full_months[f"{metric}_l3m_pct"] = pct_change(df_full_months[f"{metric}_3m"],df_full_months[f"{metric}_l3m"])
-        df_full_months[f"{metric}_py_pct"] = pct_change(df_full_months[f"{metric}"],df_full_months[f"{metric}_py"])
-    
-    for metric in pod_metrics:
-        
-        # Calculating prior values
-
-        df_full_months[f"{metric}_3m"] = df_full_months.groupby(attribute)[metric].rolling(3, min_periods=3).max().reset_index(level=0, drop=True)
-        df_full_months[f"{metric}_l1m"] = df_full_months.groupby(attribute)[metric].shift(1)
-        df_full_months[f"{metric}_l3m"] = df_full_months.groupby(attribute)[metric].shift(3)
-        df_full_months[f"{metric}_py"] = df_full_months.groupby(attribute)[metric].shift(12)
-
-        # Calculating percent change
-
-        df_full_months[f"{metric}_l1m_pct"] = pct_change(df_full_months[f"{metric}"],df_full_months[f"{metric}_l1m"])
-        df_full_months[f"{metric}_l3m_pct"] = pct_change(df_full_months[f"{metric}"],df_full_months[f"{metric}_l3m"])
         df_full_months[f"{metric}_py_pct"] = pct_change(df_full_months[f"{metric}"],df_full_months[f"{metric}_py"])
 
 
