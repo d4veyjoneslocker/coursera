@@ -34,12 +34,10 @@ from backend.metrics.metric_growth_rates import (
 
 
 def export_monthly_summary(df):
-    result = calculate_monthly_revenue(df, [])
+    result = calculate_monthly_active_pods(df, df, [])
+    result = result.merge(calculate_monthly_revenue(df, []), on="month_year", how="left")
     result = result.merge(calculate_monthly_units(df, []), on="month_year", how="left")
     result = result.merge(calculate_monthly_new_pods(df, []), on="month_year", how="left")
-    result = result.merge(
-        calculate_monthly_active_pods(df, df, []), on="month_year", how="left"
-    )
     result = result.merge(calculate_monthly_buying_stores(df, []), on="month_year", how="left")
     result = result.merge(
         calculate_monthly_vpo(df, df, []), on="month_year", how="left"
