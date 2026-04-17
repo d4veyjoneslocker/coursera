@@ -9,7 +9,7 @@ from backend.metrics.monthly_metric_calculators import (
     calculate_monthly_reorder_rate,
     calculate_monthly_new_pods,
     calculate_monthly_revenue,
-    calculate_monthly_average_skus_per_store
+    calculate_monthly_average_skus_per_store,
 )
 
 from backend.metrics.metric_calculators import (
@@ -20,39 +20,56 @@ from backend.metrics.metric_calculators import (
     calculate_vpo,
     calculate_reorder_rate,
     calculate_new_pods,
-    calculate_average_skus_per_store
+    calculate_average_skus_per_store,
 )
 
 from backend.metrics.metric_growth_rates import (
     add_additive_metric_3m,
-    add_buying_stores_3m,
-    add_reorder_rate_3m,
-    add_vpo_3m,
+    calculate_buying_stores_3m,
+    calculate_reorder_rate_3m,
+    calculate_vpo_3m,
     add_prior_month_columns,
-    add_prior_month_columns,
-    add_pct_change_columns
+    add_pct_change_columns,
 )
-
 
 
 def export_monthly_summary(df):
     result = calculate_monthly_revenue(df, [])
     result = result.merge(calculate_monthly_units(df, []), on="month_year", how="left")
     result = result.merge(calculate_monthly_new_pods(df, []), on="month_year", how="left")
-    result = result.merge(calculate_monthly_active_pods(df, []), on="month_year", how="left")
+    result = result.merge(
+        calculate_monthly_active_pods(df, df, []), on="month_year", how="left"
+    )
     result = result.merge(calculate_monthly_buying_stores(df, []), on="month_year", how="left")
-    result = result.merge(calculate_monthly_vpo(df, []), on="month_year", how="left")
-    result = result.merge(calculate_monthly_reorder_rate(df, []), on="month_year", how="left")
-    result = result.merge(calculate_monthly_average_skus_per_store(df, []), on="month_year", how="left")
-
+    result = result.merge(
+        calculate_monthly_vpo(df, df, []), on="month_year", how="left"
+    )
+    result = result.merge(
+        calculate_monthly_reorder_rate(df, df, []), on="month_year", how="left"
+    )
+    result = result.merge(
+        calculate_monthly_average_skus_per_store(df, []), on="month_year", how="left"
+    )
 
     result = add_additive_metric_3m(result, [], "revenue")
     result = add_additive_metric_3m(result, [], "units")
     result = add_additive_metric_3m(result, [], "new_pods")
 
-    result = result.merge(add_buying_stores_3m(df, []), on="month_year", how="left")
-    result = result.merge(add_vpo_3m(result, []), on="month_year", how="left")
-    result = result.merge(add_reorder_rate_3m(df, []), on="month_year", how="left")
+    result = result.merge(
+        calculate_buying_stores_3m(df, [])[["month_year", "buying_stores_3m"]], 
+        on="month_year", 
+        how="left"
+    )
+    result = result.merge(
+        calculate_vpo_3m(df, df, [])[["month_year", "vpo_3m"]], 
+        on="month_year", 
+        how="left"
+    )
+    result = result.merge(
+        calculate_reorder_rate_3m(df, df, [])[["month_year", "reorder_rate_3m"]], 
+        on="month_year", 
+        how="left"
+    )
 
     result = add_prior_month_columns(result, [], "revenue", l3m=True)
     result = add_prior_month_columns(result, [], "units", l3m=True)
@@ -96,25 +113,18 @@ def export_monthly_summary(df):
 
 
 def export_summary_by_grain(df, grain):
-
     if isinstance(grain, str):
         grain = [grain]
 
-    # -------------------------
-    # 1. Base table (collapsed)
-    # -------------------------
     result = calculate_revenue(df, grain)
     result = result.merge(calculate_units(df, grain), on=grain, how="left")
     result = result.merge(calculate_new_pods(df, grain), on=grain, how="left")
-    result = result.merge(calculate_active_pods(df, grain), on=grain, how="left")
+    result = result.merge(calculate_active_pods(df, df, grain), on=grain, how="left")
     result = result.merge(calculate_buying_stores(df, grain), on=grain, how="left")
-    result = result.merge(calculate_vpo(df, grain), on=grain, how="left")
-    result = result.merge(calculate_reorder_rate(df, grain), on=grain, how="left")
+    result = result.merge(calculate_vpo(df, df, grain), on=grain, how="left")
+    result = result.merge(calculate_reorder_rate(df, df, grain), on=grain, how="left")
     result = result.merge(calculate_average_skus_per_store(df, grain), on=grain, how="left")
 
-    # ------------------------------------
-    # 2. Monthly table (grain + month_year)
-    # ------------------------------------
     monthly_result = calculate_monthly_revenue(df, grain)
     monthly_result = monthly_result.merge(
         calculate_monthly_units(df, grain), on=grain + ["month_year"], how="left"
@@ -123,44 +133,41 @@ def export_summary_by_grain(df, grain):
         calculate_monthly_new_pods(df, grain), on=grain + ["month_year"], how="left"
     )
     monthly_result = monthly_result.merge(
-        calculate_monthly_active_pods(df, grain), on=grain + ["month_year"], how="left"
+        calculate_monthly_active_pods(df, df, grain), on=grain + ["month_year"], how="left"
     )
     monthly_result = monthly_result.merge(
         calculate_monthly_buying_stores(df, grain), on=grain + ["month_year"], how="left"
     )
     monthly_result = monthly_result.merge(
-        calculate_monthly_vpo(df, grain), on=grain + ["month_year"], how="left"
+        calculate_monthly_vpo(df, df, grain), on=grain + ["month_year"], how="left"
     )
     monthly_result = monthly_result.merge(
-        calculate_monthly_reorder_rate(df, grain), on=grain + ["month_year"], how="left"
+        calculate_monthly_reorder_rate(df, df, grain), on=grain + ["month_year"], how="left"
+    )
+    monthly_result = monthly_result.merge(
+        calculate_monthly_average_skus_per_store(df, grain), on=grain + ["month_year"], how="left"
     )
 
-    # -------------------------
-    # 3. Add 3M columns
-    # -------------------------
     monthly_result = add_additive_metric_3m(monthly_result, grain, "revenue")
     monthly_result = add_additive_metric_3m(monthly_result, grain, "units")
     monthly_result = add_additive_metric_3m(monthly_result, grain, "new_pods")
 
     monthly_result = monthly_result.merge(
-        add_buying_stores_3m(df, grain),
+        calculate_buying_stores_3m(df, grain),
         on=grain + ["month_year"],
         how="left",
     )
     monthly_result = monthly_result.merge(
-        add_vpo_3m(monthly_result, grain),
+        calculate_vpo_3m(df, df, grain),
         on=grain + ["month_year"],
         how="left",
     )
     monthly_result = monthly_result.merge(
-        add_reorder_rate_3m(df, grain),
+        calculate_reorder_rate_3m(df, df, grain),
         on=grain + ["month_year"],
         how="left",
     )
 
-    # -------------------------
-    # 4. Add l3m + pct change
-    # -------------------------
     monthly_result = add_prior_month_columns(monthly_result, grain, "revenue", l3m=True)
     monthly_result = add_prior_month_columns(monthly_result, grain, "units", l3m=True)
     monthly_result = add_prior_month_columns(monthly_result, grain, "new_pods", l3m=True)
@@ -175,18 +182,10 @@ def export_summary_by_grain(df, grain):
     monthly_result = add_pct_change_columns(monthly_result, "vpo", l3m=True)
     monthly_result = add_pct_change_columns(monthly_result, "reorder_rate", l3m=True)
 
-    # ---------------------------------------------------
-    # 5. Keep only latest full month row from monthly table
-    # ---------------------------------------------------
-    
     current_month = pd.Timestamp.today().to_period("M")
-
-    monthly_result = monthly_result[
-        monthly_result["month_year"] != current_month
-    ]
+    monthly_result = monthly_result[monthly_result["month_year"] != current_month]
 
     latest_month = monthly_result["month_year"].max()
-
     monthly_latest = monthly_result[monthly_result["month_year"] == latest_month].copy()
 
     monthly_latest = monthly_latest[
@@ -207,9 +206,6 @@ def export_summary_by_grain(df, grain):
         ]
     ]
 
-    # -------------------------
-    # 6. Merge growth back in
-    # -------------------------
     result = result.merge(monthly_latest, on=grain, how="left")
 
     return result[
@@ -238,15 +234,13 @@ def export_summary_by_grain(df, grain):
         ]
     ]
 
+
 def export_store_level_table(df, grain):
     if isinstance(grain, str):
         grain = [grain]
 
     grain = ["coded_customer"] + [g for g in grain if g != "coded_customer"]
 
-    # -------------------------
-    # 1. Store attributes
-    # -------------------------
     store_month = (
         df.groupby(grain + ["month_year"], as_index=False)
         .agg(reordered=("reorder_flag", "max"))
@@ -275,19 +269,10 @@ def export_store_level_table(df, grain):
     )
 
     base_result = base_result.merge(reorders, on=grain, how="left")
-
-    # -------------------------
-    # 2. Base non-time metrics
-    # -------------------------
     base_result = base_result.merge(calculate_revenue(df, grain), on=grain, how="left")
     base_result = base_result.merge(calculate_units(df, grain), on=grain, how="left")
-    base_result = base_result.merge(calculate_new_pods(df, grain), on=grain, how="left")
-    base_result = base_result.merge(calculate_vpo(df, grain), on=grain, how="left")
-    base_result = base_result.merge(calculate_reorder_rate(df, grain), on=grain, how="left")
+    base_result = base_result.merge(calculate_vpo(df, df, grain), on=grain, how="left")
 
-    # -------------------------
-    # 3. Monthly table
-    # -------------------------
     monthly_result = calculate_monthly_revenue(df, grain)
     monthly_result = monthly_result.merge(
         calculate_monthly_units(df, grain),
@@ -295,71 +280,28 @@ def export_store_level_table(df, grain):
         how="left",
     )
     monthly_result = monthly_result.merge(
-        calculate_monthly_new_pods(df, grain),
-        on=grain + ["month_year"],
-        how="left",
-    )
-    monthly_result = monthly_result.merge(
-        calculate_monthly_active_pods(df, grain),
-        on=grain + ["month_year"],
-        how="left",
-    )
-    monthly_result = monthly_result.merge(
-        calculate_monthly_buying_stores(df, grain),
-        on=grain + ["month_year"],
-        how="left",
-    )
-    monthly_result = monthly_result.merge(
-        calculate_monthly_vpo(df, grain),
-        on=grain + ["month_year"],
-        how="left",
-    )
-    monthly_result = monthly_result.merge(
-        calculate_monthly_reorder_rate(df, grain),
+        calculate_monthly_vpo(df, df, grain),
         on=grain + ["month_year"],
         how="left",
     )
 
-    # -------------------------
-    # 4. Time metrics
-    # -------------------------
     monthly_result = add_additive_metric_3m(monthly_result, grain, "revenue")
     monthly_result = add_additive_metric_3m(monthly_result, grain, "units")
-    monthly_result = add_additive_metric_3m(monthly_result, grain, "new_pods")
 
     monthly_result = monthly_result.merge(
-        add_buying_stores_3m(df, grain),
-        on=grain + ["month_year"],
-        how="left",
-    )
-    monthly_result = monthly_result.merge(
-        add_vpo_3m(monthly_result, grain),
-        on=grain + ["month_year"],
-        how="left",
-    )
-    monthly_result = monthly_result.merge(
-        add_reorder_rate_3m(df, grain),
+        calculate_vpo_3m(df, df, grain)[grain + ["month_year", "vpo_3m"]],
         on=grain + ["month_year"],
         how="left",
     )
 
     monthly_result = add_prior_month_columns(monthly_result, grain, "revenue", l3m=True)
     monthly_result = add_prior_month_columns(monthly_result, grain, "units", l3m=True)
-    monthly_result = add_prior_month_columns(monthly_result, grain, "new_pods", l3m=True)
-    monthly_result = add_prior_month_columns(monthly_result, grain, "buying_stores", l3m=True)
     monthly_result = add_prior_month_columns(monthly_result, grain, "vpo", l3m=True)
-    monthly_result = add_prior_month_columns(monthly_result, grain, "reorder_rate", l3m=True)
 
     monthly_result = add_pct_change_columns(monthly_result, "revenue", l3m=True)
     monthly_result = add_pct_change_columns(monthly_result, "units", l3m=True)
-    monthly_result = add_pct_change_columns(monthly_result, "new_pods", l3m=True)
-    monthly_result = add_pct_change_columns(monthly_result, "buying_stores", l3m=True)
     monthly_result = add_pct_change_columns(monthly_result, "vpo", l3m=True)
-    monthly_result = add_pct_change_columns(monthly_result, "reorder_rate", l3m=True)
 
-    # -------------------------
-    # 5. Latest full month only
-    # -------------------------
     current_month = pd.Timestamp.today().to_period("M")
     monthly_result = monthly_result[monthly_result["month_year"] != current_month]
 
@@ -371,21 +313,17 @@ def export_store_level_table(df, grain):
             "revenue_3m",
             "units_3m",
             "vpo_3m",
-            "reorder_rate_3m",
             "revenue_l3m_pct",
             "units_l3m_pct",
             "vpo_l3m_pct",
-            "reorder_rate_l3m_pct",
         ]
     ]
 
-    # -------------------------
-    # 6. Merge back
-    # -------------------------
     result = base_result.merge(monthly_latest, on=grain, how="left")
 
     return result[
-        grain + [
+        [
+            "coded_customer",
             "chain",
             "city",
             "state",
@@ -393,22 +331,19 @@ def export_store_level_table(df, grain):
             "channel",
             "distributor",
             "dc",
-            "skus_carrying",
-            "status",
-            "first_month_purchased",
-            "last_month_purchased",
             "revenue",
             "units",
-            "reorders",
             "vpo",
-            "reorder_rate",
+            "first_month_purchased",
+            "last_month_purchased",
+            "status",
+            "skus_carrying",
+            "reorders",
             "revenue_3m",
             "units_3m",
             "vpo_3m",
-            "reorder_rate_3m",
             "revenue_l3m_pct",
             "units_l3m_pct",
             "vpo_l3m_pct",
-            "reorder_rate_l3m_pct",
         ]
     ]

@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from backend.metrics.metric_helpers import ensure_month_spine
+from backend.metrics.metric_helpers import (build_spine, build_full_universe_spine)
 
 def calculate_revenue(df, group_cols):
     if isinstance(group_cols, str):
@@ -36,60 +36,124 @@ def calculate_buying_stores(df, group_cols):
 
     return result
 
-def calculate_active_pods(df, group_cols):
-    if isinstance(group_cols, str):
+def calculate_active_pods(df_filtered, df_full, group_cols=None):
+    if group_cols is None:
+        group_cols = []
+    elif isinstance(group_cols, str):
         group_cols = [group_cols]
 
-    result = (
-        df.groupby(group_cols, as_index=False)
-        .agg(active_pods=("pod_helper", "nunique"))
-    )
-
-    return result
-
-
-def calculate_vpo(df, group_cols):
-    if isinstance(group_cols, str):
-        group_cols = [group_cols]
-
-    # this metric should aggregate over time, so keep month_year separate
     group_cols = [c for c in group_cols if c != "month_year"]
     monthly_group_cols = group_cols + ["month_year"]
 
-    # build monthly table at the grouped level
+    spine = build_full_universe_spine(df_filtered, df_full, group_cols=group_cols)
+
+    new_pods = (
+        df_full.groupby(monthly_group_cols, as_index=False)
+        .agg(new_pods=("first_pod_flag", "sum"))
+        .sort_values(monthly_group_cols)
+        .reset_index(drop=True)
+    )
+
+    if group_cols:
+        new_pods["active_pods"] = (
+            new_pods.groupby(group_cols)["new_pods"].cumsum()
+        )
+    else:
+        new_pods["active_pods"] = new_pods["new_pods"].cumsum()
+
+    result = spine.merge(
+        new_pods[monthly_group_cols + ["active_pods"]],
+        on=monthly_group_cols,
+        how="left"
+    )
+
+    result = result.sort_values(monthly_group_cols)
+
+    if group_cols:
+        result["active_pods"] = (
+            result.groupby(group_cols)["active_pods"]
+            .ffill()
+            .fillna(0)
+        )
+    else:
+        result["active_pods"] = result["active_pods"].ffill().fillna(0)
+
+    latest_month = result["month_year"].max()
+
+    result = result[result["month_year"] == latest_month].copy()
+
+    return result[group_cols + ["active_pods"]]
+
+
+
+def calculate_vpo(df_filtered, df_full, group_cols=None, selected_years=None, selected_months=None):
+    if group_cols is None:
+        group_cols = []
+    elif isinstance(group_cols, str):
+        group_cols = [group_cols]
+
+    group_cols = [c for c in group_cols if c != "month_year"]
+    monthly_group_cols = group_cols + ["month_year"]
+
+    spine = build_full_universe_spine(
+        df_filtered, 
+        df_full, 
+        group_cols=group_cols,
+        selected_years=selected_years,
+        selected_months=selected_months
+    )
+
     units = (
-        df.groupby(monthly_group_cols, as_index=False)
+        df_filtered.groupby(monthly_group_cols, as_index=False)
         .agg(units=("units", "sum"))
     )
 
     new_pods = (
-        df.groupby(monthly_group_cols, as_index=False)
+        df_full.groupby(monthly_group_cols, as_index=False)
         .agg(new_pods=("first_pod_flag", "sum"))
+        .sort_values(monthly_group_cols)
+        .reset_index(drop=True)
     )
 
-    result = units.merge(new_pods, on=monthly_group_cols, how="outer")
-
-    result = result.sort_values(monthly_group_cols).reset_index(drop=True)
-
-    # active pod base = cumulative new pods
     if group_cols:
-        result["active_pods"] = result.groupby(group_cols)["new_pods"].cumsum()
-
-        total_pod_months = (
-            result.groupby(group_cols, as_index=False)
-            .agg(pod_months=("active_pods", "sum"))
+        new_pods["active_pods"] = (
+            new_pods.groupby(group_cols)["new_pods"].cumsum()
         )
-
-        total_units = (
-            result.groupby(group_cols, as_index=False)
-            .agg(units=("units", "sum"))
-        )
-    
-        final = total_units.merge(total_pod_months, on=group_cols, how="left")
-
-
     else:
-        result["active_pods"] = result["new_pods"].cumsum()
+        new_pods["active_pods"] = new_pods["new_pods"].cumsum()
+
+    result = spine.merge(
+        units,
+        on=monthly_group_cols,
+        how="left"
+    )
+
+    result["units"] = result["units"].fillna(0)
+
+    result = result.merge(
+        new_pods[monthly_group_cols + ["active_pods"]],
+        on=monthly_group_cols,
+        how="left"
+    )
+
+    result = result.sort_values(monthly_group_cols)
+
+    if group_cols:
+        result["active_pods"] = (
+            result.groupby(group_cols)["active_pods"]
+            .ffill()
+            .fillna(0)
+        )
+
+        final = (
+            result.groupby(group_cols, as_index=False)
+            .agg(
+                units=("units", "sum"),
+                pod_months=("active_pods", "sum"),
+            )
+        )
+    else:
+        result["active_pods"] = result["active_pods"].ffill().fillna(0)
 
         final = pd.DataFrame(
             {
@@ -98,61 +162,124 @@ def calculate_vpo(df, group_cols):
             }
         )
 
-
-    # denominator = total pod-month opportunities
-
-    final["vpo"] = final["units"] / final["pod_months"].replace(0, None) / 4
+    final["vpo"] = (final["units"] / final["pod_months"].replace(0, None) / 4).replace([float("inf"), -float("inf")], None)
 
     return final[group_cols + ["vpo"]]
 
-def calculate_reorder_rate(df, group_cols):
-    if isinstance(group_cols, str):
+
+def calculate_reorder_rate(df_filtered, df_full, group_cols=None, selected_years=None, selected_months=None):
+    if group_cols is None:
+        group_cols = []
+    elif isinstance(group_cols, str):
         group_cols = [group_cols]
 
-    current_month = pd.Timestamp.today().to_period("M")
-    latest_full_month = df.loc[df["month_year"] != current_month, "month_year"].max()
+    group_cols = [c for c in group_cols if c not in ["month_year", "coded_customer"]]
+    store_keys = group_cols + ["coded_customer"]
+    monthly_group_cols = group_cols + ["month_year"]
 
-    store_keys = [c for c in group_cols if c != "coded_customer"] + ["coded_customer"]
-
-    store_universe = (
-        df.groupby(store_keys + ["month_year"], as_index=False)
-        .agg(
-            repeat_buyer=("reorder_flag", "max"),
-            new_buyer=("first_store_flag", "max"),
-        )
+    spine = build_full_universe_spine(
+        df_filtered,
+        df_full,
+        group_cols=group_cols,
+        selected_years=selected_years,
+        selected_months=selected_months
     )
 
+    # numerator from filtered activity
+    store_universe_filtered = (
+        df_filtered.groupby(store_keys + ["month_year"], as_index=False)
+        .agg(repeat_buyer=("reorder_flag", "max"))
+    )
+
+    if group_cols:
+        numerator = (
+            store_universe_filtered.groupby(monthly_group_cols, as_index=False)
+            .agg(repeat_buyers=("repeat_buyer", "sum"))
+            .sort_values(monthly_group_cols)
+            .reset_index(drop=True)
+        )
+    else:
+        numerator = (
+            store_universe_filtered.groupby("month_year", as_index=False)
+            .agg(repeat_buyers=("repeat_buyer", "sum"))
+            .sort_values("month_year")
+            .reset_index(drop=True)
+        )
+
+    # denominator from full-history store eligibility
     store_start = (
-        store_universe.groupby(store_keys, as_index=False)
+        df_full.groupby(store_keys, as_index=False)
         .agg(first_month=("month_year", "min"))
     )
 
-    #Use ordinal below to convert a Series to an int
-    store_start["possible_reorders"] = (
-        latest_full_month.ordinal - store_start["first_month"].astype(int).clip(lower=0)
-        )
-
-    total_possible_reorders = (
-        store_start.groupby(group_cols, as_index=False)
-        .agg(possible_reorders=("possible_reorders", "sum"))
+    store_month_frame = build_full_universe_spine(
+        df_filtered,
+        df_full,
+        group_cols=store_keys
     )
 
-    repeat_buyers = (
-        store_universe.groupby(group_cols, as_index=False)
-        .agg(repeat_buyers=("repeat_buyer", "sum"))
-    )
-
-    result = repeat_buyers.merge(
-        total_possible_reorders,
-        on=group_cols,
+    store_month_frame = store_month_frame.merge(
+        store_start,
+        on=store_keys,
         how="left"
     )
 
-    result["reorder_rate"] = (
-        result["repeat_buyers"] / result["possible_reorders"]
+    store_month_frame["reorder_opportunity"] = (
+        store_month_frame["month_year"] > store_month_frame["first_month"]
+    ).astype(int)
+
+    if group_cols:
+        denominator = (
+            store_month_frame.groupby(monthly_group_cols, as_index=False)
+            .agg(possible_reorders=("reorder_opportunity", "sum"))
+            .sort_values(monthly_group_cols)
+            .reset_index(drop=True)
+        )
+    else:
+        denominator = (
+            store_month_frame.groupby("month_year", as_index=False)
+            .agg(possible_reorders=("reorder_opportunity", "sum"))
+            .sort_values("month_year")
+            .reset_index(drop=True)
+        )
+
+    result = spine.merge(
+        denominator,
+        on=monthly_group_cols if group_cols else "month_year",
+        how="left",
+    )
+
+    result["possible_reorders"] = result["possible_reorders"].fillna(0)
+
+    result = result.merge(
+        numerator,
+        on=monthly_group_cols if group_cols else "month_year",
+        how="left",
+    )
+
+    result["repeat_buyers"] = result["repeat_buyers"].fillna(0)
+
+    if group_cols:
+        final = (
+            result.groupby(group_cols, as_index=False)
+            .agg(
+                repeat_buyers=("repeat_buyers", "sum"),
+                possible_reorders=("possible_reorders", "sum"),
+            )
+        )
+    else:
+        final = pd.DataFrame(
+            {
+                "repeat_buyers": [result["repeat_buyers"].sum()],
+                "possible_reorders": [result["possible_reorders"].sum()],
+            }
+        )
+
+    final["reorder_rate"] = (
+        final["repeat_buyers"] / final["possible_reorders"]
     ).replace([np.inf, -np.inf], np.nan)
 
-    return result[group_cols + ["reorder_rate"]]
+    return final[group_cols + ["reorder_rate"]]
 
 def calculate_new_pods(df, group_cols):
     if isinstance(group_cols, str):

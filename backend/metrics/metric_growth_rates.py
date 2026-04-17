@@ -1,6 +1,12 @@
 import pandas as pd
 import numpy as np
-from backend.metrics.metric_helpers import ensure_month_spine
+from backend.metrics.metric_helpers import build_spine
+from backend.metrics.monthly_metric_calculators import(
+    calculate_monthly_active_pods,
+    calculate_monthly_existing_buyers,
+    calculate_monthly_repeat_buyers,
+    calculate_monthly_units
+)
 
 def pct_change(current, prior):
     return np.where(
@@ -15,7 +21,7 @@ def add_pct_change_columns(df, metric, l1m=None, l3m=None, py=None):
         df[f"{metric}_l1m_pct"] = pct_change(df[f"{metric}"], df[f"{metric}_l1m"])
 
     if l3m:
-        df[f"{metric}_l3m_pct"] = pct_change(df[f"{metric}"], df[f"{metric}_l3m"])
+        df[f"{metric}_l3m_pct"] = pct_change(df[f"{metric}_3m"], df[f"{metric}_l3m"])
     
     if py:
         df[f"{metric}_py_pct"] = pct_change(df[f"{metric}"], df[f"{metric}_py"])
@@ -28,9 +34,12 @@ def calculate_reorder_rate(df, timeframe):
     
     return result.replace([float("inf"), -float("inf")], None)
 
-def prepare_time_series(df, group_cols, value_cols=None):
-    if isinstance(group_cols, str):
+def prepare_time_series(df, group_cols):
+    if group_cols is None:
+        group_cols = []
+    elif isinstance(group_cols, str):
         group_cols = [group_cols]
+
 
     if "month_year" in group_cols:
         group_cols = [c for c in group_cols if c != "month_year"] + ["month_year"]
@@ -39,23 +48,23 @@ def prepare_time_series(df, group_cols, value_cols=None):
 
     non_time_cols = [c for c in group_cols if c != "month_year"]
 
-    df = ensure_month_spine(
-        df,
-        group_cols=non_time_cols,
-        value_cols=value_cols
-    )
+    spine = build_spine(df, group_cols=non_time_cols)
 
-    return df, group_cols, non_time_cols
+    return spine, group_cols, non_time_cols
 
 
 def add_prior_month_columns(df, group_cols, metric, l1m=None, l3m=None, py=None):
-    df, group_cols, non_time_cols = prepare_time_series(
+    spine, group_cols, non_time_cols = prepare_time_series(
         df,
         group_cols,
-        [metric]
     )
 
-    result = df.sort_values(group_cols).copy()
+    result = spine.merge(
+        df.drop_duplicates(subset=group_cols),
+        on=group_cols,
+        how="left"
+    ).sort_values(group_cols)
+
 
     if non_time_cols:
         if l1m:
@@ -83,13 +92,17 @@ def add_prior_month_columns(df, group_cols, metric, l1m=None, l3m=None, py=None)
 
 
 def add_additive_metric_3m(df, group_cols, metric):
-    df, group_cols, non_time_cols = prepare_time_series(
-        df,
-        group_cols,
-        [metric]
-    )
+    spine, group_cols, non_time_cols = prepare_time_series(df, group_cols)
 
-    result = df.sort_values(group_cols).copy()
+    result = spine.merge(
+        df.drop_duplicates(subset=group_cols), 
+        on=group_cols, 
+        how='left'
+        )
+    
+    result[metric] = result[metric].fillna(0)
+
+    result = result.sort_values(group_cols).copy()
 
     if non_time_cols:
         result[f"{metric}_3m"] = (
@@ -103,8 +116,9 @@ def add_additive_metric_3m(df, group_cols, metric):
 
     return result
 
-def add_buying_stores_3m(df, group_cols):
+def calculate_buying_stores_3m(df, group_cols):
 
+# Merge back onto spine / general fix
 
     if isinstance(group_cols, str):
         group_cols = [group_cols]
@@ -116,12 +130,9 @@ def add_buying_stores_3m(df, group_cols):
 
     non_time_cols = [c for c in group_cols if c != "month_year"]
 
-    df = ensure_month_spine(
-        df,
-        group_cols=non_time_cols + ["coded_customer"],
-    )
+    spine = build_spine(df, group_cols=non_time_cols)
+    months = sorted(spine["month_year"].unique())
 
-    months = sorted(df["month_year"].unique())
     rows = []
 
     for i in range(2, len(months)):
@@ -146,81 +157,94 @@ def add_buying_stores_3m(df, group_cols):
 
         rows.append(grouped)
 
-    result = pd.concat(rows, ignore_index=True)
+    if not rows:
+        result = pd.DataFrame(columns=group_cols + ["buying_stores_3m"])
+    else:
+        result = pd.concat(rows, ignore_index=True)
 
-    return result
+    result = spine.merge(
+        result,
+        on=group_cols,
+        how="left"
+    )
 
-def add_vpo_3m(df, group_cols):
-    if isinstance(group_cols, str):
+    result["buying_stores_3m"] = result["buying_stores_3m"].fillna(0)
+
+    return result[group_cols + ["buying_stores_3m"]]
+
+def calculate_vpo_3m(df_filtered, df_full, group_cols=None, selected_years=None, selected_months=None):
+    if group_cols is None:
+        group_cols = []
+    elif isinstance(group_cols, str):
         group_cols = [group_cols]
 
     if "month_year" in group_cols:
         group_cols = [c for c in group_cols if c != "month_year"] + ["month_year"]
     else:
         group_cols = group_cols + ["month_year"]
-    
-    
-    units_3m = add_additive_metric_3m(df, group_cols, "units")
-    active_pods_3m = add_additive_metric_3m(df, group_cols, "active_pods")
+
+    units = calculate_monthly_units(
+        df=df_filtered,
+        group_cols=group_cols,
+    )
+
+    active_pods = calculate_monthly_active_pods(
+        df_filtered=df_filtered,
+        df_full=df_full,
+        group_cols=group_cols,
+        selected_years=selected_years,
+        selected_months=selected_months,
+    )
+
+    units_3m = add_additive_metric_3m(units, group_cols, "units")
+    active_pods_3m = add_additive_metric_3m(active_pods, group_cols, "active_pods")
 
     result = units_3m.merge(
         active_pods_3m[group_cols + ["active_pods_3m"]],
-        on = group_cols,
-        how = "left"
+        on=group_cols,
+        how="left",
     )
 
-    result["vpo_3m"] = result["units_3m"]/result["active_pods_3m"]/4
+    result["vpo_3m"] = (result["units_3m"] / result["active_pods_3m"].replace(0, None) / 4).replace([float("inf"), -float("inf")], None)
 
     return result[group_cols + ["vpo_3m"]]
 
-def add_reorder_rate_3m(df, group_cols):
-
-    if isinstance(group_cols, str):
+def calculate_reorder_rate_3m(df_filtered, df_full, group_cols=None, selected_years=None, selected_months=None):
+    if group_cols is None:
+        group_cols = []
+    elif isinstance(group_cols, str):
         group_cols = [group_cols]
-
-    # Ensures that month_year is in the right order for the sorting before the cumsum
 
     if "month_year" in group_cols:
         group_cols = [c for c in group_cols if c != "month_year"] + ["month_year"]
     else:
         group_cols = group_cols + ["month_year"]
-    
-    non_time_cols = [c for c in group_cols if c != "month_year"]
 
-    store_universe = (
-        df.groupby(["coded_customer"] + group_cols, as_index=False)
-        .agg(
-            repeat_buyer=("reorder_flag", "max"),
-            new_buyer=("first_store_flag", "max"),
-        )
+    existing = calculate_monthly_existing_buyers(
+        df_filtered=df_filtered,
+        df_full=df_full,
+        group_cols=group_cols,
+        selected_years=selected_years,
+        selected_months=selected_months,
     )
 
-    result = (
-        store_universe.groupby(group_cols, as_index=False)
-        .agg(
-            repeat_buyers=("repeat_buyer", "sum"),
-            new_buyers=("new_buyer", "sum"),
-            buying_stores=("coded_customer", "nunique"),
-        )
-        .sort_values(group_cols)
-        .reset_index(drop=True)
+    repeat = calculate_monthly_repeat_buyers(
+        df_filtered=df_filtered,
+        group_cols=group_cols,
+        selected_years=selected_years,
+        selected_months=selected_months,
     )
 
-    result = ensure_month_spine(
-        result,
-        group_cols=non_time_cols,
-        value_cols=["repeat_buyers", "new_buyers", "buying_stores"]
+    existing_3m = add_additive_metric_3m(existing, group_cols, "existing_buyers")
+    repeat_3m = add_additive_metric_3m(repeat, group_cols, "repeat_buyers")
+
+    result = existing_3m.merge(
+        repeat_3m[group_cols + ["repeat_buyers_3m"]],
+        on=group_cols,
+        how="left",
     )
 
-    if non_time_cols:
-        result["total_buyers"] = result.groupby(non_time_cols)["new_buyers"].cumsum()
-    else:
-        result["total_buyers"] = result["new_buyers"].cumsum()
-
-    result["existing_buyers"] = result["total_buyers"] - result["new_buyers"]
-
-    result = add_additive_metric_3m(result, group_cols, "repeat_buyers")
-    result = add_additive_metric_3m(result, group_cols, "existing_buyers")
+    result["repeat_buyers_3m"] = result["repeat_buyers_3m"].fillna(0)
 
     result["reorder_rate_3m"] = calculate_reorder_rate(result, "3m")
 
