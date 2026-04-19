@@ -71,7 +71,6 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; border: string }
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
-/* const API_BASE_URL = "http://127.0.0.1:8000" */
 
 function buildMetricUrl(
   endpoint: string,
@@ -327,7 +326,8 @@ export default function StoresPage() {
             : []
         )
       setChannelMix(metricData[3] ?? [])
-      setStoreTableData(metricData[4] as any[])
+      setStoreTableData(Array.isArray(metricData[4]) ? metricData[4] : [])
+
 
       const kpiRes = await fetch(`${API_BASE_URL}/kpis_store_health${queryString ? `?${queryString}` : ""}`)
       const kpiData = await kpiRes.json()

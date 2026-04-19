@@ -66,7 +66,6 @@ import DashboardHeader from "@/components/ui/DashboardHeader"
 import KpiCard from "@/components/ui/charts/KpiCard"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
-/* const API_BASE_URL = "http://127.0.0.1:8000" */
 
 const theme = {
   blue: "#92B9DC",
