@@ -4,21 +4,15 @@ import React, { useEffect, useMemo, useRef, useState } from "react"
 
 
 
-const MONTH_MAP: Record<string, string> = {
-    "1": "January",
-    "2": "February",
-    "3": "March",
-    "4": "April",
-    "5": "May",
-    "6": "June",
-    "7": "July",
-    "8": "August",
-    "9": "September",
-    "10": "October",
-    "11": "November",
-    "12": "December",
-  }
+function formatMonthYear(value: string) {
+  const [year, month] = value.split("-")
+  const date = new Date(Number(year), Number(month) - 1)
 
+  return date.toLocaleString("en-US", {
+    month: "short",   // or "long" if you want "March 2025"
+    year: "numeric",
+  })
+}
 
 type Filters = Record<string, string[]>
 
@@ -52,14 +46,14 @@ const DEFAULT_LABELS: Record<string, string> = {
   dc: "DC",
   state: "State",
   year: "Year",
-  month: "Month",
+  month_year: "Month",
   status: "Status",
 }
 
 function getAccent(filterKey: string) {
   if (filterKey === "channel") return theme.gold
   if (filterKey === "sku") return theme.charcoal
-  if (filterKey === "year" || filterKey === "month") return theme.brown
+  if (filterKey === "year" || filterKey === "month_year") return theme.brown
   if (filterKey === "chain") return theme.blue
   return theme.blue
 }
@@ -201,7 +195,7 @@ export default function FilterBar({
       if (filterKey === "channel") return "All Channels"
       if (filterKey === "sku") return "All SKUs"
       if (filterKey === "year") return "All Years"
-      if (filterKey === "month") return "All Months"
+      if (filterKey === "month_year") return "All Months"
       if (filterKey === "status") return "All Statuses"
       return `All ${label}s`
     }
@@ -209,7 +203,7 @@ export default function FilterBar({
     if (selected.length <= 2) {
       return selected
         .map((value) =>
-          filterKey === "month" ? MONTH_MAP[value] ?? value : value
+          filterKey === "month_year" ? formatMonthYear(value) : value
         )
         .join(", ")
     }
@@ -268,10 +262,6 @@ export default function FilterBar({
   function getFilteredOptions(filterKey: string) {
     let raw = filterOptions[filterKey] ?? []
 
-    // 🔥 FIX: sort months numerically
-    if (filterKey === "month") {
-      raw = [...raw].sort((a, b) => Number(a) - Number(b))
-    }
 
     const q = (searchByFilter[filterKey] ?? "").trim().toLowerCase()
 
@@ -534,7 +524,7 @@ export default function FilterBar({
                       </div>
 
                       <span className="truncate">
-                        {openFilter === "month" ? MONTH_MAP[item] ?? item : item}
+                        {openFilter === "month_year" ? formatMonthYear(item) : item}
                       </span>
                     </div>
 
@@ -821,7 +811,7 @@ export default function FilterBar({
                               </div>
 
                               <span className="truncate">
-                                {filterKey === "month" ? MONTH_MAP[item] ?? item : item}
+                                {filterKey === "month_year" ? formatMonthYear(item) : item}
                               </span>
                             </div>
 

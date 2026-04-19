@@ -8,7 +8,7 @@ This page is a CLIENT COMPONENT because we are:
 */
 
 
-
+import { useOrg } from "@/components/OrgContext"
 import { useEffect, useState } from "react"
 import Image from "next/image"
 
@@ -102,7 +102,7 @@ const FILTER_KEYS = [
   "distributor",
   "dc",
   "year",
-  "month",
+  "month_year",
 ]
 
 
@@ -543,7 +543,9 @@ function ChartSection({
 MAIN PAGE COMPONENT
 */
 export default function Home() {
+  const org = useOrg()
 
+  
   /*
   FILTER STATE
   */
@@ -555,7 +557,7 @@ export default function Home() {
     dc: [] as string[],
     state: [] as string[],
     year: [] as string[],
-    month: [] as string[],
+    month_year: [] as string[],
   })
 
   const [filterOptions, setFilterOptions] = useState<Record<string, string[]>>({
@@ -566,7 +568,7 @@ export default function Home() {
     dc: [],
     state: [],
     year: [],
-    month: [],
+    month_year: [],
   })
 
     const [visibleFilters, setVisibleFilters] = useState<string[]>([
@@ -682,8 +684,8 @@ export default function Home() {
       year: Array.isArray(filterOptionData[filterKeys.indexOf("year")])
         ? (filterOptionData[filterKeys.indexOf("year")] as string[])
         : [],
-      month: Array.isArray(filterOptionData[filterKeys.indexOf("month")])
-        ? (filterOptionData[filterKeys.indexOf("month")] as string[])
+      month_year: Array.isArray(filterOptionData[filterKeys.indexOf("month_year")])
+        ? (filterOptionData[filterKeys.indexOf("month_year")] as string[])
         : [],
     }
 
@@ -732,7 +734,7 @@ export default function Home() {
             "dc",
             "state",
             "year",
-            "month",
+            "month_year",
           ]}
           visibleFilters={visibleFilters}
           setVisibleFilters={setVisibleFilters}
@@ -744,7 +746,7 @@ export default function Home() {
             dc: "DC",
             state: "State",
             year: "Year",
-            month: "Month",
+            month_year: "Month",
           }}
         />
 
