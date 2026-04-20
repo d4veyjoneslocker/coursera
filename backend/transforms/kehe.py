@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
-from mappings.sku import sku_map
-from mappings.channel import channel_map
+from backend.mappings.sku import sku_map
+from backend.mappings.channel import channel_map
+from backend.transforms.set_distributor_data_types import set_data_types
 
 def transform_kehe_full_pod_vendor(df):
     # Convert date columns to datetime format
@@ -56,11 +57,11 @@ def transform_kehe_full_pod_vendor(df):
     # Fix Sprouts addresses
 
     df.loc[
-        (df["chain"] == "SPROUTS") & (df["store_number"])=="650", "street_address"
+        (df["chain"] == "SPROUTS") & (df["store_number"]=="650"), "street_address"
         ] = "330 BUENA VISTA BLVD STE 111"
     
     df.loc[
-        (df["chain"] == "SPROUTS") & (df["store_number"])=="651", "street_address"
+        (df["chain"] == "SPROUTS") & (df["store_number"]=="651"), "street_address"
         ] = "12500 LAKE UNDERHILL RD STE 11"
 
     # Map SKUs using sku_map
@@ -75,12 +76,42 @@ def transform_kehe_full_pod_vendor(df):
 
     df["coded_customer"] = df["chain"].astype(str) + " " + df["city"].astype(str) + " " + df["store_number"].astype(str)
 
+    # groups by coded_customer to get rid of Sprouts duplicates due to customer name changes
+
+    df = df.groupby(
+    ["coded_customer", "sku", "month_year"], as_index=False
+        ).agg({
+            "customer_name": "first",
+            "store_number": "first",
+            "chain": "first",
+            "street_address": "first",
+            "city": "first",
+            "state": "first",
+            "zip": "first",
+            "channel": "first",
+            "upc": "first",
+            "distributor": "first",
+            "dc": "first",
+            "year": "first",
+            "month": "first",
+            "revenue": "sum",
+            "units": "sum",
+        })
+    
+    df["helper"] = df["coded_customer"] + "-" + df["sku"] + "-" + df["month_year"].astype(str)
+    df["pod_helper"] = df["coded_customer"] + "-" + df["sku"]
+    
+    df = set_data_types(df)
+    
+
     #------------------------------------------------------------
 
     # selecting and ordering columns
 
     df = df[
         [
+            "helper",
+            "pod_helper",
             "coded_customer",
             "customer_name",
             "store_number",

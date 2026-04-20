@@ -1,8 +1,9 @@
 import pandas as pd
 import numpy as np
-from mappings.sku import sku_map
-from mappings.channel import channel_map
-from mappings.upc import upc_map
+from backend.mappings.sku import sku_map
+from backend.mappings.channel import channel_map
+from backend.mappings.upc import upc_map
+from backend.transforms.set_distributor_data_types import set_data_types
 
 def transform_unfi_natural_vendor_sales(df):
     # Convert date columns to datetime format
@@ -70,7 +71,7 @@ def transform_unfi_natural_vendor_sales(df):
     
     # map Whole Foods
 
-    wf_map = pd.read_csv("mappings/whole_foods.csv", dtype={"zip": str})
+    wf_map = pd.read_csv("backend/mappings/whole_foods.csv", dtype={"zip": str})
 
     df = df.merge(wf_map, on="zip", how="left")
 
@@ -166,12 +167,19 @@ def transform_unfi_natural_vendor_sales(df):
       })
     )
 
+    df["helper"] = df["coded_customer"] + "-" + df["sku"] + "-" + df["month_year"].astype(str)
+    df["pod_helper"] = df["coded_customer"] + "-" + df["sku"]
+
+    df = set_data_types(df)
+
     #------------------------------------------------------------
 
     # selecting and ordering columns
 
     df = df[
         [
+            "helper",
+            "pod_helper",
             "coded_customer",
             "customer_name",
             "store_number",
