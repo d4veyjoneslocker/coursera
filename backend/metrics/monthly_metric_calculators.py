@@ -7,14 +7,29 @@ def calculate_reorder_rate(df):
     result = df["repeat_buyers"] / df["existing_buyers"]
     return result.replace([float("inf"), -float("inf")], None)
 
-# ------------------------------------------------------------------------
+def clean_group_cols(group_cols):
 
-def calculate_monthly_revenue(df, group_cols=None):
+    # if group_cols is entered as a string (without []), turns it in a list
     if isinstance(group_cols, str):
         group_cols = [group_cols]
 
-    if "month_year" not in group_cols:
-        group_cols = ["month_year"] + group_cols
+    # if group_cols is empty, replaces it with an empty list
+    group_cols = group_cols or []
+
+    # ensures that month_year comes at the end of group_cols (which ensures that the table is grouped by 
+    # non-time fields first and month_year within that--which is essential for cumsum/ffill)
+    if "month_year" in group_cols:
+        group_cols = [c for c in group_cols if c != "month_year"] + ["month_year"]
+    else:
+        group_cols = group_cols + ["month_year"]
+
+    return group_cols
+    
+
+# ------------------------------------------------------------------------
+
+def calculate_monthly_revenue(df, group_cols=None):
+    group_cols = clean_group_cols(group_cols)
 
     result = (
         df.groupby(group_cols, as_index=False)
@@ -24,11 +39,7 @@ def calculate_monthly_revenue(df, group_cols=None):
     return result
 
 def calculate_monthly_units(df, group_cols=None):
-    if isinstance(group_cols, str):
-        group_cols = [group_cols]
-
-    if "month_year" not in group_cols:
-        group_cols = ["month_year"] + group_cols
+    group_cols = clean_group_cols(group_cols)
 
     result = (
         df.groupby(group_cols, as_index=False)
@@ -38,11 +49,7 @@ def calculate_monthly_units(df, group_cols=None):
     return result
 
 def calculate_monthly_buying_stores(df, group_cols=None):
-    if isinstance(group_cols, str):
-        group_cols = [group_cols]
-
-    if "month_year" not in group_cols:
-        group_cols = ["month_year"] + group_cols
+    group_cols = clean_group_cols(group_cols)
 
     result = (
         df.groupby(group_cols, as_index=False)
@@ -52,15 +59,7 @@ def calculate_monthly_buying_stores(df, group_cols=None):
     return result
 
 def calculate_monthly_active_pods(df_filtered, df_full, group_cols=None, selected_years=None, selected_months=None):
-    if group_cols is None:
-        group_cols = []
-    elif isinstance(group_cols, str):
-        group_cols = [group_cols]
-    
-    if "month_year" in group_cols:
-        group_cols = [c for c in group_cols if c != "month_year"] + ["month_year"]
-    else:
-        group_cols = group_cols + ["month_year"]
+    group_cols = clean_group_cols(group_cols)
     
     non_time_cols = [col for col in group_cols if col != "month_year"]
 
@@ -99,20 +98,21 @@ def calculate_monthly_active_pods(df_filtered, df_full, group_cols=None, selecte
     else:
         result["active_pods"] = result["active_pods"].ffill().fillna(0)
 
+    print("SPINE")
+    print(spine.sort_values(group_cols))
+
+    print("CLONE")
+    print(clone.sort_values(group_cols))
+
+    print("RESULT")
+    print(result.sort_values(group_cols))
     
     return result[group_cols + ["active_pods"]]
 
 
 def calculate_monthly_vpo(df_filtered, df_full, group_cols=None):
-    if group_cols is None:
-        group_cols = []
-    elif isinstance(group_cols, str):
-        group_cols = [group_cols]
+    group_cols = clean_group_cols(group_cols)
 
-    if "month_year" not in group_cols:
-        group_cols = ["month_year"] + group_cols
-
-    
     # spine = month_years x group_cols (1 month_year for every group_col in the filtered window)
     # take the max and min month of df_filtered where max month is the last month of the last year in the data 
     # (ie, if it's this year, current month - 1 | if it's 2025, 12/31/2025)
@@ -137,15 +137,7 @@ def calculate_monthly_vpo(df_filtered, df_full, group_cols=None):
     return result[group_cols + ["vpo"]]
 
 def calculate_monthly_existing_buyers(df_filtered, df_full, group_cols=None, selected_years=None, selected_months=None):
-    if group_cols is None:
-        group_cols = []
-    elif isinstance(group_cols, str):
-        group_cols = [group_cols]
-
-    if "month_year" in group_cols:
-        group_cols = [c for c in group_cols if c != "month_year"] + ["month_year"]
-    else:
-        group_cols = group_cols + ["month_year"]
+    group_cols = clean_group_cols(group_cols)
 
     non_time_cols = [c for c in group_cols if c != "month_year"]
 
@@ -199,15 +191,7 @@ def calculate_monthly_existing_buyers(df_filtered, df_full, group_cols=None, sel
     return result[group_cols + ["existing_buyers"]]
 
 def calculate_monthly_repeat_buyers(df_filtered, group_cols=None, selected_years=None, selected_months=None):
-    if group_cols is None:
-        group_cols = []
-    elif isinstance(group_cols, str):
-        group_cols = [group_cols]
-
-    if "month_year" in group_cols:
-        group_cols = [c for c in group_cols if c != "month_year"] + ["month_year"]
-    else:
-        group_cols = group_cols + ["month_year"]
+    group_cols = clean_group_cols(group_cols)
 
     non_time_cols = [c for c in group_cols if c != "month_year"]
 
@@ -248,17 +232,7 @@ def calculate_monthly_repeat_buyers(df_filtered, group_cols=None, selected_years
 
 def calculate_monthly_reorder_rate(df_filtered, df_full, group_cols=None, selected_years=None, selected_months=None):
 
-    if group_cols is None:
-        group_cols = []
-    elif isinstance(group_cols, str):
-        group_cols = [group_cols]
-
-    # Ensures that month_year is in the right order for the sorting before the cumsum
-
-    if "month_year" in group_cols:
-        group_cols = [c for c in group_cols if c != "month_year"] + ["month_year"]
-    else:
-        group_cols = group_cols + ["month_year"]
+    group_cols = clean_group_cols(group_cols)
     
     non_time_cols = [col for col in group_cols if col != "month_year"]
 
@@ -321,11 +295,7 @@ def calculate_monthly_reorder_rate(df_filtered, df_full, group_cols=None, select
     return result[group_cols + ["reorder_rate"]]
 
 def calculate_monthly_new_pods(df, group_cols):
-    if isinstance(group_cols, str):
-        group_cols = [group_cols]
-
-    if "month_year" not in group_cols:
-        group_cols = ["month_year"] + group_cols
+    group_cols = clean_group_cols(group_cols)
 
     result = (
         df.groupby(group_cols, as_index=False)
@@ -335,11 +305,7 @@ def calculate_monthly_new_pods(df, group_cols):
     return result
 
 def calculate_monthly_average_skus_per_store(df, group_cols):
-    if isinstance(group_cols, str):
-        group_cols = [group_cols]
-
-    if "month_year" not in group_cols:
-        group_cols = ["month_year"] + group_cols
+    group_cols = clean_group_cols(group_cols)
 
     store_level = (
         df.groupby(["coded_customer"] + group_cols, as_index=False)

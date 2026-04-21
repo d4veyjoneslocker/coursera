@@ -3,7 +3,7 @@ import pandas as pd
 
 from backend.metrics.metric_helpers import (build_spine, build_full_universe_spine)
 
-def calculate_revenue(df, group_cols):
+def calculate_revenue(df, group_cols=None):
     if isinstance(group_cols, str):
         group_cols = [group_cols]
 
@@ -14,9 +14,14 @@ def calculate_revenue(df, group_cols):
 
     return result
 
-def calculate_units(df, group_cols):
+def calculate_units(df, group_cols=None):
     if isinstance(group_cols, str):
         group_cols = [group_cols]
+
+    if not group_cols:
+        return df["units"].sum()
+
+    # if group_cols exist
 
     result = (
         df.groupby(group_cols, as_index=False)
@@ -25,9 +30,13 @@ def calculate_units(df, group_cols):
 
     return result
 
-def calculate_buying_stores(df, group_cols):
+
+def calculate_buying_stores(df, group_cols=None):
     if isinstance(group_cols, str):
         group_cols = [group_cols]
+
+    if not group_cols:
+        return df["coded_customer"].nunique()
 
     result = (
         df.groupby(group_cols, as_index=False)
@@ -81,6 +90,11 @@ def calculate_active_pods(df_filtered, df_full, group_cols=None):
     latest_month = result["month_year"].max()
 
     result = result[result["month_year"] == latest_month].copy()
+
+    # returns value as int if no group_cols
+    if not group_cols:
+        val = result["active_pods"].iloc[0] if not result.empty else None
+        return int(val) if pd.notna(val) else None
 
     return result[group_cols + ["active_pods"]]
 
@@ -163,6 +177,11 @@ def calculate_vpo(df_filtered, df_full, group_cols=None, selected_years=None, se
         )
 
     final["vpo"] = (final["units"] / final["pod_months"].replace(0, None) / 4).replace([float("inf"), -float("inf")], None)
+
+        # returns value as int if no group_cols
+    if not group_cols:
+        val = final["vpo"].iloc[0] if not final.empty else None
+        return int(val) if pd.notna(val) else None
 
     return final[group_cols + ["vpo"]]
 
@@ -279,6 +298,10 @@ def calculate_reorder_rate(df_filtered, df_full, group_cols=None, selected_years
         final["repeat_buyers"] / final["possible_reorders"]
     ).replace([np.inf, -np.inf], np.nan)
 
+    if not group_cols:
+        val = final["reorder_rate"].iloc[0] if not final.empty else None
+        return float(val) if pd.notna(val) else None
+
     return final[group_cols + ["reorder_rate"]]
 
 def calculate_new_pods(df, group_cols):
@@ -293,9 +316,18 @@ def calculate_new_pods(df, group_cols):
     return result
 
 
-def calculate_average_skus_per_store(df, group_cols):
+def calculate_average_skus_per_store(df, group_cols=None):
     if isinstance(group_cols, str):
         group_cols = [group_cols]
+
+    # no grouping case
+    if not group_cols:
+        store_skus = (
+            df.groupby("coded_customer", as_index=False)
+            .agg(skus_per_store=("sku", "nunique"))
+        )
+
+        return store_skus["skus_per_store"].mean()
 
     # Step 1: store-level SKU counts
     store_skus = (

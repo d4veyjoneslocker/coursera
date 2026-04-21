@@ -15,6 +15,13 @@ def pct_change(current, prior):
         np.nan
     )
 
+def abs_change(current, prior):
+    return np.where(
+        pd.notna(prior),
+        current - prior,
+        np.nan
+    )
+
 def add_pct_change_columns(df, metric, l1m=None, l3m=None, py=None):
 
     if l1m:
@@ -25,6 +32,19 @@ def add_pct_change_columns(df, metric, l1m=None, l3m=None, py=None):
     
     if py:
         df[f"{metric}_py_pct"] = pct_change(df[f"{metric}"], df[f"{metric}_py"])
+
+    return df
+
+def add_abs_change_columns(df, metric, l1m=None, l3m=None, py=None):
+
+    if l1m:
+        df[f"{metric}_l1m_abs"] = abs_change(df[f"{metric}"], df[f"{metric}_l1m"])
+
+    if l3m:
+        df[f"{metric}_l3m_abs"] = abs_change(df[f"{metric}_3m"], df[f"{metric}_l3m"])
+    
+    if py:
+        df[f"{metric}_py_abs"] = abs_change(df[f"{metric}"], df[f"{metric}_py"])
 
     return df
 
@@ -109,7 +129,7 @@ def add_additive_metric_3m(df, group_cols, metric):
             result.groupby(non_time_cols)[metric]
             .rolling(3, min_periods=3)
             .sum()
-            .reset_index(level=0, drop=True)
+            .reset_index(level=list(range(len(non_time_cols))), drop=True)
         )
     else:
         result[f"{metric}_3m"] = result[metric].rolling(3, min_periods=3).sum()
