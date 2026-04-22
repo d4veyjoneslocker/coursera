@@ -45,8 +45,8 @@ def kpi_monthly_table(df, df_all_time, selected_years=None, selected_months=None
         on="month_year", how="left"
     )
 
-    print("after step 3:", sorted(df_base["month_year"].unique()))
-
+    print("after step 3 result:", sorted(result["month_year"].unique()))
+    
     # ----------------------------------
     # 4. Add prior period columns (full history)
     # ----------------------------------

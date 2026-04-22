@@ -43,7 +43,7 @@ def calculate_monthly_buying_stores(df, group_cols=None):
 
 
 
-def calculate_monthly_active_pods(df_filtered, df_full, group_cols=None, selected_years=None, selected_months=None):
+def calculate_monthly_active_pods(df_filtered, df_full, group_cols=None, selected_years=None, selected_months=None, include_current_month=True):
     group_cols = clean_group_cols(group_cols)
     
     non_time_cols = [col for col in group_cols if col != "month_year"]
@@ -54,8 +54,7 @@ def calculate_monthly_active_pods(df_filtered, df_full, group_cols=None, selecte
         group_cols=non_time_cols, 
         selected_years=selected_years, 
         selected_months=selected_months,
-        include_current_month=True
-
+        include_current_month=include_current_month
     )
 
     full_universe_spine = build_full_universe_spine(
@@ -64,7 +63,7 @@ def calculate_monthly_active_pods(df_filtered, df_full, group_cols=None, selecte
         group_cols=non_time_cols, 
         selected_years=selected_years, 
         selected_months=selected_months,
-        include_current_month=True
+        include_current_month=include_current_month
     )
 
     clone = (
@@ -129,7 +128,7 @@ def calculate_monthly_vpo(df_filtered, df_full, group_cols=None, selected_years=
 
     return result[group_cols + ["vpo"]]
 
-def calculate_monthly_existing_buyers(df_filtered, df_full, group_cols=None, selected_years=None, selected_months=None):
+def calculate_monthly_existing_buyers(df_filtered, df_full, group_cols=None, selected_years=None, selected_months=None, include_current_month=True):
     group_cols = clean_group_cols(group_cols)
 
     non_time_cols = [c for c in group_cols if c != "month_year"]
@@ -141,6 +140,7 @@ def calculate_monthly_existing_buyers(df_filtered, df_full, group_cols=None, sel
         group_cols=non_time_cols,
         selected_years=selected_years,
         selected_months=selected_months,
+        include_current_month=include_current_month
     )
 
     store_universe = (
@@ -183,7 +183,7 @@ def calculate_monthly_existing_buyers(df_filtered, df_full, group_cols=None, sel
 
     return result[group_cols + ["existing_buyers"]]
 
-def calculate_monthly_repeat_buyers(df_filtered, group_cols=None, selected_years=None, selected_months=None):
+def calculate_monthly_repeat_buyers(df_filtered, group_cols=None, selected_years=None, selected_months=None, include_current_month=True):
     group_cols = clean_group_cols(group_cols)
 
     non_time_cols = [c for c in group_cols if c != "month_year"]
@@ -194,6 +194,7 @@ def calculate_monthly_repeat_buyers(df_filtered, group_cols=None, selected_years
         group_cols=non_time_cols,
         selected_years=selected_years,
         selected_months=selected_months,
+        include_current_month=include_current_month
     )
 
     store_universe = (
@@ -223,7 +224,7 @@ def calculate_monthly_repeat_buyers(df_filtered, group_cols=None, selected_years
     return result[group_cols + ["repeat_buyers"]]
 
 
-def calculate_monthly_reorder_rate(df_filtered, df_full, group_cols=None, selected_years=None, selected_months=None):
+def calculate_monthly_reorder_rate(df_filtered, df_full, group_cols=None, selected_years=None, selected_months=None, include_current_month=True):
 
     group_cols = clean_group_cols(group_cols)
     
@@ -234,7 +235,8 @@ def calculate_monthly_reorder_rate(df_filtered, df_full, group_cols=None, select
         df_full, 
         group_cols=non_time_cols, 
         selected_years=selected_years, 
-        selected_months=selected_months
+        selected_months=selected_months,
+        include_current_month=include_current_month
     )
 
     store_universe = (
@@ -267,7 +269,7 @@ def calculate_monthly_reorder_rate(df_filtered, df_full, group_cols=None, select
     result = spine.merge(
         result[group_cols + ["repeat_buyers","existing_buyers"]],
         on=group_cols,
-        how="left"
+        how="left",
     )
 
     result = result.sort_values(group_cols)

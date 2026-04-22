@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from backend.metrics.metric_helpers import build_spine, clean_group_cols
+from backend.metrics.metric_helpers import build_spine, clean_group_cols, build_comparison_spine
 from backend.metrics.monthly_metric_calculators import(
     calculate_monthly_active_pods,
     calculate_monthly_existing_buyers,
@@ -54,7 +54,7 @@ def calculate_reorder_rate(df, timeframe):
     
     return result.replace([float("inf"), -float("inf")], None)
 
-def prepare_time_series(df, group_cols, selected_years=None, selected_months=None):
+def prepare_growth_time_series(df, group_cols, selected_years=None, selected_months=None):
     if group_cols is None:
         group_cols = []
     elif isinstance(group_cols, str):
@@ -68,15 +68,33 @@ def prepare_time_series(df, group_cols, selected_years=None, selected_months=Non
 
     non_time_cols = [c for c in group_cols if c != "month_year"]
 
-    spine = build_spine(df, group_cols=non_time_cols, selected_years=selected_years, selected_months=selected_months)
+    spine = build_spine(df, group_cols=non_time_cols, selected_years=selected_years, selected_months=selected_months, include_current_month=True)
 
     return spine, group_cols, non_time_cols
 
 
-def add_prior_month_columns(df, group_cols, metric, l1m=None, l3m=None, py=None):
+def add_prior_month_columns(df, group_cols, metric, df_all_time=None, l1m=None, l3m=None, py=None, selected_years=None, selected_months=None):
     group_cols = clean_group_cols(group_cols)
     non_time_cols = [c for c in group_cols if c != "month_year"]
 
+    original_start = df["month_year"].min()
+    original_end = df["month_year"].max()
+
+
+    if df_all_time is None:
+        df_all_time=df
+
+    lookback_months = 0
+    if l1m:
+        lookback_months = max(lookback_months, 1)
+    if l3m:
+        lookback_months = max(lookback_months, 3)
+    if py:
+        lookback_months = max(lookback_months, 12)
+
+    comparison_spine = build_comparison_spine(df_all_time, group_cols=non_time_cols, lookback_months=lookback_months, selected_years=selected_years, selected_months=selected_months, include_current_month=True)
+
+    df = comparison_spine.merge(df, on=group_cols, how="left")
     df = df.sort_values(group_cols).copy()
 
     if non_time_cols:
@@ -98,17 +116,33 @@ def add_prior_month_columns(df, group_cols, metric, l1m=None, l3m=None, py=None)
 
         if py:
             df[f"{metric}_py"] = df[metric].shift(12)
+    
+    if selected_months:
+        df = df[df["month_year"].isin(selected_months)]
+    elif selected_years:
+        df = df[df["month_year"].dt.year.isin(selected_years)]
+    else:
+        df = df[
+        (df["month_year"] >= original_start) &
+        (df["month_year"] <= original_end)
+    ]
 
     return df
 
 # Additive metric examples: units, revenue, new_pods
 
 
-def add_additive_metric_3m(df, group_cols, metric):
-    group_cols = clean_group_cols(group_cols)
-    non_time_cols = [c for c in group_cols if c != "month_year"]
+def add_additive_metric_3m(df, group_cols, metric, selected_years=None, selected_months=None):
+    spine, group_cols, non_time_cols = prepare_growth_time_series(df, group_cols, selected_years=selected_years, selected_months=selected_months)
 
     df = df.sort_values(group_cols).copy()
+
+    df = spine.merge(
+        df,
+        on=group_cols,
+        how="left",
+    )
+
     df[metric] = df[metric].fillna(0)
 
     if non_time_cols:

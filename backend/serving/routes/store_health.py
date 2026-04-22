@@ -7,6 +7,7 @@ from backend.metrics.metric_tables import store_performance, kpi_monthly_table, 
 from backend.metrics.metric_calculators import calculate_units
 from backend.metrics.store_health_kpis import buying_kpis, reorder_kpis, count_channels
 from backend.serving.api_helpers import clean_for_json, prep_monthly_graph, remove_time_filters, filter_table
+from backend.metrics.metric_helpers import build_spine
 
 
 router = APIRouter(prefix="/store_health", tags=["Store Health"])
@@ -69,6 +70,14 @@ def buying_stores(filters: dict = Depends(get_filters)):
     df = filter_table(features_df, **filters)
 
     result = calculate_monthly_buying_stores(df)
+
+    spine = build_spine(
+            features_df,
+            include_current_month=True,
+        )
+
+    result = spine.merge(result, on="month_year", how="left")
+    result["buying_stores"] = result["buying_stores"].fillna(0)
 
     result = prep_monthly_graph(result,"buying_stores")
     result = clean_for_json(result)

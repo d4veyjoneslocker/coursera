@@ -225,42 +225,67 @@ def build_full_universe_spine(df_filtered, df_full, group_cols=None, selected_ye
 
     return spine
 
-def build_comparison_spine(df_full, group_cols=None, lookback_months=3, selected_years=None, selected_months=None):
+def build_comparison_spine(
+    df_full,
+    group_cols=None,
+    lookback_months=0,
+    selected_years=None,
+    selected_months=None,
+    include_current_month=False,
+):
     if group_cols is None:
         group_cols = []
     elif isinstance(group_cols, str):
         group_cols = [group_cols]
 
     # ----------------------------------
-    # 1. Determine comparison_end
+    # 1. Determine current_period
     # ----------------------------------
     today = pd.Timestamp.today()
-    current_period = pd.Period(today, freq="M") - 1
+    current_period = pd.Period(today, freq="M")
+    if not include_current_month:
+        current_period -= 1
 
+    # ----------------------------------
+    # 2. Determine display window
+    # ----------------------------------
     if selected_months:
-        comparison_end = max(selected_months)
-        if comparison_end > current_period:
-            comparison_end = current_period
+        display_start = min(selected_months)
+        display_end = min(max(selected_months), current_period)
+
     elif selected_years:
+        min_selected_year = min(selected_years)
         max_selected_year = max(selected_years)
+
+        display_start = pd.Period(year=min_selected_year, month=1, freq="M")
+
         if max_selected_year == current_period.year:
-            comparison_end = current_period
+            display_end = current_period
         else:
-            comparison_end = pd.Period(year=max_selected_year, month=12, freq="M")
+            display_end = pd.Period(year=max_selected_year, month=12, freq="M")
+
     else:
-        comparison_end = current_period
+        display_start = df_full["month_year"].min()
+        display_end = current_period
+
+    # safety in case selected months go beyond allowed range
+    if display_start > display_end:
+        if group_cols:
+            return pd.DataFrame(columns=group_cols + ["month_year"])
+        return pd.DataFrame(columns=["month_year"])
 
     # ----------------------------------
-    # 2. Determine comparison_start
+    # 3. Expand backward for lookback
     # ----------------------------------
-    comparison_start = comparison_end - lookback_months
+    spine_start = display_start - lookback_months
+    spine_end = display_end
 
     # ----------------------------------
-    # 3. Build spine
+    # 4. Build spine
     # ----------------------------------
     if group_cols:
         groups = (
-            df_full[df_full["month_year"] <= comparison_end][group_cols]
+            df_full[df_full["month_year"] <= spine_end][group_cols]
             .drop_duplicates()
         )
 
@@ -272,8 +297,8 @@ def build_comparison_spine(df_full, group_cols=None, lookback_months=3, selected
         )
 
         group_ranges = groups.merge(first_month, on=group_cols, how="left")
-        group_ranges["start"] = group_ranges["true_first_month"].clip(lower=comparison_start)
-        group_ranges["end"] = comparison_end
+        group_ranges["start"] = group_ranges["true_first_month"].clip(lower=spine_start)
+        group_ranges["end"] = spine_end
 
         def expand(row):
             months = pd.period_range(row["start"], row["end"], freq="M")
@@ -289,9 +314,10 @@ def build_comparison_spine(df_full, group_cols=None, lookback_months=3, selected
                 [expand(row) for _, row in group_ranges.iterrows()],
                 ignore_index=True
             )
+
     else:
         spine = pd.DataFrame({
-            "month_year": pd.period_range(comparison_start, comparison_end, freq="M")
+            "month_year": pd.period_range(spine_start, spine_end, freq="M")
         })
 
     return spine
@@ -322,3 +348,12 @@ def clean_group_cols(group_cols):
         group_cols = group_cols + ["month_year"]
 
     return group_cols
+
+def get_current_period(include_current_month=False):
+    today = pd.Timestamp.today()
+    current_period = pd.Period(today, freq="M")
+
+    if not include_current_month:
+        current_period -= 1
+
+    return current_period

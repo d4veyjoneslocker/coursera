@@ -1,3 +1,4 @@
+import pandas as pd
 from fastapi import (FastAPI, APIRouter, Depends, Query)
 from backend.filters.filter_table import filter_table
 from backend.filters.filters import get_filters, generate_filter_api
@@ -6,6 +7,7 @@ from backend.serving.api_helpers import clean_for_json, prep_monthly_graph, remo
 from backend.metrics.metric_tables import chain_table, kpi_monthly_table
 from backend.metrics.overview_kpis import unit_kpis, buying_kpis, pod_kpis, vpo_kpis, count_channels, avg_skus_per_store
 from backend.data_pipeline.table_loader import load_org_tables
+from backend.metrics.metric_helpers import build_spine
 from backend.metrics.monthly_metric_calculators import (
     calculate_monthly_units,
     calculate_monthly_active_pods,
@@ -51,8 +53,13 @@ def get_filter_options(
     filters.pop(column_name, None)
 
     df = filter_table(features_df, **filters)
+    options = generate_filter_api(df, column_name)
 
-    return generate_filter_api(df, column_name)
+    if column_name == "month_year":
+        current_month = pd.Timestamp.today().to_period("M").strftime("%Y-%m")
+        options = [opt for opt in options if opt != current_month]
+
+    return options
 
 @router.get("/kpis")
 def kpis(filters: dict = Depends(get_filters)):
@@ -87,6 +94,14 @@ def units(filters: dict = Depends(get_filters)):
 
     result = calculate_monthly_units(df)
 
+    spine = build_spine(
+        features_df,
+        include_current_month=True,
+    )
+
+    result = spine.merge(result, on="month_year", how="left")
+    result["units"] = result["units"].fillna(0)
+
     result = prep_monthly_graph(result,"units")
     result = clean_for_json(result)
 
@@ -101,6 +116,14 @@ def buying_stores(filters: dict = Depends(get_filters)):
     df = filter_table(features_df, **filters)
 
     result = calculate_monthly_buying_stores(df)
+
+    spine = build_spine(
+        features_df,
+        include_current_month=True,
+    )
+
+    result = spine.merge(result, on="month_year", how="left")
+    result["buying_stores"] = result["buying_stores"].fillna(0)
 
     result = prep_monthly_graph(result,"buying_stores")
     result = clean_for_json(result)

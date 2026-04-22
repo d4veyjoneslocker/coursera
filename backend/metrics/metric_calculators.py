@@ -177,12 +177,12 @@ def calculate_vpo(df_filtered, df_full, group_cols=None, selected_years=None, se
             }
         )
 
-    final["vpo"] = (final["units"] / final["pod_months"].replace(0, None) / 4).replace([float("inf"), -float("inf")], None)
+    final["vpo"] = (final["units"] / final["pod_months"].replace(0, pd.NA) / 4).replace([float("inf"), -float("inf")], None)
 
         # returns value as int if no group_cols
     if not group_cols:
         val = final["vpo"].iloc[0] if not final.empty else None
-        return int(val) if pd.notna(val) else None
+        return float(val) if pd.notna(val) else None
 
     return final[group_cols + ["vpo"]]
 
