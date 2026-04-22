@@ -68,9 +68,13 @@ def transform_kehe_full_pod_vendor(df):
 
     df["sku"] = df["ProductDescription"].map(sku_map)
 
-    # Map Channels using channel_map
+    # Map Channels using channel_map + fix Sprouts channels
 
     df["channel"] = df["Channel"].map(channel_map)
+    df["channel"] = np.where(
+        df["chain"] == "SPROUTS", "GROCERY",
+        df["channel"]
+    )
 
     # adding coded customer helper
 
