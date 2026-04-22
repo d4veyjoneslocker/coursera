@@ -54,7 +54,7 @@ def calculate_active_pods(df_filtered, df_full, group_cols=None):
     group_cols = [c for c in group_cols if c != "month_year"]
     monthly_group_cols = group_cols + ["month_year"]
 
-    spine = build_full_universe_spine(df_filtered, df_full, group_cols=group_cols)
+    spine = build_full_universe_spine(df_filtered, df_full, group_cols=group_cols, include_current_month=True)
 
     new_pods = (
         df_full.groupby(monthly_group_cols, as_index=False)
@@ -114,7 +114,8 @@ def calculate_vpo(df_filtered, df_full, group_cols=None, selected_years=None, se
         df_full, 
         group_cols=group_cols,
         selected_years=selected_years,
-        selected_months=selected_months
+        selected_months=selected_months,
+        include_current_month=False
     )
 
     units = (

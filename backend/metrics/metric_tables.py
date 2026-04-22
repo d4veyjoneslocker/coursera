@@ -5,47 +5,81 @@ from backend.metrics.metric_growth_rates import add_additive_metric_3m, calculat
 from backend.metrics.metric_calculators import calculate_units, calculate_revenue, calculate_buying_stores, calculate_vpo
 
 
-def kpi_monthly_table(df, df_all_time):
-    result = calculate_monthly_active_pods(df, df_all_time, [])
-    result = result.merge(calculate_monthly_new_pods(df, []), on="month_year", how="left")
-    result = result.merge(calculate_monthly_units(df, []), on="month_year", how="left")
-    result = result.merge(calculate_monthly_buying_stores(df, []), on="month_year", how="left")
-    result = result.merge(calculate_monthly_vpo(df, df_all_time, []), on="month_year", how="left")
-    result = result.merge(calculate_monthly_reorder_rate(df, df_all_time, []), on="month_year", how="left")
+def kpi_monthly_table(df, df_all_time, selected_years=None, selected_months=None):
 
+    # ----------------------------------
+    # 1. Build base dataset (NO time filter)
+    # ----------------------------------
+    # df already has non-time filters applied upstream
+    df_base = df  # assuming df = filter_table(df_all_time, non-time filters only)
+    
+
+
+    # ----------------------------------
+    # 2. Build full monthly table (with history)
+    # ----------------------------------
+    result = calculate_monthly_active_pods(df_base, df_all_time, [])
+    result = result.merge(calculate_monthly_new_pods(df_base, []), on="month_year", how="left")
+    result = result.merge(calculate_monthly_units(df_base, []), on="month_year", how="left")
+    result = result.merge(calculate_monthly_buying_stores(df_base, []), on="month_year", how="left")
+    result = result.merge(calculate_monthly_vpo(df_base, df_all_time, []), on="month_year", how="left")
+    result = result.merge(calculate_monthly_reorder_rate(df_base, df_all_time, []), on="month_year", how="left")
+
+
+    # ----------------------------------
+    # 3. Add rolling metrics (full history)
+    # ----------------------------------
     result = add_additive_metric_3m(result, [], "units")
     result = add_additive_metric_3m(result, [], "new_pods")
 
     result = result.merge(
-        calculate_buying_stores_3m(df, [])[["month_year", "buying_stores_3m"]], 
-        on="month_year", 
-        how="left"
+        calculate_buying_stores_3m(df_base, [])[["month_year", "buying_stores_3m"]],
+        on="month_year", how="left"
     )
     result = result.merge(
-        calculate_vpo_3m(df, df_all_time, [])[["month_year", "vpo_3m"]], 
-        on="month_year", 
-        how="left"
+        calculate_vpo_3m(df_base, df_all_time, [])[["month_year", "vpo_3m"]],
+        on="month_year", how="left"
     )
-
     result = result.merge(
-        calculate_reorder_rate_3m(df, df_all_time,[])[["month_year", "reorder_rate_3m"]],
-        on="month_year",
-        how="left"
+        calculate_reorder_rate_3m(df_base, df_all_time, [])[["month_year", "reorder_rate_3m"]],
+        on="month_year", how="left"
     )
 
+    print("after step 3:", sorted(df_base["month_year"].unique()))
+
+    # ----------------------------------
+    # 4. Add prior period columns (full history)
+    # ----------------------------------
     result = add_prior_month_columns(result, [], "units", l1m=True, l3m=True)
     result = add_prior_month_columns(result, [], "new_pods", l1m=True, l3m=True)
     result = add_prior_month_columns(result, [], "buying_stores", l1m=True, l3m=True)
     result = add_prior_month_columns(result, [], "vpo", l1m=True, l3m=True)
     result = add_prior_month_columns(result, [], "reorder_rate", l1m=True, l3m=True)
 
+    print("after step 4:", sorted(result["month_year"].unique()))
+
+    # ----------------------------------
+    # 5. Growth calculations
+    # ----------------------------------
     result = add_pct_change_columns(result, "units", l1m=True, l3m=True)
     result = add_pct_change_columns(result, "new_pods", l1m=True, l3m=True)
     result = add_pct_change_columns(result, "buying_stores", l1m=True, l3m=True)
     result = add_pct_change_columns(result, "vpo", l1m=True, l3m=True)
     result = add_abs_change_columns(result, "reorder_rate", l1m=True, l3m=True)
 
+    print("after step 5:", sorted(result["month_year"].unique()))
 
+    # ----------------------------------
+    # 6. NOW apply time filter (final step)
+    # ----------------------------------
+    if selected_months:
+        result = result[result["month_year"].isin(selected_months)]
+    elif selected_years:
+        result = result[result["month_year"].apply(lambda p: p.year in selected_years)]
+
+    # ----------------------------------
+    # 7. Return final columns
+    # ----------------------------------
     return result[
         [
             "month_year",
@@ -179,3 +213,24 @@ def store_performance(df, df_all_time):
         "last_month_purchased",
         "status"
     ]]
+
+# this is for status pie chart
+def status_counts_dict(df):
+    store_status = (
+        df.groupby("coded_customer", as_index=False)
+        .agg(status=("status", "first"))
+    )
+
+    result = (
+        store_status["status"]
+        .value_counts()
+        .to_dict()
+    )
+
+    return {
+        "Healthy": int(result.get("Healthy", 0)),
+        "Struggling": int(result.get("Struggling", 0)),
+        "Revived": int(result.get("Revived", 0)),
+        "Inactive": int(result.get("Inactive", 0)),
+        "New": int(result.get("New", 0)),
+    }

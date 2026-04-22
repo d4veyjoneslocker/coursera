@@ -1,29 +1,12 @@
 # PROB MOVE THESE TWO FUNCTIONS SOMEWHERE ELSE
 
-from backend.metrics.metric_helpers import (grouped_cumsum, build_spine, build_full_universe_spine)
+from backend.metrics.metric_helpers import (grouped_cumsum, build_spine, build_window_universe_spine, build_full_universe_spine, clean_group_cols)
 from datetime import datetime
 
 def calculate_reorder_rate(df):
     result = df["repeat_buyers"] / df["existing_buyers"]
     return result.replace([float("inf"), -float("inf")], None)
 
-def clean_group_cols(group_cols):
-
-    # if group_cols is entered as a string (without []), turns it in a list
-    if isinstance(group_cols, str):
-        group_cols = [group_cols]
-
-    # if group_cols is empty, replaces it with an empty list
-    group_cols = group_cols or []
-
-    # ensures that month_year comes at the end of group_cols (which ensures that the table is grouped by 
-    # non-time fields first and month_year within that--which is essential for cumsum/ffill)
-    if "month_year" in group_cols:
-        group_cols = [c for c in group_cols if c != "month_year"] + ["month_year"]
-    else:
-        group_cols = group_cols + ["month_year"]
-
-    return group_cols
     
 
 # ------------------------------------------------------------------------
@@ -58,19 +41,31 @@ def calculate_monthly_buying_stores(df, group_cols=None):
 
     return result
 
+
+
 def calculate_monthly_active_pods(df_filtered, df_full, group_cols=None, selected_years=None, selected_months=None):
     group_cols = clean_group_cols(group_cols)
     
     non_time_cols = [col for col in group_cols if col != "month_year"]
 
-    spine = build_full_universe_spine(
+    spine = build_window_universe_spine(
         df_filtered, 
         df_full, 
         group_cols=non_time_cols, 
         selected_years=selected_years, 
-        selected_months=selected_months
+        selected_months=selected_months,
+        include_current_month=True
+
     )
 
+    full_universe_spine = build_full_universe_spine(
+        df_filtered, 
+        df_full, 
+        group_cols=non_time_cols, 
+        selected_years=selected_years, 
+        selected_months=selected_months,
+        include_current_month=True
+    )
 
     clone = (
         df_full.groupby(group_cols, as_index=False)
@@ -83,34 +78,32 @@ def calculate_monthly_active_pods(df_filtered, df_full, group_cols=None, selecte
     else:
         clone["active_pods"] = clone["new_pods"].cumsum()
 
-    result = spine.merge(
+    full_df = full_universe_spine.merge(
         clone[group_cols + ["active_pods"]],
         on=group_cols,
         how="left"
         )
     
     if non_time_cols:
-        result["active_pods"] = (
-            result.groupby(non_time_cols)["active_pods"]
+        full_df["active_pods"] = (
+            full_df.groupby(non_time_cols)["active_pods"]
             .ffill()
             .fillna(0)
         )
     else:
-        result["active_pods"] = result["active_pods"].ffill().fillna(0)
+        full_df["active_pods"] = full_df["active_pods"].ffill().fillna(0)
 
-    print("SPINE")
-    print(spine.sort_values(group_cols))
+    result = spine.merge(
+        full_df[group_cols + ["active_pods"]],
+        on=group_cols,
+        how="left"
+    )
 
-    print("CLONE")
-    print(clone.sort_values(group_cols))
-
-    print("RESULT")
-    print(result.sort_values(group_cols))
-    
     return result[group_cols + ["active_pods"]]
 
 
-def calculate_monthly_vpo(df_filtered, df_full, group_cols=None):
+
+def calculate_monthly_vpo(df_filtered, df_full, group_cols=None, selected_years=None, selected_months=None):
     group_cols = clean_group_cols(group_cols)
 
     # spine = month_years x group_cols (1 month_year for every group_col in the filtered window)
@@ -119,7 +112,7 @@ def calculate_monthly_vpo(df_filtered, df_full, group_cols=None):
     # fill in all the months in between
 
 
-    active_pods = calculate_monthly_active_pods(df_filtered, df_full, group_cols)
+    active_pods = calculate_monthly_active_pods(df_filtered, df_full, group_cols, selected_years=selected_years, selected_months=selected_months)
     units = calculate_monthly_units(df_filtered, group_cols)
 
     result = active_pods.merge(units,

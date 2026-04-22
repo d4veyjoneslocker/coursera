@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from backend.metrics.metric_helpers import build_spine
+from backend.metrics.metric_helpers import build_spine, clean_group_cols
 from backend.metrics.monthly_metric_calculators import(
     calculate_monthly_active_pods,
     calculate_monthly_existing_buyers,
@@ -54,7 +54,7 @@ def calculate_reorder_rate(df, timeframe):
     
     return result.replace([float("inf"), -float("inf")], None)
 
-def prepare_time_series(df, group_cols):
+def prepare_time_series(df, group_cols, selected_years=None, selected_months=None):
     if group_cols is None:
         group_cols = []
     elif isinstance(group_cols, str):
@@ -68,75 +68,62 @@ def prepare_time_series(df, group_cols):
 
     non_time_cols = [c for c in group_cols if c != "month_year"]
 
-    spine = build_spine(df, group_cols=non_time_cols)
+    spine = build_spine(df, group_cols=non_time_cols, selected_years=selected_years, selected_months=selected_months)
 
     return spine, group_cols, non_time_cols
 
 
 def add_prior_month_columns(df, group_cols, metric, l1m=None, l3m=None, py=None):
-    spine, group_cols, non_time_cols = prepare_time_series(
-        df,
-        group_cols,
-    )
+    group_cols = clean_group_cols(group_cols)
+    non_time_cols = [c for c in group_cols if c != "month_year"]
 
-    result = spine.merge(
-        df.drop_duplicates(subset=group_cols),
-        on=group_cols,
-        how="left"
-    ).sort_values(group_cols)
-
+    df = df.sort_values(group_cols).copy()
 
     if non_time_cols:
         if l1m:
-            result[f"{metric}_l1m"] = result.groupby(non_time_cols)[metric].shift(1)
+            df[f"{metric}_l1m"] = df.groupby(non_time_cols)[metric].shift(1)
 
         if l3m:
-            result[f"{metric}_l3m"] = result.groupby(non_time_cols)[f"{metric}_3m"].shift(3)
+            df[f"{metric}_l3m"] = df.groupby(non_time_cols)[f"{metric}_3m"].shift(3)
 
         if py:
-            result[f"{metric}_py"] = result.groupby(non_time_cols)[metric].shift(12)
+            df[f"{metric}_py"] = df.groupby(non_time_cols)[metric].shift(12)
 
     else:
         if l1m:
-            result[f"{metric}_l1m"] = result[metric].shift(1)
+            df[f"{metric}_l1m"] = df[metric].shift(1)
 
         if l3m:
-            result[f"{metric}_l3m"] = result[f"{metric}_3m"].shift(3)
+            df[f"{metric}_l3m"] = df[f"{metric}_3m"].shift(3)
 
         if py:
-            result[f"{metric}_py"] = result[metric].shift(12)
+            df[f"{metric}_py"] = df[metric].shift(12)
 
-    return result
+    return df
 
 # Additive metric examples: units, revenue, new_pods
 
 
 def add_additive_metric_3m(df, group_cols, metric):
-    spine, group_cols, non_time_cols = prepare_time_series(df, group_cols)
+    group_cols = clean_group_cols(group_cols)
+    non_time_cols = [c for c in group_cols if c != "month_year"]
 
-    result = spine.merge(
-        df.drop_duplicates(subset=group_cols), 
-        on=group_cols, 
-        how='left'
-        )
-    
-    result[metric] = result[metric].fillna(0)
-
-    result = result.sort_values(group_cols).copy()
+    df = df.sort_values(group_cols).copy()
+    df[metric] = df[metric].fillna(0)
 
     if non_time_cols:
-        result[f"{metric}_3m"] = (
-            result.groupby(non_time_cols)[metric]
+        df[f"{metric}_3m"] = (
+            df.groupby(non_time_cols)[metric]
             .rolling(3, min_periods=3)
             .sum()
             .reset_index(level=list(range(len(non_time_cols))), drop=True)
         )
     else:
-        result[f"{metric}_3m"] = result[metric].rolling(3, min_periods=3).sum()
+        df[f"{metric}_3m"] = df[metric].rolling(3, min_periods=3).sum()
 
-    return result
+    return df
 
-def calculate_buying_stores_3m(df, group_cols):
+def calculate_buying_stores_3m(df, group_cols, selected_years=None, selected_months=None):
 
 # Merge back onto spine / general fix
 
@@ -150,7 +137,7 @@ def calculate_buying_stores_3m(df, group_cols):
 
     non_time_cols = [c for c in group_cols if c != "month_year"]
 
-    spine = build_spine(df, group_cols=non_time_cols)
+    spine = build_spine(df, group_cols=non_time_cols, selected_years=selected_years, selected_months=selected_months)
     months = sorted(spine["month_year"].unique())
 
     rows = []

@@ -4,6 +4,8 @@ from backend.metrics.metric_calculators import calculate_units, calculate_buying
 
 # Pie Chart KPIS
 
+
+
 def avg_skus_per_store(df):
     avg_skus_per_store = calculate_average_skus_per_store(df)
 

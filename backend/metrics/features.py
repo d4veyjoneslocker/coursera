@@ -1,5 +1,5 @@
 import pandas as pd
-from data_validation.phase_1 import validate_first_pod_flag
+from backend.data_validation.phase_1 import validate_first_pod_flag
 import numpy as np
 
 
@@ -46,7 +46,7 @@ def add_features(df):
 
     df["count"] = 1
 
-    from metrics.store_level_metrics import calculate_store_health_status_monthly
+    from backend.metrics.store_level_metrics import calculate_store_health_status_monthly
 
     status_table = calculate_store_health_status_monthly(df)
 
@@ -63,6 +63,8 @@ def add_features(df):
     return df
 
 def add_month_features(df):
+
+    df = df.copy()
 
     df["first_month_purchased"] = (
         df.groupby("coded_customer")["month_year"].transform("min")
