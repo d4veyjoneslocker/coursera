@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from backend.metrics.metric_helpers import (build_spine, build_full_universe_spine)
+from backend.metrics.metric_helpers import build_spine, build_full_universe_spine, clean_group_cols
+from backend.metrics.monthly_metric_calculators import calculate_monthly_active_pods, calculate_monthly_units
 
 def calculate_revenue(df, group_cols=None):
     if isinstance(group_cols, str):
@@ -45,146 +46,98 @@ def calculate_buying_stores(df, group_cols=None):
 
     return result
 
-def calculate_active_pods(df_filtered, df_full, group_cols=None):
-    if group_cols is None:
-        group_cols = []
-    elif isinstance(group_cols, str):
-        group_cols = [group_cols]
+def calculate_active_pods(
+    df_filtered,
+    df_full,
+    group_cols=None,
+    selected_years=None,
+    selected_months=None,
+    include_current_month=True,
+):
+    group_cols = clean_group_cols(group_cols)
+    non_time_cols = [c for c in group_cols if c != "month_year"]
 
-    group_cols = [c for c in group_cols if c != "month_year"]
-    monthly_group_cols = group_cols + ["month_year"]
-
-    spine = build_full_universe_spine(df_filtered, df_full, group_cols=group_cols, include_current_month=True)
-
-    new_pods = (
-        df_full.groupby(monthly_group_cols, as_index=False)
-        .agg(new_pods=("first_pod_flag", "sum"))
-        .sort_values(monthly_group_cols)
-        .reset_index(drop=True)
+    monthly = calculate_monthly_active_pods(
+        df_filtered=df_filtered,
+        df_full=df_full,
+        group_cols=non_time_cols,
+        selected_years=selected_years,
+        selected_months=selected_months,
+        include_current_month=include_current_month,
+        lookback_months=6,
     )
 
-    if group_cols:
-        new_pods["active_pods"] = (
-            new_pods.groupby(group_cols)["new_pods"].cumsum()
-        )
-    else:
-        new_pods["active_pods"] = new_pods["new_pods"].cumsum()
-
-    result = spine.merge(
-        new_pods[monthly_group_cols + ["active_pods"]],
-        on=monthly_group_cols,
-        how="left"
-    )
-
-    result = result.sort_values(monthly_group_cols)
-
-    if group_cols:
-        result["active_pods"] = (
-            result.groupby(group_cols)["active_pods"]
-            .ffill()
-            .fillna(0)
-        )
-    else:
-        result["active_pods"] = result["active_pods"].ffill().fillna(0)
-
-    latest_month = result["month_year"].max()
-
-    result = result[result["month_year"] == latest_month].copy()
+    latest_month = monthly["month_year"].max()
+    result = monthly[monthly["month_year"] == latest_month].copy()
 
     # returns value as int if no group_cols
-    if not group_cols:
+    if not non_time_cols:
         val = result["active_pods"].iloc[0] if not result.empty else None
         return int(val) if pd.notna(val) else None
 
-    return result[group_cols + ["active_pods"]]
+    return result[non_time_cols + ["active_pods"]]
 
 
 
-def calculate_vpo(df_filtered, df_full, group_cols=None, selected_years=None, selected_months=None):
-    if group_cols is None:
-        group_cols = []
-    elif isinstance(group_cols, str):
-        group_cols = [group_cols]
+def calculate_vpo(
+    df_filtered,
+    df_full,
+    group_cols=None,
+    selected_years=None,
+    selected_months=None,
+):
+    group_cols = clean_group_cols(group_cols)
+    non_time_cols = [c for c in group_cols if c != "month_year"]
 
-    group_cols = [c for c in group_cols if c != "month_year"]
-    monthly_group_cols = group_cols + ["month_year"]
-
-    spine = build_full_universe_spine(
-        df_filtered, 
-        df_full, 
-        group_cols=group_cols,
+    monthly_units = calculate_monthly_units(
+        df=df_filtered,
+        group_cols=non_time_cols,
         selected_years=selected_years,
         selected_months=selected_months,
-        include_current_month=False
+        include_current_month=False,
     )
 
-    units = (
-        df_filtered.groupby(monthly_group_cols, as_index=False)
-        .agg(units=("units", "sum"))
+    monthly_active_pods = calculate_monthly_active_pods(
+        df_filtered=df_filtered,
+        df_full=df_full,
+        group_cols=non_time_cols,
+        selected_years=selected_years,
+        selected_months=selected_months,
+        include_current_month=False,
     )
 
-    new_pods = (
-        df_full.groupby(monthly_group_cols, as_index=False)
-        .agg(new_pods=("first_pod_flag", "sum"))
-        .sort_values(monthly_group_cols)
-        .reset_index(drop=True)
-    )
-
-    if group_cols:
-        new_pods["active_pods"] = (
-            new_pods.groupby(group_cols)["new_pods"].cumsum()
-        )
-    else:
-        new_pods["active_pods"] = new_pods["new_pods"].cumsum()
-
-    result = spine.merge(
-        units,
-        on=monthly_group_cols,
-        how="left"
+    result = monthly_units.merge(
+        monthly_active_pods,
+        on=non_time_cols + ["month_year"],
+        how="left",
     )
 
     result["units"] = result["units"].fillna(0)
+    result["active_pods"] = result["active_pods"].fillna(0)
 
-    result = result.merge(
-        new_pods[monthly_group_cols + ["active_pods"]],
-        on=monthly_group_cols,
-        how="left"
-    )
-
-    result = result.sort_values(monthly_group_cols)
-
-    if group_cols:
-        result["active_pods"] = (
-            result.groupby(group_cols)["active_pods"]
-            .ffill()
-            .fillna(0)
-        )
-
+    if non_time_cols:
         final = (
-            result.groupby(group_cols, as_index=False)
+            result.groupby(non_time_cols, as_index=False)
             .agg(
                 units=("units", "sum"),
                 pod_months=("active_pods", "sum"),
             )
         )
     else:
-        result["active_pods"] = result["active_pods"].ffill().fillna(0)
+        final = pd.DataFrame({
+            "units": [result["units"].sum()],
+            "pod_months": [result["active_pods"].sum()],
+        })
 
-        final = pd.DataFrame(
-            {
-                "units": [result["units"].sum()],
-                "pod_months": [result["active_pods"].sum()],
-            }
-        )
+    final["vpo"] = (
+        final["units"] / final["pod_months"].replace(0, pd.NA) / 4
+    ).replace([float("inf"), -float("inf")], None)
 
-    final["vpo"] = (final["units"] / final["pod_months"].replace(0, pd.NA) / 4).replace([float("inf"), -float("inf")], None)
-
-        # returns value as int if no group_cols
-    if not group_cols:
+    if not non_time_cols:
         val = final["vpo"].iloc[0] if not final.empty else None
         return float(val) if pd.notna(val) else None
 
-    return final[group_cols + ["vpo"]]
+    return final[non_time_cols + ["vpo"]]
 
 
 def calculate_reorder_rate(df_filtered, df_full, group_cols=None, selected_years=None, selected_months=None):

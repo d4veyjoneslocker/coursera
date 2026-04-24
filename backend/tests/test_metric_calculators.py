@@ -1,13 +1,16 @@
 import pandas as pd
 import pandas.testing as pdt
+import pytest
 
 from backend.metrics.metric_calculators import (
     calculate_vpo, 
     calculate_reorder_rate,
     calculate_units,
     calculate_buying_stores,
-    calculate_new_pods
+    calculate_new_pods,
+    calculate_active_pods,
 )
+from backend.metrics.monthly_metric_calculators import calculate_monthly_active_pods
 
 
 # -----------------------------------------
@@ -322,7 +325,10 @@ def build_no_group_cols_df():
 
 def test_no_group_cols():
     df_full = build_no_group_cols_df()
-    df_filtered = df_full[(df_full["month_year"] >= pd.Period("2026-01", freq="M")) & (df_full["month_year"] <= pd.Period("2026-02", freq="M"))]
+    df_filtered = df_full[
+        (df_full["month_year"] >= pd.Period("2026-01", freq="M")) &
+        (df_full["month_year"] <= pd.Period("2026-02", freq="M"))
+    ]
 
     result = calculate_reorder_rate(
         df_filtered,
@@ -335,11 +341,7 @@ def test_no_group_cols():
         ],
     )
 
-    # A1: first=Dec, opps=Jan,Feb=2, reorders=2
-    # B1: first=Jan, opps=Feb=1, reorders=1
-    # total: 3 / 3
-    expected = pd.DataFrame({"reorder_rate": [1.0]})
-    pdt.assert_frame_equal(result.reset_index(drop=True), expected, check_exact=False, rtol=1e-9)
+    assert result == pytest.approx(1.0, rel=1e-9)
 
 
 # ─────────────────────────────────────────────
@@ -504,3 +506,582 @@ def test_calculate_new_pods():
     })
 
     pdt.assert_frame_equal(result, expected)
+
+# -----------------------------------------
+# ACTIVE PODS TESTS
+# -----------------------------------------
+
+def test_calculate_active_pods_complex_grouped():
+    df_full = build_complex_df()
+
+    start = pd.Period("2026-01", freq="M")
+    end = pd.Period("2026-03", freq="M")
+
+    df_filtered = df_full[
+        (df_full["month_year"] >= start) &
+        (df_full["month_year"] <= end)
+    ]
+
+    result = (
+        calculate_active_pods(
+            df_filtered=df_filtered,
+            df_full=df_full,
+            group_cols=["chain"],
+            selected_years=[2026],
+            selected_months=[
+                pd.Period("2026-01", freq="M"),
+                pd.Period("2026-02", freq="M"),
+                pd.Period("2026-03", freq="M"),
+            ],
+            include_current_month=True,
+        )
+        .sort_values("chain")
+        .reset_index(drop=True)
+    )
+
+    expected = pd.DataFrame({
+        "chain": ["A", "B"],
+        "active_pods": [2, 2],
+    })
+
+    pdt.assert_frame_equal(result, expected)
+
+
+def test_calculate_active_pods_no_group_cols():
+    df_full = build_complex_df()
+
+    start = pd.Period("2026-01", freq="M")
+    end = pd.Period("2026-03", freq="M")
+
+    df_filtered = df_full[
+        (df_full["month_year"] >= start) &
+        (df_full["month_year"] <= end)
+    ]
+
+    result = calculate_active_pods(
+        df_filtered=df_filtered,
+        df_full=df_full,
+        group_cols=[],
+        selected_years=[2026],
+        selected_months=[
+            pd.Period("2026-01", freq="M"),
+            pd.Period("2026-02", freq="M"),
+            pd.Period("2026-03", freq="M"),
+        ],
+        include_current_month=True,
+    )
+
+    # Latest returned month = Mar 2026.
+    # Active pods in trailing 6 months:
+    # A: P1, P2
+    # B: P3, P4
+    # C: P5 is May, outside selected/latest month and future relative to Mar
+    assert result == 4
+
+
+def test_calculate_active_pods_excludes_pods_outside_6_month_window():
+    df_full = build_complex_df()
+
+    old_row = pd.DataFrame(
+        [
+            # This pod is old enough that it should not count for Mar 2026.
+            # Mar 2026 trailing 6-month window = Oct 2025-Mar 2026.
+            ("A", "A9", "OLD_POD", "2025-08", 10, 1, 1, 0),
+        ],
+        columns=[
+            "chain",
+            "coded_customer",
+            "pod_helper",
+            "month_year",
+            "units",
+            "first_pod_flag",
+            "first_store_flag",
+            "reorder_flag",
+        ],
+    )
+    old_row["month_year"] = pd.PeriodIndex(old_row["month_year"], freq="M")
+
+    df_full = pd.concat([df_full, old_row], ignore_index=True)
+
+    start = pd.Period("2026-01", freq="M")
+    end = pd.Period("2026-03", freq="M")
+
+    df_filtered = df_full[
+        (df_full["month_year"] >= start) &
+        (df_full["month_year"] <= end)
+    ]
+
+    result = (
+        calculate_active_pods(
+            df_filtered=df_filtered,
+            df_full=df_full,
+            group_cols=["chain"],
+            selected_years=[2026],
+            selected_months=[
+                pd.Period("2026-01", freq="M"),
+                pd.Period("2026-02", freq="M"),
+                pd.Period("2026-03", freq="M"),
+            ],
+            include_current_month=True,
+        )
+        .sort_values("chain")
+        .reset_index(drop=True)
+    )
+
+    expected = pd.DataFrame({
+        "chain": ["A", "B"],
+        "active_pods": [2, 2],
+    })
+
+    pdt.assert_frame_equal(result, expected)
+
+
+def test_calculate_active_pods_counts_old_pod_if_recent_sale_exists():
+    df_full = build_complex_df()
+
+    extra = pd.DataFrame(
+        [
+            # First appeared far before the selected window
+            ("A", "A9", "P9", "2025-06", 10, 1, 1, 0),
+
+            # But sold again in Mar 2026, so it should be active in Mar
+            ("A", "A9", "P9", "2026-03", 10, 0, 0, 1),
+        ],
+        columns=[
+            "chain",
+            "coded_customer",
+            "pod_helper",
+            "month_year",
+            "units",
+            "first_pod_flag",
+            "first_store_flag",
+            "reorder_flag",
+        ],
+    )
+    extra["month_year"] = pd.PeriodIndex(extra["month_year"], freq="M")
+
+    df_full = pd.concat([df_full, extra], ignore_index=True)
+
+    start = pd.Period("2026-01", freq="M")
+    end = pd.Period("2026-03", freq="M")
+
+    df_filtered = df_full[
+        (df_full["month_year"] >= start) &
+        (df_full["month_year"] <= end)
+    ]
+
+    result = (
+        calculate_active_pods(
+            df_filtered=df_filtered,
+            df_full=df_full,
+            group_cols=["chain"],
+            selected_years=[2026],
+            selected_months=[
+                pd.Period("2026-01", freq="M"),
+                pd.Period("2026-02", freq="M"),
+                pd.Period("2026-03", freq="M"),
+            ],
+            include_current_month=True,
+        )
+        .sort_values("chain")
+        .reset_index(drop=True)
+    )
+
+    expected = pd.DataFrame({
+        "chain": ["A", "B"],
+        "active_pods": [3, 2],
+    })
+
+    pdt.assert_frame_equal(result, expected)
+
+# -----------------------------------------
+# MORE VPO TESTS
+# -----------------------------------------
+
+def test_calculate_vpo_excludes_old_pod_outside_6_month_window():
+    df_full = build_complex_df()
+
+    old_row = pd.DataFrame(
+        [
+            # Should not count in Jan-Mar 2026 pod-month denominator.
+            ("A", "A9", "OLD_POD", "2025-06", 100, 1, 1, 0),
+        ],
+        columns=[
+            "chain",
+            "coded_customer",
+            "pod_helper",
+            "month_year",
+            "units",
+            "first_pod_flag",
+            "first_store_flag",
+            "reorder_flag",
+        ],
+    )
+    old_row["month_year"] = pd.PeriodIndex(old_row["month_year"], freq="M")
+
+    df_full = pd.concat([df_full, old_row], ignore_index=True)
+
+    start = pd.Period("2026-01", freq="M")
+    end = pd.Period("2026-03", freq="M")
+
+    df_filtered = df_full[
+        (df_full["month_year"] >= start) &
+        (df_full["month_year"] <= end)
+    ]
+
+    result = (
+        calculate_vpo(
+            df_filtered=df_filtered,
+            df_full=df_full,
+            group_cols=["chain"],
+            selected_years=[2026],
+            selected_months=[
+                pd.Period("2026-01", freq="M"),
+                pd.Period("2026-02", freq="M"),
+                pd.Period("2026-03", freq="M"),
+            ],
+        )
+        .sort_values("chain")
+        .reset_index(drop=True)
+    )
+
+    expected = pd.DataFrame({
+        "chain": ["A", "B"],
+        "vpo": [25 / 6 / 4, 20 / 6 / 4],
+    })
+
+    pdt.assert_frame_equal(result, expected, check_exact=False, rtol=1e-9)
+
+
+def test_calculate_vpo_includes_recent_inactive_pod_in_denominator():
+    df_full = build_complex_df()
+
+    extra = pd.DataFrame(
+        [
+            # P9 sells in Dec but not during Jan-Mar.
+            # It should still count as active for Jan, Feb, and Mar.
+            ("A", "A9", "P9", "2025-12", 10, 1, 1, 0),
+        ],
+        columns=[
+            "chain",
+            "coded_customer",
+            "pod_helper",
+            "month_year",
+            "units",
+            "first_pod_flag",
+            "first_store_flag",
+            "reorder_flag",
+        ],
+    )
+    extra["month_year"] = pd.PeriodIndex(extra["month_year"], freq="M")
+
+    df_full = pd.concat([df_full, extra], ignore_index=True)
+
+    start = pd.Period("2026-01", freq="M")
+    end = pd.Period("2026-03", freq="M")
+
+    df_filtered = df_full[
+        (df_full["month_year"] >= start) &
+        (df_full["month_year"] <= end)
+    ]
+
+    result = (
+        calculate_vpo(
+            df_filtered=df_filtered,
+            df_full=df_full,
+            group_cols=["chain"],
+            selected_years=[2026],
+            selected_months=[
+                pd.Period("2026-01", freq="M"),
+                pd.Period("2026-02", freq="M"),
+                pd.Period("2026-03", freq="M"),
+            ],
+        )
+        .sort_values("chain")
+        .reset_index(drop=True)
+    )
+
+    expected = pd.DataFrame({
+        "chain": ["A", "B"],
+        # A units still 25.
+        # A pod-months now:
+        # Jan: P1, P2, P9 = 3
+        # Feb: P1, P2, P9 = 3
+        # Mar: P1, P2, P9 = 3
+        # total pod-months = 9
+        "vpo": [25 / 9 / 4, 20 / 6 / 4],
+    })
+
+    pdt.assert_frame_equal(result, expected, check_exact=False, rtol=1e-9)
+
+
+def test_calculate_vpo_counts_old_pod_if_it_sells_again_inside_window():
+    df_full = build_complex_df()
+
+    extra = pd.DataFrame(
+        [
+            # P9 first appeared long ago.
+            ("A", "A9", "P9", "2025-06", 10, 1, 1, 0),
+
+            # But sells in Feb, so it should count as active in Feb and Mar.
+            ("A", "A9", "P9", "2026-02", 8, 0, 0, 1),
+        ],
+        columns=[
+            "chain",
+            "coded_customer",
+            "pod_helper",
+            "month_year",
+            "units",
+            "first_pod_flag",
+            "first_store_flag",
+            "reorder_flag",
+        ],
+    )
+    extra["month_year"] = pd.PeriodIndex(extra["month_year"], freq="M")
+
+    df_full = pd.concat([df_full, extra], ignore_index=True)
+
+    start = pd.Period("2026-01", freq="M")
+    end = pd.Period("2026-03", freq="M")
+
+    df_filtered = df_full[
+        (df_full["month_year"] >= start) &
+        (df_full["month_year"] <= end)
+    ]
+
+    result = (
+        calculate_vpo(
+            df_filtered=df_filtered,
+            df_full=df_full,
+            group_cols=["chain"],
+            selected_years=[2026],
+            selected_months=[
+                pd.Period("2026-01", freq="M"),
+                pd.Period("2026-02", freq="M"),
+                pd.Period("2026-03", freq="M"),
+            ],
+        )
+        .sort_values("chain")
+        .reset_index(drop=True)
+    )
+
+    expected = pd.DataFrame({
+        "chain": ["A", "B"],
+        # A units: original 25 + P9 Feb 8 = 33
+        # A pod-months:
+        # Jan: P1, P2 = 2
+        # Feb: P1, P2, P9 = 3
+        # Mar: P1, P2, P9 = 3
+        # total = 8
+        "vpo": [33 / 8 / 4, 20 / 6 / 4],
+    })
+
+    pdt.assert_frame_equal(result, expected, check_exact=False, rtol=1e-9)
+
+
+def test_calculate_vpo_no_group_cols():
+    df_full = build_complex_df()
+
+    start = pd.Period("2026-01", freq="M")
+    end = pd.Period("2026-03", freq="M")
+
+    df_filtered = df_full[
+        (df_full["month_year"] >= start) &
+        (df_full["month_year"] <= end)
+    ]
+
+    result = calculate_vpo(
+        df_filtered=df_filtered,
+        df_full=df_full,
+        group_cols=[],
+        selected_years=[2026],
+        selected_months=[
+            pd.Period("2026-01", freq="M"),
+            pd.Period("2026-02", freq="M"),
+            pd.Period("2026-03", freq="M"),
+        ],
+    )
+
+    # Units:
+    # A = 25, B = 20, total = 45
+    #
+    # Active pod-months:
+    # Jan: P1, P2, P3, P4 = 4
+    # Feb: P1, P2, P3, P4 = 4
+    # Mar: P1, P2, P3, P4 = 4
+    # total = 12
+    assert result == pytest.approx(45 / 12 / 4, rel=1e-9)
+
+def test_calculate_active_pods_excludes_pod_older_than_6_months_from_latest_month():
+    df_full = build_complex_df()
+
+    extra = pd.DataFrame(
+        [
+            # Latest selected month is Mar 2026.
+            # 6-month window = Oct 2025 through Mar 2026.
+            # This pod is in Sep 2025, so it should NOT count.
+            ("A", "A9", "OLD_POD", "2025-09", 10, 1, 1, 0),
+        ],
+        columns=[
+            "chain",
+            "coded_customer",
+            "pod_helper",
+            "month_year",
+            "units",
+            "first_pod_flag",
+            "first_store_flag",
+            "reorder_flag",
+        ],
+    )
+    extra["month_year"] = pd.PeriodIndex(extra["month_year"], freq="M")
+
+    df_full = pd.concat([df_full, extra], ignore_index=True)
+
+    start = pd.Period("2026-01", freq="M")
+    end = pd.Period("2026-03", freq="M")
+
+    df_filtered = df_full[
+        (df_full["month_year"] >= start) &
+        (df_full["month_year"] <= end)
+    ]
+
+    result = (
+        calculate_active_pods(
+            df_filtered=df_filtered,
+            df_full=df_full,
+            group_cols=["chain"],
+            selected_years=[2026],
+            selected_months=[
+                pd.Period("2026-01", freq="M"),
+                pd.Period("2026-02", freq="M"),
+                pd.Period("2026-03", freq="M"),
+            ],
+            include_current_month=True,
+        )
+        .sort_values("chain")
+        .reset_index(drop=True)
+    )
+
+    expected = pd.DataFrame({
+        "chain": ["A", "B"],
+        "active_pods": [2, 2],
+    })
+
+    pdt.assert_frame_equal(result, expected)
+
+def test_calculate_active_pods_includes_pod_exactly_6_months_back():
+    df_full = build_complex_df()
+
+    extra = pd.DataFrame(
+        [
+            # Latest selected month is Mar 2026.
+            # 6-month window = Oct 2025 through Mar 2026.
+            # Oct is included.
+            ("A", "A9", "EDGE_POD", "2025-10", 10, 1, 1, 0),
+        ],
+        columns=[
+            "chain",
+            "coded_customer",
+            "pod_helper",
+            "month_year",
+            "units",
+            "first_pod_flag",
+            "first_store_flag",
+            "reorder_flag",
+        ],
+    )
+    extra["month_year"] = pd.PeriodIndex(extra["month_year"], freq="M")
+
+    df_full = pd.concat([df_full, extra], ignore_index=True)
+
+    start = pd.Period("2026-01", freq="M")
+    end = pd.Period("2026-03", freq="M")
+
+    df_filtered = df_full[
+        (df_full["month_year"] >= start) &
+        (df_full["month_year"] <= end)
+    ]
+
+    result = (
+        calculate_active_pods(
+            df_filtered=df_filtered,
+            df_full=df_full,
+            group_cols=["chain"],
+            selected_years=[2026],
+            selected_months=[
+                pd.Period("2026-01", freq="M"),
+                pd.Period("2026-02", freq="M"),
+                pd.Period("2026-03", freq="M"),
+            ],
+            include_current_month=True,
+        )
+        .sort_values("chain")
+        .reset_index(drop=True)
+    )
+
+    expected = pd.DataFrame({
+        "chain": ["A", "B"],
+        "active_pods": [3, 2],
+    })
+
+    pdt.assert_frame_equal(result, expected)
+
+def test_monthly_active_pods_and_vpo_stress_long_history_gaps_duplicates():
+    df_full = pd.DataFrame(
+        [
+            ("A", "S1", "P1", "2024-01", 10, 1),
+            ("A", "S1", "P1", "2025-12", 8, 0),
+            ("A", "S1", "P1", "2025-12", 2, 0),
+
+            ("A", "S2", "P2", "2025-07", 12, 1),
+            ("A", "S3", "P3", "2025-09", 6, 1),
+            ("A", "S4", "P4", "2025-10", 4, 1),
+            ("A", "S4", "P4", "2025-12", 4, 0),
+
+            ("A", "S5", "P5", "2025-04", 10, 1),
+        ],
+        columns=[
+            "chain",
+            "coded_customer",
+            "pod_helper",
+            "month_year",
+            "units",
+            "first_pod_flag",
+        ],
+    )
+
+    df_full["month_year"] = pd.PeriodIndex(df_full["month_year"], freq="M")
+
+    selected_months = [
+        pd.Period("2025-10", freq="M"),
+        pd.Period("2025-11", freq="M"),
+        pd.Period("2025-12", freq="M"),
+    ]
+
+    df_filtered = df_full[df_full["month_year"].isin(selected_months)]
+
+    vpo = calculate_vpo(
+        df_filtered=df_filtered,
+        df_full=df_full,
+        group_cols=["chain"],
+        selected_years=[2025],
+        selected_months=selected_months,
+    ).reset_index(drop=True)
+
+    expected_vpo = pd.DataFrame({
+        "chain": ["A"],
+        # selected units:
+        # Oct: P4 = 4
+        # Nov: 0
+        # Dec: P1 duplicate 8+2 + P4 4 = 14
+        # total units = 18
+        #
+        # active pod-months:
+        # Oct window = May-Oct: P2, P3, P4 = 3
+        # Nov window = Jun-Nov: P2, P3, P4 = 3
+        # Dec window = Jul-Dec: P1, P2, P3, P4 = 4
+        # total = 10
+        "vpo": [18 / 10 / 4],
+    })
+
+    pdt.assert_frame_equal(vpo, expected_vpo, check_exact=False, rtol=1e-9)

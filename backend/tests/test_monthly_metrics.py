@@ -57,8 +57,8 @@ def test_monthly_revenue_with_group():
     df = build_revenue_df()
     result = calculate_monthly_revenue(df, group_cols=["chain"])
     expected = pd.DataFrame({
-        "month_year": pd.PeriodIndex(["2026-01", "2026-02", "2026-01"], freq="M"),
         "chain": ["A", "A", "B"],
+        "month_year": pd.PeriodIndex(["2026-01", "2026-02", "2026-01"], freq="M"),
         "revenue": [150.0, 200.0, 300.0],
     })
     pdt.assert_frame_equal(
@@ -85,22 +85,48 @@ def build_units_df():
 
 def test_monthly_units_no_group():
     df = build_units_df()
-    result = calculate_monthly_units(df, group_cols=[])
+
+    result = calculate_monthly_units(
+        df,
+        group_cols=[],
+        include_current_month=True,
+    )
+
     expected = pd.DataFrame({
-        "month_year": pd.PeriodIndex(["2026-01", "2026-02"], freq="M"),
-        "units": [45, 20],
+        "month_year": pd.PeriodIndex(
+            ["2026-01", "2026-02", "2026-03", "2026-04"],
+            freq="M",
+        ),
+        "units": [45.0, 20.0, 0.0, 0.0],
     })
-    pdt.assert_frame_equal(result.sort_values("month_year").reset_index(drop=True), expected)
+
+    pdt.assert_frame_equal(
+        result.sort_values("month_year").reset_index(drop=True),
+        expected,
+    )
 
 
 def test_monthly_units_with_group():
     df = build_units_df()
-    result = calculate_monthly_units(df, group_cols=["chain"])
+
+    result = calculate_monthly_units(
+        df,
+        group_cols=["chain"],
+        include_current_month=True,
+    )
+
     expected = pd.DataFrame({
-        "month_year": pd.PeriodIndex(["2026-01", "2026-02", "2026-01"], freq="M"),
-        "chain": ["A", "A", "B"],
-        "units": [15, 20, 30],
+        "chain": ["A", "A", "A", "A", "B", "B", "B", "B"],
+        "month_year": pd.PeriodIndex(
+            [
+                "2026-01", "2026-02", "2026-03", "2026-04",
+                "2026-01", "2026-02", "2026-03", "2026-04",
+            ],
+            freq="M",
+        ),
+        "units": [15.0, 20.0, 0.0, 0.0, 30.0, 0.0, 0.0, 0.0],
     })
+
     pdt.assert_frame_equal(
         result.sort_values(["chain", "month_year"]).reset_index(drop=True),
         expected.sort_values(["chain", "month_year"]).reset_index(drop=True),
@@ -174,80 +200,166 @@ def test_monthly_new_pods_no_group():
 # calculate_monthly_active_pods
 # =============================================================================
 
-def build_active_pods_df():
-    """
-    Chain A:
-      P1 first appears Jan 2026 (pre-window pod doesn't exist here)
-      P2 first appears Feb 2026
-    Chain B:
-      P3 first appears Dec 2025 (pre-window)
-    """
-    data = [
-        # chain, pod_helper, month_year, first_pod_flag
-        ("A", "P1", "2026-01", 1),
-        ("A", "P1", "2026-02", 0),
-        ("A", "P2", "2026-02", 1),
-        ("B", "P3", "2025-12", 1),
-        ("B", "P3", "2026-01", 0),
-        ("B", "P3", "2026-02", 0),
+def make_active_pods_test_df():
+    rows = [
+        # pod A exists in Jan only
+        ("2025-01", "Whole Foods", "store_1", "sku_1", 10),
+
+        # pod B exists in Feb
+        ("2025-02", "Whole Foods", "store_2", "sku_1", 10),
+
+        # pod C exists in Mar
+        ("2025-03", "Whole Foods", "store_3", "sku_1", 10),
+
+        # pod D exists in Apr
+        ("2025-04", "Whole Foods", "store_4", "sku_1", 10),
+
+        # pod E exists in May
+        ("2025-05", "Whole Foods", "store_5", "sku_1", 10),
+
+        # pod F exists in Jun
+        ("2025-06", "Whole Foods", "store_6", "sku_1", 10),
+
+        # pod G exists in Jul
+        ("2025-07", "Whole Foods", "store_7", "sku_1", 10),
+
+        # repeated pod should not double count
+        ("2025-07", "Whole Foods", "store_7", "sku_1", 5),
+
+        # separate chain to test grouped behavior
+        ("2025-07", "Target", "store_8", "sku_1", 10),
+        ("2025-07", "Target", "store_9", "sku_1", 10),
     ]
-    df = pd.DataFrame(data, columns=["chain", "pod_helper", "month_year", "first_pod_flag"])
+
+    df = pd.DataFrame(
+        rows,
+        columns=["month_year", "chain", "store_number", "sku", "units"],
+    )
+
     df["month_year"] = pd.PeriodIndex(df["month_year"], freq="M")
+    df["pod_helper"] = df["store_number"] + "_" + df["sku"]
+
     return df
 
-
-def test_active_pods_cumulates_correctly():
-    df = build_active_pods_df()
-    start = make_period("2026-01")
-    end = make_period("2026-02")
-    df_filtered = df[(df["month_year"] >= start) & (df["month_year"] <= end)]
+def test_monthly_active_pods_uses_trailing_6_month_window_not_cumsum():
+    df = make_active_pods_test_df()
 
     result = calculate_monthly_active_pods(
-        df_filtered, df, group_cols=["chain"],
-        selected_years=[2026]
+        df_filtered=df,
+        df_full=df,
+        selected_years=[2025],
+        selected_months=[7],
+        include_current_month=True,
+        lookback_months=6,
     )
 
-    # Chain A: Jan=1 pod, Feb=2 pods
-    a_jan = result[(result["chain"] == "A") & (result["month_year"] == start)].iloc[0]
-    a_feb = result[(result["chain"] == "A") & (result["month_year"] == end)].iloc[0]
-    assert a_jan["active_pods"] == 1
-    assert a_feb["active_pods"] == 2
+    july_value = result.loc[
+        result["month_year"] == pd.Period("2025-07", freq="M"),
+        "active_pods",
+    ].iloc[0]
+
+    # Feb-Jul has 6 Whole Foods pods + 2 Target pods = 8.
+    # Jan should be excluded, so this should not be 9.
+    assert july_value == 8
 
 
-def test_active_pods_carries_forward_pre_window_pods():
-    df = build_active_pods_df()
-    start = make_period("2026-01")
-    end = make_period("2026-02")
-    df_filtered = df[(df["month_year"] >= start) & (df["month_year"] <= end)]
+def test_monthly_active_pods_dedupes_same_pod_with_multiple_rows():
+    df = make_active_pods_test_df()
 
     result = calculate_monthly_active_pods(
-        df_filtered, df, group_cols=["chain"],
-        selected_years=[2026]
+        df_filtered=df,
+        df_full=df,
+        selected_years=[2025],
+        selected_months=[7],
+        include_current_month=True,
+        lookback_months=6,
     )
 
-    # Chain B: P3 appeared in Dec 2025 (pre-window), should carry forward as 1 in Jan and Feb
-    b_jan = result[(result["chain"] == "B") & (result["month_year"] == start)].iloc[0]
-    b_feb = result[(result["chain"] == "B") & (result["month_year"] == end)].iloc[0]
-    assert b_jan["active_pods"] == 1
-    assert b_feb["active_pods"] == 1
+    july_value = result.loc[
+        result["month_year"] == pd.Period("2025-07", freq="M"),
+        "active_pods",
+    ].iloc[0]
+
+    # store_7 / sku_1 appears twice in July but should count once.
+    assert july_value == 8
 
 
-def test_active_pods_no_group_cols():
-    df = build_active_pods_df()
-    start = make_period("2026-01")
-    end = make_period("2026-02")
-    df_filtered = df[(df["month_year"] >= start) & (df["month_year"] <= end)]
+def test_monthly_active_pods_grouped_by_chain():
+    df = make_active_pods_test_df()
 
     result = calculate_monthly_active_pods(
-        df_filtered, df, group_cols=[],
-        selected_years=[2026]
+        df_filtered=df,
+        df_full=df,
+        group_cols=["chain"],
+        selected_years=[2025],
+        selected_months=[7],
+        include_current_month=True,
+        lookback_months=6,
     )
 
-    # Jan: P1 + P3 = 2 active, Feb: P1 + P2 + P3 = 3 active
-    jan = result[result["month_year"] == start].iloc[0]
-    feb = result[result["month_year"] == end].iloc[0]
-    assert jan["active_pods"] == 2
-    assert feb["active_pods"] == 3
+    result = result[result["month_year"] == pd.Period("2025-07", freq="M")]
+
+    whole_foods_value = result.loc[
+        result["chain"] == "Whole Foods",
+        "active_pods",
+    ].iloc[0]
+
+    target_value = result.loc[
+        result["chain"] == "Target",
+        "active_pods",
+    ].iloc[0]
+
+    # Whole Foods Jan pod drops out, so Feb-Jul = 6 pods.
+    assert whole_foods_value == 6
+
+    # Target has 2 July pods.
+    assert target_value == 2
+
+
+def test_monthly_active_pods_returns_selected_months_only_but_looks_back():
+    df = make_active_pods_test_df()
+
+    result = calculate_monthly_active_pods(
+        df_filtered=df,
+        df_full=df,
+        selected_years=[2025],
+        selected_months=[7],
+        include_current_month=True,
+        lookback_months=6,
+    )
+
+    assert result["month_year"].tolist() == [pd.Period("2025-07", freq="M")]
+
+    july_value = result["active_pods"].iloc[0]
+
+    # Even though only July is returned, it should still look back Feb-Jul.
+    assert july_value == 8
+
+
+def test_monthly_active_pods_fills_missing_month_with_prior_window_logic():
+    df = make_active_pods_test_df()
+
+    result = calculate_monthly_active_pods(
+        df_filtered=df,
+        df_full=df,
+        selected_years=[2025],
+        selected_months=[8],
+        include_current_month=True,
+        lookback_months=6,
+    )
+
+    august_value = result.loc[
+        result["month_year"] == pd.Period("2025-08", freq="M"),
+        "active_pods",
+    ].iloc[0]
+
+    # Mar-Aug includes Mar, Apr, May, Jun, Jul.
+    # Whole Foods: store_3-store_7 = 5 pods.
+    # Target: store_8-store_9 = 2 pods.
+    # Total = 7.
+    assert august_value == 7
+
+
 
 
 # =============================================================================
@@ -316,6 +428,98 @@ def test_monthly_vpo_zero_units_not_nan():
     b_feb = result[(result["chain"] == "B") & (result["month_year"] == end)].iloc[0]
     assert b_feb["vpo"] == 0.0
 
+def test_monthly_vpo_excludes_pods_outside_6_month_window():
+    df = build_vpo_df()
+
+    old_row = pd.DataFrame(
+        [("A", "A9", "OLD_POD", "2025-06", 1, 0)],
+        columns=["chain", "coded_customer", "pod_helper", "month_year", "first_pod_flag", "units"],
+    )
+    old_row["month_year"] = pd.PeriodIndex(old_row["month_year"], freq="M")
+
+    df = pd.concat([df, old_row], ignore_index=True)
+
+    start = make_period("2026-01")
+    end = make_period("2026-01")
+    df_filtered = df[(df["month_year"] >= start) & (df["month_year"] <= end)]
+
+    result = calculate_monthly_vpo(df_filtered, df, group_cols=["chain"])
+
+    a_jan = result[
+        (result["chain"] == "A") &
+        (result["month_year"] == start)
+    ].iloc[0]
+
+    # Jan trailing 6-month window = Aug-Jan.
+    # OLD_POD from June should not count.
+    # Chain A Jan units = 12, active pods = 2.
+    assert abs(a_jan["vpo"] - (12 / 2 / 4)) < 1e-9
+
+def test_monthly_vpo_counts_old_pod_if_it_sells_again_inside_6_month_window():
+    df = build_vpo_df()
+
+    extra = pd.DataFrame(
+        [
+            # P4 first appeared a long time ago
+            ("A", "A4", "P4", "2025-06", 1, 0),
+
+            # But it sells again in Jan, so it SHOULD be active in Jan
+            ("A", "A4", "P4", "2026-01", 0, 8),
+        ],
+        columns=["chain", "coded_customer", "pod_helper", "month_year", "first_pod_flag", "units"],
+    )
+    extra["month_year"] = pd.PeriodIndex(extra["month_year"], freq="M")
+
+    df = pd.concat([df, extra], ignore_index=True)
+
+    start = make_period("2026-01")
+    end = make_period("2026-01")
+    df_filtered = df[(df["month_year"] >= start) & (df["month_year"] <= end)]
+
+    result = calculate_monthly_vpo(df_filtered, df, group_cols=["chain"])
+
+    a_jan = result[
+        (result["chain"] == "A") &
+        (result["month_year"] == start)
+    ].iloc[0]
+
+    # Chain A Jan:
+    # units = P1 8 + P2 4 + P4 8 = 20
+    # active pods = P1, P2, P4 = 3
+    # vpo = 20 / 3 / 4
+    assert abs(a_jan["vpo"] - (20 / 3 / 4)) < 1e-9
+    
+def test_monthly_vpo_includes_recent_inactive_pod_in_denominator():
+    df = build_vpo_df()
+
+    extra = pd.DataFrame(
+        [
+            # P4 sold recently in Dec, but not in Jan
+            ("A", "A4", "P4", "2025-12", 1, 4),
+        ],
+        columns=["chain", "coded_customer", "pod_helper", "month_year", "first_pod_flag", "units"],
+    )
+    extra["month_year"] = pd.PeriodIndex(extra["month_year"], freq="M")
+
+    df = pd.concat([df, extra], ignore_index=True)
+
+    start = make_period("2026-01")
+    end = make_period("2026-01")
+    df_filtered = df[(df["month_year"] >= start) & (df["month_year"] <= end)]
+
+    result = calculate_monthly_vpo(df_filtered, df, group_cols=["chain"])
+
+    a_jan = result[
+        (result["chain"] == "A") &
+        (result["month_year"] == start)
+    ].iloc[0]
+
+    # Chain A Jan:
+    # units = P1 8 + P2 4 = 12
+    # active pods = P1, P2, P4
+    # P4 has no Jan units but sold in Dec, so denominator includes it.
+    # vpo = 12 / 3 / 4
+    assert abs(a_jan["vpo"] - (12 / 3 / 4)) < 1e-9
 
 # =============================================================================
 # calculate_monthly_existing_buyers

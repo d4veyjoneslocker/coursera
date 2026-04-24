@@ -2,9 +2,9 @@ import pandas as pd
 import pytest
 from backend.filters.filter_table import filter_table
 from backend.metrics.features import add_features
-from backend.metrics.core_metrics import monthly_summary, active_store_rate
-from backend.metrics.growth_metrics import add_time_metrics_simple
-from backend.metrics.store_level_metrics import calculate_reorder_stats
+from backend.old.core_metrics import monthly_summary, active_store_rate
+from backend.old.growth_metrics import add_time_metrics_simple
+from backend.old.store_level_metrics import calculate_reorder_stats
 
 import pandas as pd
 

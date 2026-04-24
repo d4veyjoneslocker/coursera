@@ -130,26 +130,30 @@ def test_monthly_summary_full_output(sample_monthly_summary_df):
     ]
     assert list(result.columns) == expected_cols
 
-    assert len(result) == 7
+    assert len(result) == 8
 
-    assert result["revenue"].tolist() == [100, 250, 520, 880, 890, 1280, 1550]
-    assert result["units"].tolist() == [10, 25, 52, 88, 89, 128, 155]
-    assert result["new_pods"].tolist() == [1, 1, 1, 1, 0, 0, 0]
-    assert result["buying_stores"].tolist() == [1, 2, 2, 3, 2, 3, 3]
-    assert result["active_pods"].tolist() == [1, 2, 3, 4, 4, 4, 4]
+    assert result["revenue"].tolist() == [100, 250, 520, 880, 890, 1280, 1550, 0]
+    assert result["units"].tolist() == [10, 25, 52, 88, 89, 128, 155, 0]
+    assert result["new_pods"].tolist() == [1, 1, 1, 1, 0, 0, 0, 0]
+    expected = [1.0, 2.0, 2.0, 3.0, 2.0, 3.0, 3.0, float("nan")]
+
+    for actual, exp in zip(result["buying_stores"].tolist(), expected):
+        assert_value(actual, exp)
+        
+    assert result["active_pods"].tolist() == [1, 2, 3, 4, 4, 4, 4, 4]
 
     # vpo monthly
-    expected_vpo = [10/1/4, 25/2/4, 52/3/4, 88/4/4, 89/4/4, 128/4/4, 155/4/4]
+    expected_vpo = [10/1/4, 25/2/4, 52/3/4, 88/4/4, 89/4/4, 128/4/4, 155/4/4, 0.0]
     for i, ev in enumerate(expected_vpo):
         assert_value(result["vpo"].iloc[i], ev)
 
     # reorder_rate monthly
-    expected_rr = [None, 1.0, 1.0, 1.0, 2/3, 1.0, 1.0]
+    expected_rr = [None, 1.0, 1.0, 1.0, 2/3, 1.0, 1.0, 0.0]
     for i, ev in enumerate(expected_rr):
         assert_value(result["reorder_rate"].iloc[i], ev if ev is None else float(ev))
 
     # avg skus / store
-    expected_skus = [1.0, 1.0, 1.5, 4/3, 1.5, 4/3, 4/3]
+    expected_skus = [1.0, 1.0, 1.5, 4/3, 1.5, 4/3, 4/3, 0.0]
     for i, ev in enumerate(expected_skus):
         assert_value(result["average_skus_per_store"].iloc[i], ev)
 
@@ -197,31 +201,38 @@ def test_monthly_summary_full_output(sample_monthly_summary_df):
     assert_value(result["reorder_rate_3m"].iloc[5], 7/8)
     assert_value(result["reorder_rate_3m"].iloc[6], 8/9)
 
+    assert_value(result["revenue_3m"].iloc[7], 2830)
+    assert_value(result["units_3m"].iloc[7], 283)
+    assert_value(result["new_pods_3m"].iloc[7], 0)
+    assert_value(result["buying_stores_3m"].iloc[7], 3)
+    assert_value(result["vpo_3m"].iloc[7], 283/12/4)
+    assert_value(result["reorder_rate_3m"].iloc[7], 8/9)    
+
     # l3m pct = current 3m vs prior 3m
     for col in [
         "revenue_l3m_pct", "units_l3m_pct", "new_pods_l3m_pct",
         "buying_stores_l3m_pct", "vpo_l3m_pct", "reorder_rate_l3m_pct"
     ]:
-        for i in range(5):
+        for i in range(6):
             assert pd.isna(result[col].iloc[i]), f"{col} row {i} should be NaN"
 
-    assert_value(result["revenue_l3m_pct"].iloc[5], (3050 - 870) / 870)
-    assert_value(result["revenue_l3m_pct"].iloc[6], (3720 - 1650) / 1650)
+    assert_value(result["revenue_l3m_pct"].iloc[6], (3050 - 870) / 870)
+    assert_value(result["revenue_l3m_pct"].iloc[7], (3720 - 1650) / 1650)
 
-    assert_value(result["units_l3m_pct"].iloc[5], (305 - 87) / 87)
-    assert_value(result["units_l3m_pct"].iloc[6], (372 - 165) / 165)
+    assert_value(result["units_l3m_pct"].iloc[6], (305 - 87) / 87)
+    assert_value(result["units_l3m_pct"].iloc[7], (372 - 165) / 165)
 
-    assert_value(result["new_pods_l3m_pct"].iloc[5], (1 - 3) / 3)
-    assert_value(result["new_pods_l3m_pct"].iloc[6], (0 - 3) / 3)
+    assert_value(result["new_pods_l3m_pct"].iloc[6], (1 - 3) / 3)
+    assert_value(result["new_pods_l3m_pct"].iloc[7], (0 - 3) / 3)
 
-    assert_value(result["buying_stores_l3m_pct"].iloc[5], (3 - 2) / 2)
-    assert_value(result["buying_stores_l3m_pct"].iloc[6], (3 - 3) / 3)
+    assert_value(result["buying_stores_l3m_pct"].iloc[6], (3 - 2) / 2)
+    assert_value(result["buying_stores_l3m_pct"].iloc[7], (3 - 3) / 3)
 
-    assert_value(result["vpo_l3m_pct"].iloc[5], ((305/12/4) - (87/6/4)) / (87/6/4))
-    assert_value(result["vpo_l3m_pct"].iloc[6], ((372/12/4) - (165/9/4)) / (165/9/4))
+    assert_value(result["vpo_l3m_pct"].iloc[6], ((305/12/4) - (87/6/4)) / (87/6/4))
+    assert_value(result["vpo_l3m_pct"].iloc[7], ((372/12/4) - (165/9/4)) / (165/9/4))  
 
-    assert_value(result["reorder_rate_l3m_pct"].iloc[5], ((7/8) - 1.0) / 1.0)
-    assert_value(result["reorder_rate_l3m_pct"].iloc[6], ((8/9) - 1.0) / 1.0)
+    assert_value(result["reorder_rate_l3m_pct"].iloc[6], ((7/8) - 1.0) / 1.0)
+    assert_value(result["reorder_rate_l3m_pct"].iloc[7], ((8/9) - 1.0) / 1.0)
 
 
 def test_export_summary_by_grain_chain(sample_export_df):
