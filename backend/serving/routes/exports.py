@@ -23,8 +23,8 @@ EXPORT_DIR.mkdir(exist_ok=True)
 
 
 @router.get("/export/ai_package")
-def export_ai_package():
-    features_df = load_org_tables("default_org")
+def export_ai_package(org_id: str):
+    features_df = load_org_tables(org_id)
 
     df = features_df.copy()
 

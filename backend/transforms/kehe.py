@@ -3,28 +3,31 @@ import numpy as np
 from backend.mappings.sku import sku_map
 from backend.mappings.channel import channel_map
 from backend.transforms.set_distributor_data_types import set_data_types
+from backend.data_pipeline.pipeline_helpers import apply_sku_map
 
-def transform_kehe_full_pod_vendor(df):
+def transform_kehe_full_pod_vendor(df, org_id):
+
     # Convert date columns to datetime format
     date_columns = ['DateRangeEnd', 'DateRangeStart_Month']
     for col in date_columns:
         df[col] = pd.to_datetime(df[col], errors='coerce')
 
+
     # Renaming columns to keep untransformed
 
     df = df.rename(columns={
-        'AddressLine1': 'street_address',
-        'CurrentYearCost': 'revenue',
-        'CurrentYearQty': 'units',
+        'Addressline1': 'street_address',
+        'CurrentYearQTY': 'units',
         'CustomerCity': 'city',
         'CustomerName': 'customer_name',
         'CustomerStateCode': 'state',
-        'Dc': 'dc',
+        'DC': 'dc',
         'PriorYearCost': 'revenue_py',
         'PriorYearQty': 'units_py',
         'ProductSize': 'fl_oz',
-        'Upc': 'upc',
+        'UPC': 'upc',
     })
+
 
     # Adding new columns
     #------------------------------------------------------------
@@ -45,14 +48,14 @@ def transform_kehe_full_pod_vendor(df):
     )
 
     # Convert zip code to 5-digit string
-    df["zip"] = df["CustomerPostalCode"].str[:5].astype(str)
-
+    df["zip"] = df["CustomerPostalCode"].astype(str).str[:5]
     # Adjust Sprouts store numbers
 
     df["store_number"] = np.where(
         df["chain"] == "SPROUTS", df["customer_name"].str[8:11].str.strip("#- T").astype(str),
         df["AddressBookNumber"]
     )
+
 
     # Fix Sprouts addresses
 
@@ -66,7 +69,8 @@ def transform_kehe_full_pod_vendor(df):
 
     # Map SKUs using sku_map
 
-    df["sku"] = df["ProductDescription"].map(sku_map)
+    df["sku"] = df["ProductDescription"]
+    df = apply_sku_map(df, org_id)
 
     # Map Channels using channel_map + fix Sprouts channels
 
@@ -76,9 +80,26 @@ def transform_kehe_full_pod_vendor(df):
         df["channel"]
     )
 
+
+
     # adding coded customer helper
 
     df["coded_customer"] = df["chain"].astype(str) + " " + df["city"].astype(str) + " " + df["store_number"].astype(str)
+
+
+    #Removes currency symbols from CurrentYearCost and casts it as an int
+    df["revenue"] = (
+        df["CurrentYearCost"]
+        .astype(str)
+        .str.replace("$", "", regex=False)
+        .str.replace(",", "", regex=False)
+        .str.replace("(", "-", regex=False)
+        .str.replace(")", "", regex=False)
+        .str.strip()
+    )
+
+    df["revenue"] = pd.to_numeric(df["revenue"], errors="coerce")
+
 
     # groups by coded_customer to get rid of Sprouts duplicates due to customer name changes
 
@@ -101,6 +122,8 @@ def transform_kehe_full_pod_vendor(df):
             "revenue": "sum",
             "units": "sum",
         })
+    
+
     
     df["helper"] = df["coded_customer"] + "-" + df["sku"] + "-" + df["month_year"].astype(str)
     df["pod_helper"] = df["coded_customer"] + "-" + df["sku"]

@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from filters.filters import monthly_filter
-from metrics.core_metrics import monthly_summary
+from backend.old.core_metrics import monthly_summary
 
 def total(series):
     return series.sum() if len(series) else None

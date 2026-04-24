@@ -1,19 +1,19 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useOrg } from "@/components/OrgContext"
 
 import { Card, CardContent } from "@/components/ui/card"
 
 import ChartSection from "@/components/ui/charts/ChartSection"
 import { PieChartCard } from "@/components/ui/charts/ChartCards"
-import { formatNumber } from "@/components/ui/charts/chartUtils"
 import { formatPercent } from "@/components/ui/charts/chartUtils"
 import type { MetricRow, PieRow } from "@/components/ui/charts/chartTypes"
 import FilterBar from "@/components/ui/filters/FilterBar"
 import DashboardHeader from "@/components/ui/DashboardHeader"
 
-const theme = {
+const DEFAULT_THEME = {
   blue: "#92B9DC",
   gold: "#F7B045",
   brown: "#705C4F",
@@ -25,22 +25,17 @@ const theme = {
   surface: "#FFFDF9",
 }
 
-const PIE_COLORS: Record<string, string> = {
-  Healthy: theme.blue,
-  Struggling: theme.gold,
-  Inactive: theme.brown,
-  Revived: theme.charcoal,
-  New: theme.cream,
-}
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
-const CHANNEL_COLOR_MAP: Record<string, string> = {
-  "GROCERY": theme.blue,
-  "E-COMMERCE": theme.gold,
-  "NATURAL": theme.brown,
-  "INDEPENDENT": theme.charcoal,
-  "SPECIALTY": "#A8A29E",
-  "ALTERNATIVE": "#D6D3D1",
-}
+const DATA_ENDPOINTS = {
+  buyers: "store_health/buyers",
+  reorderGraph: "store_health/reorders",
+  statusPie: "store_health/status",
+  channels: "store_health/channels",
+  storeTable: "store_health/store_performance",
+  kpis: "store_health/kpis",
+  filters: "store_health/filters",
+} as const
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; border: string }> = {
   Healthy: {
@@ -59,54 +54,84 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; border: string }
     border: "#E7DED2",
   },
   New: {
-    bg: "#EEF4F8",        // light blue
+    bg: "#EEF4F8",
     text: "#4E6F8C",
     border: "#D5E1EA",
   },
   Revived: {
-    bg: "#F3EEFF",        // light purple
+    bg: "#F3EEFF",
     text: "#6B4FB3",
     border: "#DDD3F5",
   },
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+type OrgLike = {
+  name?: string | null
+  logo_url?: string | null
+  primary_color?: string | null
+  secondary_color?: string | null
+  accent_color?: string | null
+  background_color?: string | null
+  last_refreshed_at?: string | null
+}
 
-function buildMetricUrl(
-  endpoint: string,
-  filters: Record<string, string[]>
-) {
+function formatLastUpdated(value?: string | null) {
+  if (!value) return "—"
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "—"
+
+  return date.toLocaleString("en-US", {
+    month: "long",
+    year: "numeric",
+  })
+}
+
+function buildQueryString(filters: Record<string, string[]>) {
   const params = new URLSearchParams()
 
   Object.entries(filters).forEach(([key, values]) => {
     values.forEach((value) => params.append(key, value))
   })
 
-  const query = params.toString()
-
-  return query
-    ? `${API_BASE_URL}/${endpoint}?${query}`
-    : `${API_BASE_URL}/${endpoint}`
+  return params.toString()
 }
 
+function buildApiUrl(
+  endpoint: string,
+  filters: Record<string, string[]>,
+  orgId: string
+) {
+  const params = new URLSearchParams()
 
+  // 🔥 ALWAYS include org_id
+  params.set("org_id", orgId)
 
-function getMetricStats(data: MetricRow[]) {
-  const total = data.reduce((sum, row) => sum + row.value, 0)
+  // add filters
+  Object.entries(filters).forEach(([key, values]) => {
+    values.forEach((value) => params.append(key, value))
+  })
 
-  const latest = data.length
-    ? data[data.length - 1].value
-    : 0
+  return `${API_BASE_URL}/${endpoint}?${params.toString()}`
+}
 
-  const avg = data.length
-    ? Math.round(total / data.length)
-    : 0
+function buildFilterUrl(
+  columnName: string,
+  filters: Record<string, string[]>,
+  orgId: string
+) {
+  const params = new URLSearchParams()
 
-  const max = data.length
-    ? Math.max(...data.map((row) => row.value))
-    : 0
+  params.set("column_name", columnName)
 
-  return { total, latest, avg, max }
+  // 🔥 ALWAYS include org_id
+  params.set("org_id", orgId)
+
+  Object.entries(filters).forEach(([key, values]) => {
+    values.forEach((value) => params.append(key, value))
+  })
+
+  return `${API_BASE_URL}/store_health/filters?${params.toString()}`
 }
 
 function StatusPill({ status }: { status: string }) {
@@ -148,29 +173,60 @@ function SortableHeader({
     >
       <div className="flex items-center gap-1">
         <span>{label}</span>
-
         <span
           className={`text-[10px] transition-opacity ${
             isActive ? "opacity-100" : "opacity-0 group-hover:opacity-60"
           }`}
         >
-          {isActive
-            ? sortDirection === "asc"
-              ? "↑"
-              : "↓"
-            : "↕"}
+          {isActive ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}
         </span>
       </div>
     </th>
   )
 }
 
-
 export default function StoresPage() {
+  const org = useOrg()
+
+  const theme = useMemo(() => {
+    return {
+      ...DEFAULT_THEME,
+      blue: org?.primary_color || DEFAULT_THEME.blue,
+      gold: org?.secondary_color || DEFAULT_THEME.gold,
+      brown: org?.accent_color || DEFAULT_THEME.brown,
+      bg: org?.background_color || DEFAULT_THEME.bg,
+    }
+  }, [org])
+
+  const PIE_COLORS: Record<string, string> = {
+    Healthy: theme.blue,
+    Struggling: theme.gold,
+    Inactive: theme.brown,
+    Revived: theme.charcoal,
+    New: theme.cream,
+  }
+
+  const CHANNEL_COLOR_MAP: Record<string, string> = {
+    GROCERY: theme.blue,
+    "E-COMMERCE": theme.gold,
+    NATURAL: theme.brown,
+    INDEPENDENT: theme.charcoal,
+    SPECIALTY: "#A8A29E",
+    ALTERNATIVE: "#D6D3D1",
+  }
+
+  const FILTER_KEYS = [
+    "chain",
+    "channel",
+    "distributor",
+    "dc",
+    "state",
+    "status",
+  ] as const
+
   const [filters, setFilters] = useState<Record<string, string[]>>({
     chain: [],
     channel: [],
-    sku: [],
     distributor: [],
     dc: [],
     state: [],
@@ -180,7 +236,6 @@ export default function StoresPage() {
   const [filterOptions, setFilterOptions] = useState<Record<string, string[]>>({
     chain: [],
     channel: [],
-    sku: [],
     distributor: [],
     dc: [],
     state: [],
@@ -188,13 +243,11 @@ export default function StoresPage() {
   })
 
   const [visibleFilters, setVisibleFilters] = useState<string[]>([
-  "chain",
-  "channel",
-  "sku",
-  "distributor",
-  "status",
+    "chain",
+    "channel",
+    "distributor",
+    "status",
   ])
-
 
   const [barOneData, setBarOneData] = useState<MetricRow[]>([])
   const [barTwoData, setBarTwoData] = useState<MetricRow[]>([])
@@ -208,184 +261,188 @@ export default function StoresPage() {
     title: string
     value: number
   } | null>(null)
+  const [statusCenterValue, setStatusCenterValue] = useState<number | string | undefined>(undefined)
 
-  /* States for sorting table columns */
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
-
-  console.log("filters.status:", filters.status)
-  console.log("storeTableData sample:", storeTableData.slice(0, 10))
-  console.log(
-    "unique storeTableData statuses:",
-    [...new Set(storeTableData.map((row) => row.status))]
-  )
 
   const processedStoreTableData = [...storeTableData]
     .filter((row) => {
       const selectedStatuses = filters.status ?? []
-      return selectedStatuses.length === 0
-        ? true
-        : selectedStatuses.includes(row.status)
+      return selectedStatuses.length === 0 ? true : selectedStatuses.includes(row.status)
     })
-  .sort((a, b) => {
-    if (!sortKey) return 0
+    .sort((a, b) => {
+      if (!sortKey) return 0
 
-    const aVal = a[sortKey]
-    const bVal = b[sortKey]
+      const aVal = a[sortKey]
+      const bVal = b[sortKey]
 
-    if (aVal == null) return 1
-    if (bVal == null) return -1
+      if (aVal == null) return 1
+      if (bVal == null) return -1
 
-    if (typeof aVal === "number" && typeof bVal === "number") {
-      return sortDirection === "asc" ? aVal - bVal : bVal - aVal
-    }
+      if (typeof aVal === "number" && typeof bVal === "number") {
+        return sortDirection === "asc" ? aVal - bVal : bVal - aVal
+      }
 
-    return sortDirection === "asc"
-      ? String(aVal).localeCompare(String(bVal))
-      : String(bVal).localeCompare(String(aVal))
-  })
-
+      return sortDirection === "asc"
+        ? String(aVal).localeCompare(String(bVal))
+        : String(bVal).localeCompare(String(aVal))
+    })
 
   function handleSort(key: string) {
-  if (sortKey !== key) {
-    // first click on a new column
-    setSortKey(key)
-    setSortDirection("desc")
-  } else if (sortDirection === "desc") {
-    // second click
-    setSortDirection("asc")
-  } else {
-    // third click → reset
-    setSortKey(null)
+    if (sortKey !== key) {
+      setSortKey(key)
+      setSortDirection("desc")
+    } else if (sortDirection === "desc") {
+      setSortDirection("asc")
+    } else {
+      setSortKey(null)
+    }
   }
-  }
-
-  
 
   useEffect(() => {
     async function loadData() {
-      const filterKeys = Object.keys(filters)
-      const queryString = buildMetricUrl("temp", filters).split("?")[1] ?? ""
+      try {
+        const filterRequests = Object.fromEntries(
+          FILTER_KEYS.map((key) => [key, buildFilterUrl(key, filters, org.id)])
+        )
 
-      const filterOptionUrls = filterKeys.map(
-        (key) =>
-          `${API_BASE_URL}/filters/${key}${queryString ? `?${queryString}` : ""}`
-      )
+        const dataRequests = {
+          buyers: buildApiUrl(DATA_ENDPOINTS.buyers, filters, org.id),
+          reorderGraph: buildApiUrl(DATA_ENDPOINTS.reorderGraph, filters, org.id),
+          statusPie: buildApiUrl(DATA_ENDPOINTS.statusPie, filters, org.id),
+          channels: buildApiUrl(DATA_ENDPOINTS.channels, filters, org.id),
+          storeTable: buildApiUrl(DATA_ENDPOINTS.storeTable, filters, org.id),
+          kpis: buildApiUrl(DATA_ENDPOINTS.kpis, filters, org.id),
+        }
 
-      const metricUrls = [
-        buildMetricUrl("buyers", filters),
-        buildMetricUrl("reorder_graph", filters),
-        buildMetricUrl("reorder_stats", filters),
-        buildMetricUrl("channels", filters),
-        buildMetricUrl("store_level_reorder", filters),
-      ]
+        const requestMap = {
+          ...filterRequests,
+          ...dataRequests,
+        }
 
-      const responses = await Promise.all(
-        [...filterOptionUrls, ...metricUrls].map((url) => fetch(url))
-      )
+        const responseEntries = await Promise.all(
+          Object.entries(requestMap).map(async ([key, url]) => {
+            const response = await fetch(url)
+            const json = await response.json()
+            return [key, json] as const
+          })
+        )
 
-      const data = await Promise.all(responses.map((res) => res.json()))
+        const results = Object.fromEntries(responseEntries)
 
-      const filterOptionData = data.slice(0, filterKeys.length)
-      const metricData = data.slice(filterKeys.length)
+        setFilterOptions({
+          chain: Array.isArray(results.chain) ? results.chain : [],
+          channel: Array.isArray(results.channel) ? results.channel : [],
+          sku: Array.isArray(results.sku) ? results.sku : [],
+          distributor: Array.isArray(results.distributor) ? results.distributor : [],
+          dc: Array.isArray(results.dc) ? results.dc : [],
+          state: Array.isArray(results.state) ? results.state : [],
+          status: Array.isArray(results.status) ? results.status : [],
+        })
 
-      const nextFilterOptions: Record<string, string[]> = {
-        chain: Array.isArray(filterOptionData[filterKeys.indexOf("chain")])
-          ? (filterOptionData[filterKeys.indexOf("chain")] as string[])
-          : [],
-        channel: Array.isArray(filterOptionData[filterKeys.indexOf("channel")])
-          ? (filterOptionData[filterKeys.indexOf("channel")] as string[])
-          : [],
-        sku: Array.isArray(filterOptionData[filterKeys.indexOf("sku")])
-          ? (filterOptionData[filterKeys.indexOf("sku")] as string[])
-          : [],
-        distributor: Array.isArray(filterOptionData[filterKeys.indexOf("distributor")])
-          ? (filterOptionData[filterKeys.indexOf("distributor")] as string[])
-          : [],
-        dc: Array.isArray(filterOptionData[filterKeys.indexOf("dc")])
-          ? (filterOptionData[filterKeys.indexOf("dc")] as string[])
-          : [],
-        state: Array.isArray(filterOptionData[filterKeys.indexOf("state")])
-          ? (filterOptionData[filterKeys.indexOf("state")] as string[])
-          : [],
-        status: Array.isArray(filterOptionData[filterKeys.indexOf("status")])
-          ? (filterOptionData[filterKeys.indexOf("status")] as string[])
-          : [],
-      }
+        setBarOneData(Array.isArray(results.buyers) ? results.buyers : [])
+        setBarTwoData(Array.isArray(results.reorderGraph) ? results.reorderGraph : [])
 
-      setFilterOptions(nextFilterOptions)
-
-      setBarOneData(metricData[0] as MetricRow[])
-      setBarTwoData(metricData[1] as MetricRow[])
-      setPieData(
-        metricData[2] && !Array.isArray(metricData[2])
-            ? Object.entries(metricData[2]).map(([name, value]) => ({
+        setPieData(
+          results.statusPie && !Array.isArray(results.statusPie)
+            ? Object.entries(results.statusPie).map(([name, value]) => ({
                 name,
                 value: Number(value),
-            }))
+              }))
             : []
         )
-      setChannelMix(metricData[3] ?? [])
-      setStoreTableData(Array.isArray(metricData[4]) ? metricData[4] : [])
 
+        setChannelMix(Array.isArray(results.channels) ? results.channels : [])
+        setStoreTableData(Array.isArray(results.storeTable) ? results.storeTable : [])
 
-      const kpiRes = await fetch(`${API_BASE_URL}/kpis_store_health${queryString ? `?${queryString}` : ""}`)
-      const kpiData = await kpiRes.json()
+        const kpiData = results.kpis ?? {}
 
-      console.log("queryString", queryString)
-      console.log("FULL KPI DATA", kpiData)
-      console.log("buyers_kpis", kpiData.buyers_kpis)
-      console.log("reorder_kpis", kpiData.reorder_kpis)
+        setBuyersKpis(kpiData.buying_kpis ?? [])
+        setReorderKpis(kpiData.reorder_kpis ?? [])
+        setChannelPieKpis(kpiData.count_channel?.channel_count ?? null)
 
-      setBuyersKpis(kpiData.buyers_kpis ?? [])
-      setReorderKpis(kpiData.reorder_kpis ?? [])
-      setChannelPieKpis(kpiData.channel_count ?? null)
+        const totalBuyersKpi = Array.isArray(kpiData.buying_kpis)
+          ? kpiData.buying_kpis.find((item: any) => item?.key === "total_buyers")
+          : null
+
+        setStatusCenterValue(totalBuyersKpi?.value)
+      } catch (error) {
+        console.error("Failed to load store health page data:", error)
+      }
     }
-    
 
     loadData()
   }, [filters])
 
-  const barOneStats = getMetricStats(barOneData)
-  const barTwoStats = getMetricStats(barTwoData)
+  const [dataThrough, setDataThrough] = useState<string | undefined>()
+  const [isStale, setIsStale] = useState(false)
+
+  const formatMonthYear = (value?: string) => {
+    if (!value) return undefined
+
+    const [year, month] = value.split("-")
+    const date = new Date(Number(year), Number(month) - 1)
+
+    return date.toLocaleString("en-US", {
+      month: "long",
+      year: "numeric",
+    })
+  }
+
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/distributors/kehe/status?org_id=${org.id}`
+      )
+      const data = await res.json()
+
+      if (data.status === "ready") {
+        setDataThrough(formatMonthYear(data.data_through))
+        setIsStale(data.is_stale)
+      }
+    } catch (err) {
+      console.error("Failed to fetch status", err)
+    }
+  }
+
+  useEffect(() => {
+    fetchStatus()
+  }, [org.id])
 
   return (
     <main className="min-h-screen p-8" style={{ backgroundColor: theme.bg }}>
       <div className="mx-auto max-w-7xl space-y-8">
-
         <DashboardHeader
-          brandName="Smearcase"
-          subtitle="Store Health"
-          logoSrc="/smearcase_vanilla.png"
-          lastUpdated="April 2026"
-          activePage="store-health"
+          brandName="Endcap"
+          activePage="overview"
+          dataThrough={dataThrough}
+          isStale={isStale}
         />
 
         <FilterBar
-                  filters={filters}
-                  setFilters={setFilters}
-                  filterOptions={filterOptions}
-                  availableFilters={[
-                    "chain",
-                    "channel",
-                    "sku",
-                    "distributor",
-                    "dc",
-                    "state",
-                    "status",
-                  ]}
-                  visibleFilters={visibleFilters}
-                  setVisibleFilters={setVisibleFilters}
-                  filterLabels={{
-                    chain: "Retailer",
-                    channel: "Channel",
-                    sku: "SKU",
-                    distributor: "Distributor",
-                    dc: "DC",
-                    state: "State",
-                    status: "status",
-                  }}
-                />
+          filters={filters}
+          setFilters={setFilters}
+          filterOptions={filterOptions}
+          availableFilters={[
+            "chain",
+            "channel",
+            "distributor",
+            "dc",
+            "state",
+            "status",
+          ]}
+          visibleFilters={visibleFilters}
+          setVisibleFilters={setVisibleFilters}
+          filterLabels={{
+            chain: "Retailer",
+            channel: "Channel",
+            distributor: "Distributor",
+            dc: "DC",
+            state: "State",
+            status: "Status",
+          }}
+        />
 
         <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">
           <ChartSection
@@ -407,9 +464,7 @@ export default function StoresPage() {
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-          {/* LEFT CARD — STORE HEALTH */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <Card
             className="rounded-[28px] shadow-sm"
             style={{
@@ -417,14 +472,14 @@ export default function StoresPage() {
               borderColor: theme.line,
             }}
           >
-            <CardContent className="pt-2 pb-4 px-6 space-y-6">
+            <CardContent className="space-y-6 px-6 pt-2 pb-4">
               <div className="flex items-center gap-3">
                 <div
                   className="h-[3px] w-24 rounded-full"
                   style={{ backgroundColor: theme.charcoal + "CC" }}
                 />
                 <p
-                  className="text-[16px] uppercase tracking-[0.18em] font-medium"
+                  className="text-[16px] font-medium uppercase tracking-[0.18em]"
                   style={{ color: "#6B6B6B" }}
                 >
                   STORE HEALTH
@@ -438,10 +493,11 @@ export default function StoresPage() {
                   borderColor: "#EEE5D8",
                 }}
               >
-                <div className="h-[240px] flex items-center">
+                <div className="flex h-[240px] items-center">
                   <PieChartCard
                     data={pieData}
                     colorMap={PIE_COLORS}
+                    centerValue={statusCenterValue}
                     centerLabel="TOTAL STORES"
                     theme={theme}
                     tooltipValueType="number"
@@ -451,7 +507,6 @@ export default function StoresPage() {
             </CardContent>
           </Card>
 
-          {/* RIGHT CARD — CHANNEL MIX */}
           <Card
             className="rounded-[28px] shadow-sm"
             style={{
@@ -459,14 +514,14 @@ export default function StoresPage() {
               borderColor: theme.line,
             }}
           >
-            <CardContent className="pt-2 pb-4 px-6 space-y-6">
+            <CardContent className="space-y-6 px-6 pt-2 pb-4">
               <div className="flex items-center gap-3">
                 <div
                   className="h-[3px] w-24 rounded-full"
                   style={{ backgroundColor: theme.blue + "CC" }}
                 />
                 <p
-                  className="text-[16px] uppercase tracking-[0.18em] font-medium"
+                  className="text-[16px] font-medium uppercase tracking-[0.18em]"
                   style={{ color: "#6B6B6B" }}
                 >
                   CHANNEL MIX
@@ -480,7 +535,7 @@ export default function StoresPage() {
                   borderColor: "#EEE5D8",
                 }}
               >
-                <div className="h-[240px] flex items-center">
+                <div className="flex h-[240px] items-center">
                   <PieChartCard
                     data={channelMix}
                     colorMap={CHANNEL_COLOR_MAP}
@@ -493,10 +548,10 @@ export default function StoresPage() {
               </div>
             </CardContent>
           </Card>
-
         </div>
-      <div
-      className="rounded-[28px] border p-6 shadow-sm"
+
+        <div
+          className="rounded-[28px] border p-6 shadow-sm"
           style={{
             backgroundColor: theme.surface,
             borderColor: theme.line,
@@ -508,7 +563,7 @@ export default function StoresPage() {
               style={{ backgroundColor: theme.brown + "CC" }}
             />
             <p
-              className="text-[16px] uppercase tracking-[0.18em] font-medium"
+              className="text-[16px] font-medium uppercase tracking-[0.18em]"
               style={{ color: "#6B6B6B" }}
             >
               STORE STATUS DETAIL
@@ -522,7 +577,7 @@ export default function StoresPage() {
                 status === "All"
                   ? selectedStatuses.length === 0
                   : selectedStatuses.includes(status)
-              const style = STATUS_STYLES[status]
+              const style = status === "All" ? null : STATUS_STYLES[status]
 
               return (
                 <button
@@ -536,9 +591,9 @@ export default function StoresPage() {
                           color: isActive ? "#FFFFFF" : theme.brown,
                         }
                       : {
-                          borderColor: isActive ? style.border : "#D8CFBF",
-                          backgroundColor: isActive ? style.bg : "#FAF7F1",
-                          color: isActive ? style.text : theme.brown,
+                          borderColor: isActive ? style!.border : "#D8CFBF",
+                          backgroundColor: isActive ? style!.bg : "#FAF7F1",
+                          color: isActive ? style!.text : theme.brown,
                         }
                   }
                   onClick={() =>
@@ -573,7 +628,6 @@ export default function StoresPage() {
                       sortDirection={sortDirection}
                       onSort={handleSort}
                     />
-
                     <SortableHeader
                       label="Revenue"
                       column="revenue"
@@ -581,7 +635,6 @@ export default function StoresPage() {
                       sortDirection={sortDirection}
                       onSort={handleSort}
                     />
-
                     <SortableHeader
                       label="Reorders"
                       column="reorders"
@@ -589,7 +642,6 @@ export default function StoresPage() {
                       sortDirection={sortDirection}
                       onSort={handleSort}
                     />
-
                     <SortableHeader
                       label="VPO"
                       column="vpo"
@@ -597,7 +649,6 @@ export default function StoresPage() {
                       sortDirection={sortDirection}
                       onSort={handleSort}
                     />
-
                     <SortableHeader
                       label="First Month"
                       column="first_month_purchased"
@@ -605,7 +656,6 @@ export default function StoresPage() {
                       sortDirection={sortDirection}
                       onSort={handleSort}
                     />
-
                     <SortableHeader
                       label="Last Month"
                       column="last_month_purchased"
@@ -613,7 +663,6 @@ export default function StoresPage() {
                       sortDirection={sortDirection}
                       onSort={handleSort}
                     />
-
                     <SortableHeader
                       label="Status"
                       column="status"
@@ -621,7 +670,6 @@ export default function StoresPage() {
                       sortDirection={sortDirection}
                       onSort={handleSort}
                     />
-
                   </tr>
                 </thead>
 
@@ -677,7 +725,6 @@ export default function StoresPage() {
             </div>
           </div>
         </div>
-
       </div>
     </main>
   )

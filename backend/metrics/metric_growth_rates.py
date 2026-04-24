@@ -80,6 +80,7 @@ def add_prior_month_columns(df, group_cols, metric, df_all_time=None, l1m=None, 
     original_start = df["month_year"].min()
     original_end = df["month_year"].max()
 
+    print (original_start, original_end)
 
     if df_all_time is None:
         df_all_time=df
@@ -92,17 +93,27 @@ def add_prior_month_columns(df, group_cols, metric, df_all_time=None, l1m=None, 
     if py:
         lookback_months = max(lookback_months, 12)
 
+    print(lookback_months)
+
     comparison_spine = build_comparison_spine(df_all_time, group_cols=non_time_cols, lookback_months=lookback_months, selected_years=selected_years, selected_months=selected_months, include_current_month=True)
+
+    print(comparison_spine)
 
     df = comparison_spine.merge(df, on=group_cols, how="left")
     df = df.sort_values(group_cols).copy()
+
+    print(df)
 
     if non_time_cols:
         if l1m:
             df[f"{metric}_l1m"] = df.groupby(non_time_cols)[metric].shift(1)
 
+            print(df)
+
         if l3m:
             df[f"{metric}_l3m"] = df.groupby(non_time_cols)[f"{metric}_3m"].shift(3)
+
+            print(df)
 
         if py:
             df[f"{metric}_py"] = df.groupby(non_time_cols)[metric].shift(12)
@@ -111,8 +122,12 @@ def add_prior_month_columns(df, group_cols, metric, df_all_time=None, l1m=None, 
         if l1m:
             df[f"{metric}_l1m"] = df[metric].shift(1)
 
+            print(df)
+
         if l3m:
             df[f"{metric}_l3m"] = df[f"{metric}_3m"].shift(3)
+
+            print(df)
 
         if py:
             df[f"{metric}_py"] = df[metric].shift(12)
@@ -126,6 +141,8 @@ def add_prior_month_columns(df, group_cols, metric, df_all_time=None, l1m=None, 
         (df["month_year"] >= original_start) &
         (df["month_year"] <= original_end)
     ]
+        
+        print(df)
 
     return df
 

@@ -217,6 +217,13 @@ export default function FilterBar({
       const current = prev[filterKey] ?? []
       const exists = current.includes(value)
 
+      if (filterKey === "month_year") {
+        return {
+          ...prev,
+          [filterKey]: exists ? [] : [value],
+        }
+      }
+
       return {
         ...prev,
         [filterKey]: exists ? current.filter((v) => v !== value) : [...current, value],

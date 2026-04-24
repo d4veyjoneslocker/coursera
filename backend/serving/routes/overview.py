@@ -5,7 +5,7 @@ from backend.filters.filters import get_filters, generate_filter_api
 from backend.metrics.metric_calculators import calculate_units
 from backend.serving.api_helpers import clean_for_json, prep_monthly_graph, remove_time_filters, convert_selected_months, convert_selected_years
 from backend.metrics.metric_tables import chain_table, kpi_monthly_table
-from backend.metrics.overview_kpis import unit_kpis, buying_kpis, pod_kpis, vpo_kpis, count_channels, avg_skus_per_store
+from backend.metrics.kpis.overview_kpis import unit_kpis, buying_kpis, pod_kpis, vpo_kpis, count_channels, avg_skus_per_store
 from backend.data_pipeline.table_loader import load_org_tables
 from backend.metrics.metric_helpers import build_spine
 from backend.metrics.monthly_metric_calculators import (
@@ -28,6 +28,7 @@ router = APIRouter(prefix="/overview", tags=["Overview"])
 @router.get("/filters")
 def get_filter_options(
     column_name: str,
+    org_id: str = Query(...),
     chain: list[str] | None = Query(None),
     sku: list[str] | None = Query(None),
     distributor: list[str] | None = Query(None),
@@ -37,7 +38,7 @@ def get_filter_options(
     month_year: list[str] | None = Query(None),
     state: list[str] | None = Query(None),
 ):
-    features_df = load_org_tables("default_org")
+    features_df = load_org_tables(org_id)
 
     filters = {
         "chain": chain,
@@ -62,8 +63,8 @@ def get_filter_options(
     return options
 
 @router.get("/kpis")
-def kpis(filters: dict = Depends(get_filters)):
-    features_df = load_org_tables("default_org")
+def kpis(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
     non_time_filters=remove_time_filters(filters)
@@ -87,20 +88,15 @@ def kpis(filters: dict = Depends(get_filters)):
 
 
 @router.get("/units")
-def units(filters: dict = Depends(get_filters)):
-    features_df = load_org_tables("default_org")
+def units(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    features_df = load_org_tables(org_id)
 
     df = filter_table(features_df, **filters)
 
-    result = calculate_monthly_units(df)
+    selected_years = convert_selected_years(filters.get("year"))
+    selected_months = convert_selected_months(filters.get("month_year"))
 
-    spine = build_spine(
-        features_df,
-        include_current_month=True,
-    )
-
-    result = spine.merge(result, on="month_year", how="left")
-    result["units"] = result["units"].fillna(0)
+    result = calculate_monthly_units(df, selected_years=selected_years, selected_months=selected_months, include_current_month=True)
 
     result = prep_monthly_graph(result,"units")
     result = clean_for_json(result)
@@ -111,19 +107,14 @@ def units(filters: dict = Depends(get_filters)):
 # Buyers by Month Bar Graph
 
 @router.get("/buyers")
-def buying_stores(filters: dict = Depends(get_filters)):
-    features_df = load_org_tables("default_org")
+def buying_stores(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
-    result = calculate_monthly_buying_stores(df)
+    selected_years = convert_selected_years(filters.get("year"))
+    selected_months = convert_selected_months(filters.get("month_year"))
 
-    spine = build_spine(
-        features_df,
-        include_current_month=True,
-    )
-
-    result = spine.merge(result, on="month_year", how="left")
-    result["buying_stores"] = result["buying_stores"].fillna(0)
+    result = calculate_monthly_buying_stores(df, selected_years=selected_years, selected_months=selected_months, include_current_month=True)
 
     result = prep_monthly_graph(result,"buying_stores")
     result = clean_for_json(result)
@@ -134,8 +125,8 @@ def buying_stores(filters: dict = Depends(get_filters)):
 # VPO by Month Bar Graph
 
 @router.get("/velocity")
-def velocity(filters: dict = Depends(get_filters)):
-    features_df = load_org_tables("default_org")
+def velocity(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
     selected_years = convert_selected_years(filters.get("year"))
@@ -154,8 +145,8 @@ def velocity(filters: dict = Depends(get_filters)):
 
 
 @router.get("/pods")
-def pods_test(filters: dict = Depends(get_filters)):
-    features_df = load_org_tables("default_org")
+def pods_test(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
     selected_years = convert_selected_years(filters.get("year"))
@@ -179,8 +170,8 @@ def pods_test(filters: dict = Depends(get_filters)):
 # SKU pie chart
 
 @router.get("/skus")
-def skus(filters: dict = Depends(get_filters)):
-    features_df = load_org_tables("default_org")
+def skus(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
     result = calculate_units(df, "sku").sort_values("units", ascending=False)
@@ -197,8 +188,8 @@ def skus(filters: dict = Depends(get_filters)):
 # KPI Cards
 
 @router.get("/channels")
-def channels(filters: dict = Depends(get_filters)):
-    features_df = load_org_tables("default_org")
+def channels(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
     result = calculate_units(df, ["channel"]).sort_values("units", ascending=False)
@@ -213,8 +204,8 @@ def channels(filters: dict = Depends(get_filters)):
     return result.to_dict(orient="records")
 
 @router.get("/chain_table")
-def chain_table_api(filters: dict = Depends(get_filters)):
-    features_df = load_org_tables("default_org")
+def chain_table_api(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
     result = chain_table(df)

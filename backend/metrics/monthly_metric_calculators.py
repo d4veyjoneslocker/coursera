@@ -21,23 +21,33 @@ def calculate_monthly_revenue(df, group_cols=None):
 
     return result
 
-def calculate_monthly_units(df, group_cols=None):
+def calculate_monthly_units(df, group_cols=None, selected_years=None, selected_months=None, include_current_month=True):
     group_cols = clean_group_cols(group_cols)
+    non_time_cols = [c for c in group_cols if c != "month_year"]
+    spine = build_spine(df, group_cols=non_time_cols, selected_years=selected_years, selected_months=selected_months, include_current_month=include_current_month,)
 
     result = (
         df.groupby(group_cols, as_index=False)
         .agg(units=("units", "sum"))
     )
+    result = spine.merge(result, on=group_cols, how="left")
+    result["units"] = result["units"].fillna(0)
 
     return result
 
-def calculate_monthly_buying_stores(df, group_cols=None):
+def calculate_monthly_buying_stores(df, group_cols=None, selected_years=None, selected_months=None, include_current_month=True):
     group_cols = clean_group_cols(group_cols)
+    non_time_cols = [c for c in group_cols if c != "month_year"]
+    spine = build_spine(df, group_cols=non_time_cols, selected_years=selected_years, selected_months=selected_months, include_current_month=include_current_month,)
+
 
     result = (
         df.groupby(group_cols, as_index=False)
         .agg(buying_stores=("coded_customer", "nunique"))
     )
+
+    result = spine.merge(result, on=group_cols, how="left")
+    result["buying_stores"] = result["buying_stores"].fillna(0)
 
     return result
 

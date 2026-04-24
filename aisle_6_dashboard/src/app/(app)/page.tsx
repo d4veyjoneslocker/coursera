@@ -1,36 +1,14 @@
 "use client"
 
-/*
-This page is a CLIENT COMPONENT because we are:
-- using useState
-- using useEffect
-- fetching data from the API
-*/
-
-
 import { useOrg } from "@/components/OrgContext"
-import { useEffect, useState } from "react"
-import Image from "next/image"
+import { useEffect, useMemo, useState } from "react"
 
-/*
-These are UI components from shadcn
-They are just styled layout pieces
-*/
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-
-/*
-ChartContainer + ChartTooltip come from shadcn's chart helpers
-They wrap the Recharts charts
-*/
+import { Card, CardContent } from "@/components/ui/card"
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-
-/*
-These are the actual chart primitives from Recharts
-*/
 import {
   Bar,
   BarChart,
@@ -39,19 +17,11 @@ import {
   Pie,
   PieChart,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
-  Legend
 } from "recharts"
 
 import CustomLegend from "@/components/ui/CustomLegend"
-
-
-/*
-Filter UI components
-*/
-
 import {
   Table,
   TableBody,
@@ -64,10 +34,14 @@ import {
 import FilterBar from "@/components/ui/filters/FilterBar"
 import DashboardHeader from "@/components/ui/DashboardHeader"
 import KpiCard from "@/components/ui/charts/KpiCard"
+import KeheUploadCard from "@/components/ui/DistributorDataUploadCard"
+
+
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
-const theme = {
+
+const DEFAULT_THEME = {
   blue: "#92B9DC",
   gold: "#F7B045",
   brown: "#705C4F",
@@ -103,36 +77,50 @@ const FILTER_KEYS = [
   "dc",
   "year",
   "month_year",
-]
+] as const
 
+const DATA_ENDPOINTS = {
+  units: "overview/units",
+  buyers: "overview/buyers",
+  velocity: "overview/velocity",
+  pods: "overview/pods",
+  skuMix: "overview/skus",
+  channelMix: "overview/channels",
+  chainTable: "overview/chain_table",
+  kpis: "overview/kpis",
+} as const
 
-/*
-TYPE DEFINITIONS
-These tell TypeScript what our API returns
-*/
 type MetricRow = {
   month_year: string
   value: number
 }
 
-/*
-Establishing pie chart form
-*/
 type PieRow = {
   name: string
   value: number
 }
 
+type KpiItem = {
+  key: string
+  title: string
+  value: number
+  sideValue?: number | null
+  sideLabel?: string | null
+  sideType?: "percent" | "absolute" | null
+}
 
-/*
-Color used for bars and KPI headers
-*/
+type OrgLike = {
+  id: string
+  name: string
+  primary_color: string | null
+  secondary_color: string | null
+  accent_color: string | null
+  background_color: string | null
+  logo_url: string | null
+}
+
 const BAR_COLOR = "#3b82f6"
 
-
-/*
-Config object used by ChartContainer
-*/
 const chartConfig = {
   value: {
     label: "Value",
@@ -140,12 +128,6 @@ const chartConfig = {
   },
 }
 
-
-
-
-/*
-Formats "2025-03" into "Mar 2025"
-*/
 function formatMonth(month: string) {
   const [year, monthNum] = month.split("-")
   const date = new Date(Number(year), Number(monthNum) - 1)
@@ -154,12 +136,6 @@ function formatMonth(month: string) {
     month: "short",
     year: "numeric",
   })
-}
-
-function formatWholeNumber(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 0,
-  }).format(value)
 }
 
 function formatPercent(value: number) {
@@ -173,10 +149,6 @@ function formatPercent(value: number) {
   return Math.round(pct).toString()
 }
 
-/*
-Formats numbers into dashboard style
-11448 -> 11.4K
-*/
 function formatNumber(value: unknown) {
   const num = Number(value)
 
@@ -184,7 +156,8 @@ function formatNumber(value: unknown) {
 
   if (num >= 1000000) return (num / 1000000).toFixed(1) + "M"
   if (num >= 1000) return (num / 1000).toFixed(1) + "K"
-  if (num < 5) return num.toFixed(1)
+  if (num >= 100) return num.toFixed(0)
+  if (num < 100) return num.toFixed(1)
 
   return num.toString()
 }
@@ -195,10 +168,9 @@ function splitCenterLabel(label: string, maxWordsPerLine = 2) {
   const lines: string[] = []
   let currentLine = ""
 
-  const MAX_CHARS_PER_LINE = 11  // tweak this
+  const MAX_CHARS_PER_LINE = 11
 
   words.forEach((word) => {
-    // if adding this word makes it too long → push current line
     if ((currentLine + " " + word).trim().length > MAX_CHARS_PER_LINE) {
       if (currentLine) lines.push(currentLine)
       currentLine = word
@@ -212,38 +184,77 @@ function splitCenterLabel(label: string, maxWordsPerLine = 2) {
   return lines
 }
 
-
-/*
-Builds the API URL including filters
-
-Example result:
-http://127.0.0.1:8000/units?chain=WholeFoods
-*/
-
-function buildMetricUrl(
-  endpoint: string,
-  filters: Record<string, string[]>
+function buildQueryString(
+  filters: Record<string, string[]>,
+  orgId: string
 ) {
   const params = new URLSearchParams()
+
+  params.set("org_id", orgId)
 
   Object.entries(filters).forEach(([key, values]) => {
     values.forEach((value) => params.append(key, value))
   })
 
-  const query = params.toString()
-
-  return query
-    ? `${API_BASE_URL}/${endpoint}?${query}`
-    : `${API_BASE_URL}/${endpoint}`
+  return params.toString()
 }
 
+function buildApiUrl(
+  endpoint: string,
+  filters: Record<string, string[]>,
+  orgId: string
+) {
+  const params = new URLSearchParams()
 
+  const safeOrgId =
+    process.env.NODE_ENV === "development"
+      ? orgId || "default_org"
+      : orgId
 
+  params.set("org_id", orgId)
 
+  // add filters
+  Object.entries(filters).forEach(([key, values]) => {
+    values.forEach((value) => params.append(key, value))
+  })
 
-/*
-Reusable bar chart component
-*/
+  return `${API_BASE_URL}/${endpoint}?${params.toString()}`
+}
+
+function buildFilterUrl(
+  columnName: string,
+  filters: Record<string, string[]>,
+  orgId: string
+) {
+  const params = new URLSearchParams()
+
+  const safeOrgId =
+    process.env.NODE_ENV === "development"
+      ? orgId || "default_org"
+      : orgId
+
+  params.set("column_name", columnName)
+  params.set("org_id", orgId)
+
+  Object.entries(filters).forEach(([key, values]) => {
+    values.forEach((value) => params.append(key, value))
+  })
+
+  return `${API_BASE_URL}/overview/filters?${params.toString()}`
+}
+
+function formatLastUpdated(value?: string | null) {
+  if (!value) return "—"
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "—"
+
+  return date.toLocaleString("en-US", {
+    month: "long",
+    year: "numeric",
+  })
+}
+
 function BarChartCard({
   data,
   accentColor,
@@ -253,7 +264,6 @@ function BarChartCard({
 }) {
   return (
     <div className="w-full">
-
       <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
         <BarChart data={data} margin={{ top: 20, right: 20, left: -10, bottom: 0 }}>
           <CartesianGrid vertical={false} strokeDasharray="3 3" />
@@ -298,46 +308,18 @@ function BarChartCard({
   )
 }
 
-function PieLegend({
-  data,
-  colorMap,
-}: {
-  data: PieRow[]
-  colorMap: Record<string, string>
-}) {
-  const safeData = Array.isArray(data) ? data : []
-  const isTwoColumn = safeData.length > 10
-
-  return (
-    <div
-      className="grid w-fit gap-x-8 gap-y-2 text-[12px]"
-      style={{
-        gridTemplateColumns: isTwoColumn ? "repeat(2, max-content)" : "max-content",
-      }}
-    >
-      {safeData.map((item) => (
-        <div key={item.name} className="flex items-center gap-2">
-          <div
-            className="h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: colorMap[item.name] || "#D1D5DB" }}
-          />
-          <span style={{ color: "#6B6B6B" }}>{item.name}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 function PieChartCard({
   data,
   colorMap,
   centerValue,
   centerLabel,
+  theme,
 }: {
   data: PieRow[]
   colorMap: Record<string, string>
   centerValue?: number | string
   centerLabel?: string
+  theme: typeof DEFAULT_THEME
 }) {
   const safeData = Array.isArray(data) ? data : []
 
@@ -351,139 +333,121 @@ function PieChartCard({
   const pieCx = "51%"
   const pieCy = "50%"
 
-return (
-  <div className="flex w-full justify-center">
-    <div className="flex items-center gap-2">
-      <div className="h-[220px] w-[220px] shrink-0">
-        <ChartContainer config={chartConfig} className="h-full w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <ChartTooltip
-                content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null
+  return (
+    <div className="flex w-full justify-center">
+      <div className="flex items-center gap-2">
+        <div className="h-[220px] w-[220px] shrink-0">
+          <ChartContainer config={chartConfig} className="h-full w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <ChartTooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null
 
-                  const data = payload[0].payload
+                    const chartData = payload[0].payload
 
-                  return (
-                    <div
-                      className="rounded-[12px] border px-3 py-2 shadow-sm"
-                      style={{
-                        backgroundColor: "#FFFEFB",
-                        borderColor: "#E5DDD0",
-                      }}
+                    return (
+                      <div
+                        className="rounded-[12px] border px-3 py-2 shadow-sm"
+                        style={{
+                          backgroundColor: "#FFFEFB",
+                          borderColor: "#E5DDD0",
+                        }}
+                      >
+                        <div
+                          className="text-sm font-semibold"
+                          style={{ color: theme.charcoal }}
+                        >
+                          {chartData.name}
+                        </div>
+
+                        <div
+                          className="mt-1 text-sm"
+                          style={{ color: "#7A746B" }}
+                        >
+                          {Math.round(Number(chartData.value) * 100)}%
+                        </div>
+                      </div>
+                    )
+                  }}
+                />
+
+                <Pie
+                  data={safeData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx={pieCx}
+                  cy={pieCy}
+                  innerRadius={52}
+                  outerRadius={85}
+                  paddingAngle={2}
+                  stroke="none"
+                >
+                  {safeData.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={colorMap[entry.name] || "#D1D5DB"}
+                    />
+                  ))}
+                </Pie>
+
+                <text
+                  x={pieCx}
+                  y={pieCy}
+                  textAnchor="middle"
+                  fill={theme.brown}
+                  fontSize={11}
+                  fontWeight={500}
+                  letterSpacing="0.12em"
+                >
+                  {centerLines.map((line, index) => (
+                    <tspan
+                      key={index}
+                      x={pieCx}
+                      dy={index === 0 ? -12 : 12}
                     >
-                      <div
-                        className="text-sm font-semibold"
-                        style={{ color: theme.charcoal }}
-                      >
-                        {data.name}
-                      </div>
+                      {line}
+                    </tspan>
+                  ))}
+                </text>
 
-                      <div
-                        className="mt-1 text-sm"
-                        style={{ color: "#7A746B" }}
-                      >
-                        {Math.round(Number(data.value) * 100)}%
-                      </div>
-                    </div>
-                  )
-                }}
-              />
+                <text
+                  x={pieCx}
+                  y={pieCy}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fill={theme.charcoal}
+                  fontSize={22}
+                  fontWeight={600}
+                  dy={22}
+                >
+                  {formatNumber(displayValue)}
+                </text>
+              </PieChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+        </div>
 
-              <Pie
-                data={safeData}
-                dataKey="value"
-                nameKey="name"
-                cx={pieCx}
-                cy={pieCy}
-                innerRadius={52}
-                outerRadius={85}
-                paddingAngle={2}
-                stroke="none"
-              >
-                {safeData.map((entry, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={colorMap[entry.name] || "#D1D5DB"}
-                  />
-                ))}
-              </Pie>
-
-              <text
-                x={pieCx}
-                y={pieCy}
-                textAnchor="middle"
-                fill={theme.brown}
-                fontSize={11}
-                fontWeight={500}
-                letterSpacing="0.12em"
-              >
-                {centerLines.map((line, index) => (
-                  <tspan
-                    key={index}
-                    x={pieCx}
-                    dy={index === 0 ? -12 : 12}
-                  >
-                    {line}
-                  </tspan>
-                ))}
-              </text>
-
-              <text
-                x={pieCx}
-                y={pieCy}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill={theme.charcoal}
-                fontSize={22}
-                fontWeight={600}
-                dy={22}
-              >
-                {formatNumber(displayValue)}
-              </text>
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartContainer>
-      </div>
-
-      <div className="shrink-0">
-        <CustomLegend data={safeData} colorMap={colorMap} />
+        <div className="shrink-0">
+          <CustomLegend data={safeData} colorMap={colorMap} />
+        </div>
       </div>
     </div>
-  </div>
-)
+  )
 }
 
-
-
-
-/*
-Reusable chart section
-
-Structure:
-
-KPI KPI
-CHART
-*/
 function ChartSection({
   sectionLabel,
-  chartTitle,
   data,
   kpis,
   accentColor,
+  theme,
 }: {
   sectionLabel: string
-  chartTitle: string
   data: MetricRow[]
-  kpis: {
-    key: string
-    title: string
-    value: number
-    sideValue?: number | null
-    sideLabel?: string | null
-    sideType?: "percent" | "absolute" | null
-  }[]
+  kpis: KpiItem[]
   accentColor: string
+  theme: typeof DEFAULT_THEME
 }) {
   return (
     <Card
@@ -493,7 +457,7 @@ function ChartSection({
         borderColor: theme.line,
       }}
     >
-      <CardContent className="pt-2 pb-4 px-6 space-y-6">
+      <CardContent className="space-y-6 px-6 pt-2 pb-4">
         <div className="flex items-center gap-3">
           <div
             className="h-[3px] w-24 rounded-full"
@@ -501,7 +465,7 @@ function ChartSection({
           />
 
           <p
-            className="text-[16px] uppercase tracking-[0.18em] font-medium"
+            className="text-[16px] font-medium uppercase tracking-[0.18em]"
             style={{ color: "#6B6B6B" }}
           >
             {sectionLabel}
@@ -509,18 +473,18 @@ function ChartSection({
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          {Array.isArray(kpis) && kpis.map((kpi) => (
-            <KpiCard
-              key={kpi.key}
-              title={kpi.title}
-              theme={theme}
-              value={formatNumber(kpi.value)}
-              sideValue={kpi.sideValue ?? undefined}
-              sideLabel={kpi.sideLabel ?? undefined}
-              sideType={kpi.sideType ?? "percent"}
-
-            />
-          ))}
+          {Array.isArray(kpis) &&
+            kpis.map((kpi) => (
+              <KpiCard
+                key={kpi.key}
+                title={kpi.title}
+                theme={theme}
+                value={formatNumber(kpi.value)}
+                sideValue={kpi.sideValue ?? undefined}
+                sideLabel={kpi.sideLabel ?? undefined}
+                sideType={kpi.sideType ?? "percent"}
+              />
+            ))}
         </div>
 
         <div
@@ -537,27 +501,28 @@ function ChartSection({
   )
 }
 
-
-
-/*
-MAIN PAGE COMPONENT
-*/
 export default function Home() {
   const org = useOrg()
 
-  
-  /*
-  FILTER STATE
-  */
+  const theme = useMemo(() => {
+    return {
+      ...DEFAULT_THEME,
+      blue: org?.primary_color || DEFAULT_THEME.blue,
+      gold: org?.secondary_color || DEFAULT_THEME.gold,
+      brown: org?.accent_color || DEFAULT_THEME.brown,
+      bg: org?.background_color || DEFAULT_THEME.bg,
+    }
+  }, [org])
+
   const [filters, setFilters] = useState<Record<string, string[]>>({
-    chain: [] as string[],
-    channel: [] as string[],
-    sku: [] as string[],
-    distributor: [] as string[],
-    dc: [] as string[],
-    state: [] as string[],
-    year: [] as string[],
-    month_year: [] as string[],
+    chain: [],
+    channel: [],
+    sku: [],
+    distributor: [],
+    dc: [],
+    state: [],
+    year: [],
+    month_year: [],
   })
 
   const [filterOptions, setFilterOptions] = useState<Record<string, string[]>>({
@@ -571,19 +536,14 @@ export default function Home() {
     month_year: [],
   })
 
-    const [visibleFilters, setVisibleFilters] = useState<string[]>([
+  const [visibleFilters, setVisibleFilters] = useState<string[]>([
     "chain",
     "channel",
     "sku",
     "distributor",
-    "year"
+    "year",
   ])
 
-
-
-  /*
-  DATA STATES
-  */
   const [unitsData, setUnitsData] = useState<MetricRow[]>([])
   const [buyersData, setBuyersData] = useState<MetricRow[]>([])
   const [velocityData, setVelocityData] = useState<MetricRow[]>([])
@@ -591,10 +551,10 @@ export default function Home() {
   const [skuPieData, setSkuPieData] = useState<PieRow[]>([])
   const [channelPieData, setChannelPieData] = useState<PieRow[]>([])
   const [chainTableData, setChainTableData] = useState<any[]>([])
-  const [unitsKpis, setUnitsKpis] = useState<any[]>([])
-  const [buyersKpis, setBuyersKpis] = useState<any[]>([])
-  const [velocityKpis, setVelocityKpis] = useState<any[]>([])
-  const [podKpis, setPodKpis] = useState<any[]>([])
+  const [unitsKpis, setUnitsKpis] = useState<KpiItem[]>([])
+  const [buyersKpis, setBuyersKpis] = useState<KpiItem[]>([])
+  const [velocityKpis, setVelocityKpis] = useState<KpiItem[]>([])
+  const [podKpis, setPodKpis] = useState<KpiItem[]>([])
   const [skuPieKpis, setSkuPieKpis] = useState<{
     key: string
     title: string
@@ -606,121 +566,146 @@ export default function Home() {
     value: number
   } | null>(null)
 
-
-  
-  /*
-  FETCH DATA
-
-  This runs:
-  - when page loads
-  - when the filter changes
-  */
-  useEffect(() => {
-
-    async function loadData() {
-      const filterKeys = Object.keys(filters)
-      const queryString = buildMetricUrl("temp", filters).split("?")[1] ?? ""
-
-      const filterOptionUrls = filterKeys.map(
-        (key) => `${API_BASE_URL}/filters/${key}${queryString ? `?${queryString}` : ""}`
+  const loadData = async () => {
+    try {
+      const filterRequests = Object.fromEntries(
+        FILTER_KEYS.map((key) => [key, buildFilterUrl(key, filters, org.id)])
       )
 
-      const metricUrls = [
-        buildMetricUrl("units", filters),
-        buildMetricUrl("buyers", filters),
-        buildMetricUrl("velocity", filters),
-        buildMetricUrl("pods", filters),
-        buildMetricUrl("skus", filters),
-        buildMetricUrl("channels", filters),
-        buildMetricUrl("chain_table", filters)
-      ]
+      const dataRequests = {
+        units: buildApiUrl(DATA_ENDPOINTS.units, filters, org.id),
+        buyers: buildApiUrl(DATA_ENDPOINTS.buyers, filters, org.id),
+        velocity: buildApiUrl(DATA_ENDPOINTS.velocity, filters, org.id),
+        pods: buildApiUrl(DATA_ENDPOINTS.pods, filters, org.id),
+        skuMix: buildApiUrl(DATA_ENDPOINTS.skuMix, filters, org.id),
+        channelMix: buildApiUrl(DATA_ENDPOINTS.channelMix, filters, org.id),
+        chainTable: buildApiUrl(DATA_ENDPOINTS.chainTable, filters, org.id),
+        kpis: buildApiUrl(DATA_ENDPOINTS.kpis, filters, org.id),
+      }
 
-      console.log("filterOptionUrls", filterOptionUrls)
-      console.log("metricUrls", metricUrls)
+      const requestMap = {
+        ...filterRequests,
+        ...dataRequests,
+      }
 
-      const allUrls = [...filterOptionUrls, ...metricUrls]
-      console.log("allUrls", allUrls)
-
-      const responses = await Promise.all(
-        [...filterOptionUrls, ...metricUrls].map((url) => fetch(url))
+      const responseEntries = await Promise.all(
+        Object.entries(requestMap).map(async ([key, url]) => {
+          const response = await fetch(url)
+          const json = await response.json()
+          return [key, json] as const
+        })
       )
 
-      const data = await Promise.all(responses.map((res) => res.json()))
+      const results = Object.fromEntries(responseEntries)
 
-      const filterOptionData = data.slice(0, filterKeys.length)
-      const metricData = data.slice(filterKeys.length)
-      const chainTableDataRaw = metricData[6]
+      setFilterOptions({
+        chain: Array.isArray(results.chain) ? results.chain : [],
+        channel: Array.isArray(results.channel) ? results.channel : [],
+        sku: Array.isArray(results.sku) ? results.sku : [],
+        distributor: Array.isArray(results.distributor) ? results.distributor : [],
+        dc: Array.isArray(results.dc) ? results.dc : [],
+        state: Array.isArray(results.state) ? results.state : [],
+        year: Array.isArray(results.year) ? results.year : [],
+        month_year: Array.isArray(results.month_year) ? results.month_year : [],
+      })
 
-      const kpiRes = await fetch(`${API_BASE_URL}/kpis${queryString ? `?${queryString}` : ""}`)
-      const kpiData = await kpiRes.json()
+      setUnitsData(Array.isArray(results.units) ? results.units : [])
+      setBuyersData(Array.isArray(results.buyers) ? results.buyers : [])
+      setVelocityData(Array.isArray(results.velocity) ? results.velocity : [])
+      setPodsData(Array.isArray(results.pods) ? results.pods : [])
+      setSkuPieData(Array.isArray(results.skuMix) ? results.skuMix : [])
+      setChannelPieData(Array.isArray(results.channelMix) ? results.channelMix : [])
+      setChainTableData(Array.isArray(results.chainTable) ? results.chainTable : [])
 
+      const kpiData = results.kpis ?? {}
 
-      setUnitsKpis(kpiData.units_kpis ?? [])
-      setBuyersKpis(kpiData.buyers_kpis ?? [])
-      setVelocityKpis(kpiData.velocity_kpis ?? [])
+      setUnitsKpis(kpiData.unit_kpis ?? [])
+      setBuyersKpis(kpiData.buying_kpis ?? [])
+      setVelocityKpis(kpiData.vpo_kpis ?? [])
       setPodKpis(kpiData.pod_kpis ?? [])
-      setSkuPieKpis(kpiData.skus_per_store ?? null)
-      setChannelPieKpis(kpiData.channel_count ?? null)
-
-    const nextFilterOptions: Record<string, string[]> = {
-      chain: Array.isArray(filterOptionData[filterKeys.indexOf("chain")])
-        ? (filterOptionData[filterKeys.indexOf("chain")] as string[])
-        : [],
-      channel: Array.isArray(filterOptionData[filterKeys.indexOf("channel")])
-        ? (filterOptionData[filterKeys.indexOf("channel")] as string[])
-        : [],
-      sku: Array.isArray(filterOptionData[filterKeys.indexOf("sku")])
-        ? (filterOptionData[filterKeys.indexOf("sku")] as string[])
-        : [],
-      distributor: Array.isArray(filterOptionData[filterKeys.indexOf("distributor")])
-        ? (filterOptionData[filterKeys.indexOf("distributor")] as string[])
-        : [],
-      dc: Array.isArray(filterOptionData[filterKeys.indexOf("dc")])
-        ? (filterOptionData[filterKeys.indexOf("dc")] as string[])
-        : [],
-      state: Array.isArray(filterOptionData[filterKeys.indexOf("state")])
-        ? (filterOptionData[filterKeys.indexOf("state")] as string[])
-        : [],
-      year: Array.isArray(filterOptionData[filterKeys.indexOf("year")])
-        ? (filterOptionData[filterKeys.indexOf("year")] as string[])
-        : [],
-      month_year: Array.isArray(filterOptionData[filterKeys.indexOf("month_year")])
-        ? (filterOptionData[filterKeys.indexOf("month_year")] as string[])
-        : [],
+      setSkuPieKpis(kpiData.avg_skus_per_store.skus_per_store ?? null)
+      setChannelPieKpis(kpiData.count_channel.channel_count ?? null)
+    } catch (error) {
+      console.error("Failed to load overview page data:", error)
     }
+  }
 
-
-      setFilterOptions(nextFilterOptions)
-
-      setUnitsData(metricData[0])
-      setBuyersData(metricData[1])
-      setVelocityData(metricData[2])
-      setPodsData(metricData[3])
-      setSkuPieData(metricData[4] as PieRow[])
-      setChannelPieData(metricData[5] as PieRow[])
-      setChainTableData(chainTableDataRaw)
-    }
-
+  useEffect(() => {
     loadData()
-
   }, [filters])
 
+  /* The chunk below renders the date*/
 
+  const [dataThrough, setDataThrough] = useState<string | undefined>()
+  const [isStale, setIsStale] = useState(false)
+  const [showUpload, setShowUpload] = useState(false)
+
+  const formatMonthYear = (value?: string) => {
+    if (!value) return undefined
+
+    const [year, month] = value.split("-")
+    const date = new Date(Number(year), Number(month) - 1)
+
+    return date.toLocaleString("en-US", {
+      month: "long",
+      year: "numeric",
+    })
+  }
+
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/distributors/kehe/status?org_id=${org.id}`)
+      const data = await res.json()
+
+      if (data.status === "ready") {
+        setDataThrough(formatMonthYear(data.data_through))
+        setIsStale(data.is_stale)
+      }
+    } catch (err) {
+      console.error("Failed to fetch status", err)
+    }
+  }
+
+  useEffect(() => {
+    fetchStatus()
+  }, [])
 
 
   return (
-
-    <main   className="min-h-screen p-8"
-            style={{ backgroundColor: theme.bg }}>
-
+    <main className="min-h-screen p-8" style={{ backgroundColor: theme.bg }}>
       <div className="mx-auto max-w-7xl space-y-8">
         <DashboardHeader
-          brandName="Smearcase"
-          subtitle="National Retail Sales"
-          logoSrc="/smearcase_vanilla.png"
-          lastUpdated="April 2026"
+          brandName="Endcap"
           activePage="overview"
+          dataThrough={dataThrough}
+          isStale={isStale}
         />
+
+        <button
+          onClick={() => setShowUpload((prev) => !prev)}
+          className="rounded-xl px-4 py-2 text-sm font-medium"
+          style={{
+            backgroundColor: "#F6F1E8",
+            border: "1px solid #D8CFBF",
+          }}
+        >
+          {showUpload ? "Hide Upload" : "Upload Data"}
+        </button>
+
+        <div className={`mt-4 transition-all duration-300 ${showUpload ? "opacity-100" : "opacity-0"}`}>
+          {showUpload && API_BASE_URL && (
+            <div className="mt-4">
+              <KeheUploadCard
+                apiBaseUrl={API_BASE_URL}
+                onUploadSuccess={async () => {
+                  await fetchStatus()
+                  await loadData()
+                  setShowUpload(false)
+                }}
+              />
+            </div>
+          )}
+        </div>
 
         <FilterBar
           filters={filters}
@@ -750,138 +735,124 @@ export default function Home() {
           }}
         />
 
-
-
-
-        {/* DASHBOARD GRID */}
-
         <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">
-
           <ChartSection
             sectionLabel="Sales"
-            chartTitle="Units"
             data={unitsData}
             kpis={unitsKpis}
             accentColor={theme.blue}
+            theme={theme}
           />
 
           <ChartSection
             sectionLabel="Distribution"
-            chartTitle="Buyers"
             data={buyersData}
             kpis={buyersKpis}
             accentColor={theme.gold}
+            theme={theme}
           />
 
           <ChartSection
             sectionLabel="Velocity"
-            chartTitle="VPO"
             data={velocityData}
             kpis={velocityKpis}
             accentColor={theme.brown}
+            theme={theme}
           />
 
           <ChartSection
             sectionLabel="Points of Distribution"
-            chartTitle="PODs"
             data={podsData}
             kpis={podKpis}
             accentColor={theme.charcoal}
+            theme={theme}
           />
         </div>
 
         <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">
-
-        <Card
-          className="rounded-[28px] shadow-sm"
-          style={{
-            backgroundColor: theme.surface,
-            borderColor: theme.line,
-          }}
-        >
-          <CardContent className="pt-2 pb-4 px-6 space-y-6">
-
-            {/* Header line (same style as others) */}
-            <div className="flex items-center gap-3">
-              <div
-                className="h-[3px] w-24 rounded-full"
-                style={{ backgroundColor: theme.charcoal + "CC" }}
-              />
-              <p
-                className="text-[16px] uppercase tracking-[0.18em] font-medium"
-                style={{ color: "#6B6B6B" }}
-              >
-                SKU MIX
-              </p>
-            </div>
-
-            {/* Chart container */}
-            <div
-              className="rounded-[24px] border p-4"
-              style={{
-                backgroundColor: "#FCFAF6",
-                borderColor: "#EEE5D8",
-              }}
-            >
-              <div className="h-[240px] flex items-center">
-                <PieChartCard
-                  data={skuPieData}
-                  colorMap={SKU_COLORS}
-                  centerValue={skuPieKpis?.value}
-                  centerLabel={skuPieKpis?.title}
+          <Card
+            className="rounded-[28px] shadow-sm"
+            style={{
+              backgroundColor: theme.surface,
+              borderColor: theme.line,
+            }}
+          >
+            <CardContent className="space-y-6 px-6 pt-2 pb-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className="h-[3px] w-24 rounded-full"
+                  style={{ backgroundColor: theme.charcoal + "CC" }}
                 />
+                <p
+                  className="text-[16px] font-medium uppercase tracking-[0.18em]"
+                  style={{ color: "#6B6B6B" }}
+                >
+                  SKU MIX
+                </p>
               </div>
-            </div>
 
-          </CardContent>
-        </Card>
-
-        <Card
-          className="rounded-[28px] shadow-sm"
-          style={{
-            backgroundColor: theme.surface,
-            borderColor: theme.line,
-          }}
-        >
-          <CardContent className="pt-2 pb-4 px-6 space-y-6">
-
-            {/* Header line (same style as others) */}
-            <div className="flex items-center gap-3">
               <div
-                className="h-[3px] w-24 rounded-full"
-                style={{ backgroundColor: theme.blue + "CC" }}
-              />
-              <p
-                className="text-[16px] uppercase tracking-[0.18em] font-medium"
-                style={{ color: "#6B6B6B" }}
+                className="rounded-[24px] border p-4"
+                style={{
+                  backgroundColor: "#FCFAF6",
+                  borderColor: "#EEE5D8",
+                }}
               >
-                CHANNEL MIX
-              </p>
-            </div>
-
-            {/* Chart container */}
-            <div
-              className="rounded-[24px] border p-4"
-              style={{
-                backgroundColor: "#FCFAF6",
-                borderColor: "#EEE5D8",
-              }}
-            >
-              <div className="h-[240px] flex items-center">
-                <PieChartCard
-                  data={channelPieData}
-                  colorMap={CHANNEL_COLORS}
-                  centerValue={channelPieKpis?.value}
-                  centerLabel={channelPieKpis?.title}
-                />
+                <div className="flex h-[240px] items-center">
+                  <PieChartCard
+                    data={skuPieData}
+                    colorMap={SKU_COLORS}
+                    centerValue={skuPieKpis?.value}
+                    centerLabel={skuPieKpis?.title}
+                    theme={theme}
+                  />
+                </div>
               </div>
-            </div>
+            </CardContent>
+          </Card>
 
-          </CardContent>
-        </Card>
+          <Card
+            className="rounded-[28px] shadow-sm"
+            style={{
+              backgroundColor: theme.surface,
+              borderColor: theme.line,
+            }}
+          >
+            <CardContent className="space-y-6 px-6 pt-2 pb-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className="h-[3px] w-24 rounded-full"
+                  style={{ backgroundColor: theme.blue + "CC" }}
+                />
+                <p
+                  className="text-[16px] font-medium uppercase tracking-[0.18em]"
+                  style={{ color: "#6B6B6B" }}
+                >
+                  CHANNEL MIX
+                </p>
+              </div>
 
-
+              <div
+                className="rounded-[24px] border p-4"
+                style={{
+                  backgroundColor: "#FCFAF6",
+                  borderColor: "#EEE5D8",
+                }}
+              >
+                <div className="flex h-[240px] items-center">
+                  <PieChartCard
+                    data={channelPieData}
+                    colorMap={CHANNEL_COLORS}
+                    centerValue={channelPieKpis?.value}
+                    centerLabel={channelPieKpis?.title}
+                    theme={theme}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
+
         <div className="mt-6 rounded-[28px] border border-black/10 bg-white/95 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
           <div className="mb-4 flex items-center gap-3">
             <div
@@ -889,170 +860,164 @@ export default function Home() {
               style={{ backgroundColor: theme.blue + "CC" }}
             />
             <p
-              className="text-[16px] uppercase tracking-[0.18em] font-medium"
+              className="text-[16px] font-medium uppercase tracking-[0.18em]"
               style={{ color: "#6B6B6B" }}
             >
               CHAIN PERFORMANCE
             </p>
           </div>
 
-            <div className="overflow-hidden rounded-[20px] border border-black/10">
-              <div className="max-h-[420px] overflow-auto">
-                <Table>
-                  <TableHeader   
-                    className="sticky top-0 z-10 [&_th]:text-white [&_th]:text-[12px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.14em]"
-                    style={{ backgroundColor: theme.blue }}>
-                    <TableRow className="border-b border-black/10">
-                      <TableHead className="h-12 px-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                        Chain
-                      </TableHead>
-                      <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                        Revenue
-                      </TableHead>
-                      <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                        Units
-                      </TableHead>
-                      <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                        Buying Stores
-                      </TableHead>
-                      <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                        1M Growth
-                      </TableHead>
-                      <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                        3M Growth
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
+          <div className="overflow-hidden rounded-[20px] border border-black/10">
+            <div className="max-h-[420px] overflow-auto">
+              <Table>
+                <TableHeader
+                  className="sticky top-0 z-10 [&_th]:text-[12px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.14em] [&_th]:text-white"
+                  style={{ backgroundColor: theme.blue }}
+                >
+                  <TableRow className="border-b border-black/10">
+                    <TableHead className="h-12 px-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                      Chain
+                    </TableHead>
+                    <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                      Revenue
+                    </TableHead>
+                    <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                      Units
+                    </TableHead>
+                    <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                      Buying Stores
+                    </TableHead>
+                    <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                      1M Growth
+                    </TableHead>
+                    <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                      3M Growth
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
 
-                  <TableBody>
-                    {chainTableData.length > 0 ? (
-                      chainTableData.map((row, index) => (
-                        <TableRow
-                          key={index}
-                          className="border-b border-black/5 transition-colors hover:bg-neutral-50"
-                        >
-                          <TableCell className="px-4 py-3 text-sm font-medium text-neutral-900">
-                            {row.chain ?? "—"}
-                          </TableCell>
+                <TableBody>
+                  {chainTableData.length > 0 ? (
+                    chainTableData.map((row, index) => (
+                      <TableRow
+                        key={index}
+                        className="border-b border-black/5 transition-colors hover:bg-neutral-50"
+                      >
+                        <TableCell className="px-4 py-3 text-sm font-medium text-neutral-900">
+                          {row.chain ?? "—"}
+                        </TableCell>
 
-                          <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
-                            {row.revenue != null
-                              ? `$${Number(row.revenue).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                              : "—"}
-                          </TableCell>
+                        <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
+                          {row.revenue != null
+                            ? `$${Number(row.revenue).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                            : "—"}
+                        </TableCell>
 
-                          <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
-                            {row.units != null
-                              ? Number(row.units).toLocaleString()
-                              : "—"}
-                          </TableCell>
+                        <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
+                          {row.units != null ? Number(row.units).toLocaleString() : "—"}
+                        </TableCell>
 
-                          <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
-                            {row.buying_stores != null
-                              ? Number(row.buying_stores).toLocaleString()
-                              : "—"}
-                          </TableCell>
+                        <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
+                          {row.buying_stores != null
+                            ? Number(row.buying_stores).toLocaleString()
+                            : "—"}
+                        </TableCell>
 
-                          <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
-                            {row.units_l1m_pct != null ? (
-                              <div className="inline-flex items-center justify-end gap-1">
-                                <span
-                                  className="text-xs"
-                                  style={{
-                                    color:
-                                      Number(row.units_l1m_pct) > 0
-                                        ? "#16A34A"
-                                        : Number(row.units_l1m_pct) < 0
-                                        ? "#DC2626"
-                                        : "#737373",
-                                  }}
-                                >
-                                  {Number(row.units_l1m_pct) > 0
-                                    ? "↑"
-                                    : Number(row.units_l1m_pct) < 0
-                                    ? "↓"
-                                    : "•"}
-                                </span>
+                        <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
+                          {row.units_l1m_pct != null ? (
+                            <div className="inline-flex items-center justify-end gap-1">
+                              <span
+                                className="text-xs"
+                                style={{
+                                  color:
+                                    Number(row.units_l1m_pct) > 0
+                                      ? "#16A34A"
+                                      : Number(row.units_l1m_pct) < 0
+                                      ? "#DC2626"
+                                      : "#737373",
+                                }}
+                              >
+                                {Number(row.units_l1m_pct) > 0
+                                  ? "↑"
+                                  : Number(row.units_l1m_pct) < 0
+                                  ? "↓"
+                                  : "•"}
+                              </span>
 
-                                <span
-                                  style={{
-                                    color:
-                                      Number(row.units_l1m_pct) > 0
-                                        ? "#16A34A"
-                                        : Number(row.units_l1m_pct) < 0
-                                        ? "#DC2626"
-                                        : "#737373",
-                                  }}
-                                >
-                                  {Math.round(Number(row.units_l1m_pct) * 100)}%
-                                </span>
-                              </div>
-                            ) : (
-                              "—"
-                            )}
-                          </TableCell>
+                              <span
+                                style={{
+                                  color:
+                                    Number(row.units_l1m_pct) > 0
+                                      ? "#16A34A"
+                                      : Number(row.units_l1m_pct) < 0
+                                      ? "#DC2626"
+                                      : "#737373",
+                                }}
+                              >
+                                {Math.round(Number(row.units_l1m_pct) * 100)}%
+                              </span>
+                            </div>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
 
-                          <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
-                            {row.units_l3m_pct != null ? (
-                              <div className="inline-flex items-center justify-end gap-1">
-                                <span
-                                  className="text-xs"
-                                  style={{
-                                    color:
-                                      Number(row.units_l3m_pct) > 0
-                                        ? "#16A34A"
-                                        : Number(row.units_l3m_pct) < 0
-                                        ? "#DC2626"
-                                        : "#737373",
-                                  }}
-                                >
-                                  {Number(row.units_l3m_pct) > 0
-                                    ? "↑"
-                                    : Number(row.units_l3m_pct) < 0
-                                    ? "↓"
-                                    : "•"}
-                                </span>
+                        <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
+                          {row.units_l3m_pct != null ? (
+                            <div className="inline-flex items-center justify-end gap-1">
+                              <span
+                                className="text-xs"
+                                style={{
+                                  color:
+                                    Number(row.units_l3m_pct) > 0
+                                      ? "#16A34A"
+                                      : Number(row.units_l3m_pct) < 0
+                                      ? "#DC2626"
+                                      : "#737373",
+                                }}
+                              >
+                                {Number(row.units_l3m_pct) > 0
+                                  ? "↑"
+                                  : Number(row.units_l3m_pct) < 0
+                                  ? "↓"
+                                  : "•"}
+                              </span>
 
-                                <span
-                                  style={{
-                                    color:
-                                      Number(row.units_l3m_pct) > 0
-                                        ? "#16A34A"
-                                        : Number(row.units_l3m_pct) < 0
-                                        ? "#DC2626"
-                                        : "#737373",
-                                  }}
-                                >
-                                  {Math.round(Number(row.units_l3m_pct) * 100)}%
-                                </span>
-                              </div>
-                            ) : (
-                              "—"
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell
-                          colSpan={6}
-                          className="px-4 py-10 text-center text-sm text-neutral-500"
-                        >
-                          No data matches the selected filters.
+                              <span
+                                style={{
+                                  color:
+                                    Number(row.units_l3m_pct) > 0
+                                      ? "#16A34A"
+                                      : Number(row.units_l3m_pct) < 0
+                                      ? "#DC2626"
+                                      : "#737373",
+                                }}
+                              >
+                                {Math.round(Number(row.units_l3m_pct) * 100)}%
+                              </span>
+                            </div>
+                          ) : (
+                            "—"
+                          )}
                         </TableCell>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell
+                        colSpan={6}
+                        className="px-4 py-10 text-center text-sm text-neutral-500"
+                      >
+                        No data matches the selected filters.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </div>
           </div>
-        
-
-
+        </div>
       </div>
-
     </main>
-
   )
 }

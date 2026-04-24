@@ -20,8 +20,8 @@ def kpi_monthly_table(df, df_all_time, selected_years=None, selected_months=None
     # ----------------------------------
     result = calculate_monthly_active_pods(df_base, df_all_time, [])
     result = result.merge(calculate_monthly_new_pods(df_base, []), on="month_year", how="left")
-    result = result.merge(calculate_monthly_units(df_base, []), on="month_year", how="left")
-    result = result.merge(calculate_monthly_buying_stores(df_base, []), on="month_year", how="left")
+    result = result.merge(calculate_monthly_units(df_base, selected_years=selected_years, selected_months=selected_months), on="month_year", how="left")
+    result = result.merge(calculate_monthly_buying_stores(df_base, selected_years=selected_years, selected_months=selected_months), on="month_year", how="left")
     result = result.merge(calculate_monthly_vpo(df_base, df_all_time, []), on="month_year", how="left")
     result = result.merge(calculate_monthly_reorder_rate(df_base, df_all_time, []), on="month_year", how="left")
 
@@ -44,8 +44,6 @@ def kpi_monthly_table(df, df_all_time, selected_years=None, selected_months=None
         calculate_reorder_rate_3m(df_base, df_all_time, [])[["month_year", "reorder_rate_3m"]],
         on="month_year", how="left"
     )
-
-    print("after step 3 result:", sorted(result["month_year"].unique()))
     
     # ----------------------------------
     # 4. Add prior period columns (full history)
@@ -56,8 +54,6 @@ def kpi_monthly_table(df, df_all_time, selected_years=None, selected_months=None
     result = add_prior_month_columns(result, [], "vpo", l1m=True, l3m=True)
     result = add_prior_month_columns(result, [], "reorder_rate", l1m=True, l3m=True)
 
-    print("after step 4:", sorted(result["month_year"].unique()))
-
     # ----------------------------------
     # 5. Growth calculations
     # ----------------------------------
@@ -66,8 +62,6 @@ def kpi_monthly_table(df, df_all_time, selected_years=None, selected_months=None
     result = add_pct_change_columns(result, "buying_stores", l1m=True, l3m=True)
     result = add_pct_change_columns(result, "vpo", l1m=True, l3m=True)
     result = add_abs_change_columns(result, "reorder_rate", l1m=True, l3m=True)
-
-    print("after step 5:", sorted(result["month_year"].unique()))
 
     # ----------------------------------
     # 6. NOW apply time filter (final step)

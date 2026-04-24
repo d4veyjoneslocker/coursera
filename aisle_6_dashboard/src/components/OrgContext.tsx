@@ -10,6 +10,8 @@ export type Org = {
   accent_color: string | null
   background_color: string | null
   logo_url: string | null
+  last_refreshed_at: string | null
+  refresh_cadence: string | null
 }
 
 const OrgContext = createContext<Org | null>(null)

@@ -5,7 +5,7 @@ from backend.data_pipeline.table_loader import load_org_tables
 from backend.metrics.monthly_metric_calculators import calculate_monthly_buying_stores, calculate_monthly_reorder_rate
 from backend.metrics.metric_tables import store_performance, kpi_monthly_table, status_counts_dict
 from backend.metrics.metric_calculators import calculate_units
-from backend.metrics.store_health_kpis import buying_kpis, reorder_kpis, count_channels
+from backend.metrics.kpis.store_health_kpis import buying_kpis, reorder_kpis, count_channels
 from backend.serving.api_helpers import clean_for_json, prep_monthly_graph, remove_time_filters, filter_table
 from backend.metrics.metric_helpers import build_spine
 
@@ -17,6 +17,7 @@ router = APIRouter(prefix="/store_health", tags=["Store Health"])
 @router.get("/filters")
 def get_filter_options(
     column_name: str,
+    org_id: str = Query(...),
     chain: list[str] | None = Query(None),
     distributor: list[str] | None = Query(None),
     dc: list[str] | None = Query(None),
@@ -33,7 +34,7 @@ def get_filter_options(
         "state": state,
         "status": status
     }
-    features_df = load_org_tables("default_org")
+    features_df = load_org_tables(org_id)
 
     filters.pop(column_name, None)
 
@@ -44,8 +45,8 @@ def get_filter_options(
 #KPIs
 
 @router.get("/kpis")
-def kpis(filters: dict = Depends(get_filters)):
-    features_df = load_org_tables("default_org")
+def kpis(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
     non_time_filters=remove_time_filters(filters)
@@ -65,8 +66,8 @@ def kpis(filters: dict = Depends(get_filters)):
 #BUYERS
 
 @router.get("/buyers")
-def buying_stores(filters: dict = Depends(get_filters)):
-    features_df = load_org_tables("default_org")
+def buying_stores(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
     result = calculate_monthly_buying_stores(df)
@@ -84,13 +85,11 @@ def buying_stores(filters: dict = Depends(get_filters)):
 
     return result.to_dict(orient="records")
 
-#REORDERS
 
-# CHANGE THIS TO USE NON_FEATURE DF FIRST AND THEN ADD FEATURES
 
 @router.get("/reorders")
-def reorders(filters: dict = Depends(get_filters)):
-    features_df = load_org_tables("default_org")
+def reorders(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
     non_time_filters=remove_time_filters(filters)
@@ -106,8 +105,8 @@ def reorders(filters: dict = Depends(get_filters)):
 #CHANNELS
 
 @router.get("/channels")
-def channels(filters: dict = Depends(get_filters)):
-    features_df = load_org_tables("default_org")
+def channels(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
     result = calculate_units(df, ["channel"]).sort_values("units", ascending=False)
@@ -123,8 +122,8 @@ def channels(filters: dict = Depends(get_filters)):
 
 #STATUS TABLE
 @router.get("/status")
-def status(filters: dict = Depends(get_filters)):
-    features_df = load_org_tables("default_org")
+def status(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
 
@@ -134,8 +133,8 @@ def status(filters: dict = Depends(get_filters)):
 #STORE PERFORMANCE TABLE 
 
 @router.get("/store_performance")
-def store_performance_table(filters: dict = Depends(get_filters)):
-    features_df = load_org_tables("default_org")
+def store_performance_table(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
     non_time_filters=remove_time_filters(filters)

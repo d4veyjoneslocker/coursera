@@ -3,9 +3,10 @@ import numpy as np
 from backend.mappings.sku import sku_map
 from backend.mappings.channel import channel_map
 from backend.mappings.upc import upc_map
+from backend.data_pipeline.pipeline_helpers import apply_sku_map
 from backend.transforms.set_distributor_data_types import set_data_types
 
-def transform_unfi_natural_vendor_sales(df):
+def transform_unfi_natural_vendor_sales(df, org_id):
     # Convert date columns to datetime format
     date_columns = ['SalesPeriodEnd', 'SalesPeriodStart_Week']
     for col in date_columns:
@@ -40,7 +41,8 @@ def transform_unfi_natural_vendor_sales(df):
 
     # map SKUs
 
-    df["sku"] = df["Description"].map(sku_map)
+    df["sku"] = df["Description"]
+    df = apply_sku_map(df, org_id)
 
     # map UPCs
 
