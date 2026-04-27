@@ -29,7 +29,7 @@ def calculate_store_health_status_monthly(df):
     table["status"] = ""
 
     conditions = [
-        table["first_month_purchased"] >= (current_month - 1),
+        table["first_month_purchased"] >= (current_month),
         table["last_month_purchased"] <= (current_month - 5),
         table["last_month_purchased"] <= (current_month - 3),
         (table["last_month_purchased"] >= (current_month - 2)) & (table["second_to_last_month_purchased"] <= (current_month - 5)),

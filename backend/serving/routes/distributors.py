@@ -6,24 +6,24 @@ from fastapi import APIRouter, HTTPException, Query
 
 from backend.data_pipeline.unfi_pipeline import refresh_unfi_processed_data
 from backend.data_pipeline.generate_tables import save_base_tables
-from backend.data_pipeline.table_loader import clear_table_cache
+from backend.data_pipeline.table_loader import clear_table_cache, load_org_tables
+from backend.storage.local_cleanup import delete_local_org_data
 
 router = APIRouter(prefix="/distributors", tags=["Distributors"])
 
 
 @router.get("/kehe/status")
 def get_data_status(org_id: str = Query(...)):
-    features_path = Path(f"backend/data/{org_id}/features_df.parquet")
-
-    if not features_path.exists():
+    try:
+        df = load_org_tables(org_id)
+    except Exception as e:
+        print("STATUS LOAD ERROR:", repr(e))
         return {
             "status": "no_data",
             "data_through": None,
             "last_updated": None,
             "is_stale": True,
         }
-
-    df = pd.read_parquet(features_path)
 
     if df.empty or "month_year" not in df.columns:
         return {
@@ -36,8 +36,6 @@ def get_data_status(org_id: str = Query(...)):
     months = pd.Series(df["month_year"]).astype(str)
     latest_month = months.max()
 
-    last_modified = datetime.fromtimestamp(features_path.stat().st_mtime)
-
     current_month = pd.Timestamp.today().to_period("M")
     data_month = pd.Period(latest_month, freq="M")
     is_stale = data_month < current_month
@@ -45,30 +43,32 @@ def get_data_status(org_id: str = Query(...)):
     return {
         "status": "ready",
         "data_through": latest_month,
-        "last_updated": last_modified.strftime("%b %d, %Y %I:%M %p"),
+        "last_updated": None,
         "is_stale": is_stale,
     }
 
 
 @router.post("/unfi/refresh")
 def refresh_unfi(org_id: str = Query(...)):
-    unfi_cred = {
-        "account_id": os.getenv("UNFI_ACCOUNT_ID"),
-        "connector_id": os.getenv("UNFI_CONNECTOR_ID"),
-        "username": os.getenv("UNFI_USERNAME"),
-        "password": os.getenv("UNFI_PASSWORD"),
-    }
+    try:
+        refresh_unfi_processed_data(org_id=org_id)
 
-    if not all(unfi_cred.values()):
-        raise HTTPException(status_code=500, detail="Missing UNFI credentials")
+        save_base_tables(
+            output_dir=f"backend/data/{org_id}",
+            org_id=org_id,
+        )
 
-    refresh_unfi_processed_data(org_id=org_id)
+        clear_table_cache(org_id)
+        delete_local_org_data(org_id)
 
-    save_base_tables(
-        output_dir=f"backend/data/{org_id}",
-        org_id=org_id,
-    )
 
-    clear_table_cache(org_id)
+        return {
+            "status": "success",
+            "message": "UNFI refreshed",
+        }
 
-    return {"status": "success", "message": "UNFI refreshed"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"UNFI refresh failed: {str(e)}",
+        )

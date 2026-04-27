@@ -12,6 +12,7 @@ import { formatPercent } from "@/components/ui/charts/chartUtils"
 import type { MetricRow, PieRow } from "@/components/ui/charts/chartTypes"
 import FilterBar from "@/components/ui/filters/FilterBar"
 import DashboardHeader from "@/components/ui/DashboardHeader"
+import { InsightsSection } from "@/components/InsightsSection"
 
 const DEFAULT_THEME = {
   blue: "#92B9DC",
@@ -300,9 +301,10 @@ export default function StoresPage() {
     }
   }
 
-  useEffect(() => {
-    async function loadData() {
-      try {
+  async function loadData() {
+        if (!org?.id) return
+
+        try {
         const filterRequests = Object.fromEntries(
           FILTER_KEYS.map((key) => [key, buildFilterUrl(key, filters, org.id)])
         )
@@ -372,8 +374,9 @@ export default function StoresPage() {
       }
     }
 
+  useEffect(() => {
     loadData()
-  }, [filters])
+  }, [filters, org?.id])
 
   const [dataThrough, setDataThrough] = useState<string | undefined>()
   const [isStale, setIsStale] = useState(false)
@@ -391,6 +394,8 @@ export default function StoresPage() {
   }
 
   const fetchStatus = async () => {
+    if (!org?.id) return
+
     try {
       const res = await fetch(
         `${API_BASE_URL}/distributors/kehe/status?org_id=${org.id}`
@@ -414,10 +419,13 @@ export default function StoresPage() {
     <main className="min-h-screen p-8" style={{ backgroundColor: theme.bg }}>
       <div className="mx-auto max-w-7xl space-y-8">
         <DashboardHeader
-          brandName="Endcap"
-          activePage="overview"
+          activePage="store-health"
           dataThrough={dataThrough}
           isStale={isStale}
+          onDataRefresh={async () => {
+            await fetchStatus()
+            await loadData()
+          }}
         />
 
         <FilterBar
@@ -443,6 +451,8 @@ export default function StoresPage() {
             status: "Status",
           }}
         />
+
+        <InsightsSection orgId={org?.id ?? null} filters={filters} endpoint="store-health"/>
 
         <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">
           <ChartSection

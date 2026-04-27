@@ -126,6 +126,9 @@ def build_window_universe_spine(df_filtered, df_full, group_cols=None, selected_
             .drop_duplicates()
         )
 
+        if active_in_or_before_window.empty:
+            active_in_or_before_window = df_full[group_cols].drop_duplicates()
+
         # calculate true first month from full data,
         # then clip to the same window start logic
         group_first = (
@@ -146,10 +149,13 @@ def build_window_universe_spine(df_filtered, df_full, group_cols=None, selected_
                 {**{col: row[col] for col in group_cols}, "month_year": months}
             )
 
-        spine = pd.concat(
-            [expand_range(row) for _, row in group_ranges.iterrows()],
-            ignore_index=True
-        )
+        if group_ranges.empty:
+            spine = pd.DataFrame(columns=group_cols + ["month_year"])
+        else:
+            spine = pd.concat(
+                [expand_range(row) for _, row in group_ranges.iterrows()],
+                ignore_index=True,
+            )
 
     else:
         first_month = df_filtered["month_year"].min()
@@ -198,6 +204,9 @@ def build_full_universe_spine(df_filtered, df_full, group_cols=None, selected_ye
             .drop_duplicates()
         )
 
+        if active_in_or_before_window.empty:
+            active_in_or_before_window = df_full[group_cols].drop_duplicates()
+
         store_first = (
             df_full.groupby(group_cols)["month_year"]
             .min()
@@ -214,7 +223,13 @@ def build_full_universe_spine(df_filtered, df_full, group_cols=None, selected_ye
             months = pd.period_range(row["first_month"], row["last_month"], freq='M')
             return pd.DataFrame({**{col: row[col] for col in group_cols}, 'month_year': months})
 
-        spine = pd.concat([expand_range(row) for _, row in group_ranges.iterrows()], ignore_index=True)
+        if group_ranges.empty:
+            spine = pd.DataFrame(columns=group_cols + ["month_year"])
+        else:
+            spine = pd.concat(
+                [expand_range(row) for _, row in group_ranges.iterrows()],
+                ignore_index=True,
+            )
 
     else:
         overall_first = min(selected_months) if selected_months else (pd.Period(year=min(selected_years), month=1, freq='M') if selected_years else df_full["month_year"].min())

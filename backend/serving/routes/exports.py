@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from pathlib import Path
 import zipfile
+import shutil
 
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
@@ -22,14 +23,14 @@ EXPORT_DIR = Path("tmp_exports")
 EXPORT_DIR.mkdir(exist_ok=True)
 
 
-@router.get("/export/ai_package")
+@router.get("/ai_package")
 def export_ai_package(org_id: str):
     features_df = load_org_tables(org_id)
 
     df = features_df.copy()
 
     # unique folder per request
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     export_path = EXPORT_DIR / f"export_{timestamp}"
     export_path.mkdir(parents=True, exist_ok=True)
 
@@ -57,4 +58,5 @@ def export_ai_package(org_id: str):
         path=str(zip_path),
         media_type="application/zip",
         filename="ai_package.zip",
+        background=BackgroundTask(lambda: shutil.rmtree(export_path, ignore_errors=True)),
     )

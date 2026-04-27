@@ -1,8 +1,9 @@
 import pandas as pd
 from backend.transforms.kehe import transform_kehe_full_pod_vendor
+from backend.storage.supabase_storage import upload_file
 
 
-def update_kehe_raw_master(raw_new_month_path, raw_master_path, raw_master_previous_path):
+def update_kehe_raw_master(raw_new_month_path, raw_master_path, raw_master_previous_path, org_id: str):
     # read newly uploaded month
     df_new = pd.read_csv(raw_new_month_path)
 
@@ -19,9 +20,26 @@ def update_kehe_raw_master(raw_new_month_path, raw_master_path, raw_master_previ
 
     months_in_upload = df_new["month_year"].unique()
 
+    # Always upload the current uploaded month
+    upload_file(
+        local_path=str(raw_new_month_path),
+        org_id=org_id,
+        remote_path="raw/kehe/raw_current_month.csv",
+    )
+
     # if no master exists yet, save new as master
     if not raw_master_path.exists():
-        df_new.drop(columns=["start_date", "month_year"], errors="ignore").to_csv(raw_master_path, index=False)
+        df_new.drop(columns=["start_date", "month_year"], errors="ignore").to_csv(
+            raw_master_path,
+            index=False,
+        )
+
+        upload_file(
+            local_path=str(raw_master_path),
+            org_id=org_id,
+            remote_path="raw/kehe/raw_master.csv",
+        )
+
         return
 
     # read existing master
@@ -36,9 +54,17 @@ def update_kehe_raw_master(raw_new_month_path, raw_master_path, raw_master_previ
 
     # backup old master
     raw_master_previous_path.parent.mkdir(parents=True, exist_ok=True)
+
     if raw_master_previous_path.exists():
         raw_master_previous_path.unlink()
+
     raw_master_path.replace(raw_master_previous_path)
+
+    upload_file(
+        local_path=str(raw_master_previous_path),
+        org_id=org_id,
+        remote_path="raw/kehe/raw_master_previous.csv",
+    )
 
     # remove overlapping months, then append new data
     df_master = df_master[~df_master["month_year"].isin(months_in_upload)]
@@ -49,38 +75,36 @@ def update_kehe_raw_master(raw_new_month_path, raw_master_path, raw_master_previ
 
     df_updated.to_csv(raw_master_path, index=False)
 
+    upload_file(
+        local_path=str(raw_master_path),
+        org_id=org_id,
+        remote_path="raw/kehe/raw_master.csv",
+    )
+
 
 
 
 def update_kehe_processed_data(raw_master_path, processed_current_path, processed_previous_path, org_id: str):
-    print("1. starting processed update")
 
     if not raw_master_path.exists():
         raise ValueError("Raw master does not exist.")
 
     df_raw = pd.read_csv(raw_master_path)
-    print("2. raw loaded", df_raw.shape)
 
     if df_raw.empty:
         raise ValueError("Raw master is empty.")
 
     df_raw = normalize_kehe_upload(df_raw)
-    print("3. normalized raw")
 
     processed_current_path.parent.mkdir(parents=True, exist_ok=True)
-    print("4. processed dir confirmed")
 
     if processed_current_path.exists():
         if processed_previous_path.exists():
             processed_previous_path.unlink()
         processed_current_path.replace(processed_previous_path)
-        print("5. previous processed backed up")
-    
-    print(df_raw.dtypes)
 
     try:
         df_processed = transform_kehe_full_pod_vendor(df_raw, org_id=org_id)
-        print("6. transform finished", df_processed.shape)
     except Exception as e:
         print("TRANSFORM ERROR:", repr(e))
         raise
@@ -90,9 +114,20 @@ def update_kehe_processed_data(raw_master_path, processed_current_path, processe
 
     try:
         df_processed.to_parquet(processed_current_path, index=False)
-        print("7. parquet saved", processed_current_path)
+        print("Parquet saved", processed_current_path)
     except Exception as e:
         print("PARQUET ERROR:", repr(e))
+        raise
+
+    try:
+        upload_file(
+            local_path=str(processed_current_path),
+            org_id=org_id,
+            remote_path="processed_sources/kehe_processed.parquet",
+        )
+        print("✅ KeHE processed uploaded to Supabase")
+    except Exception as e:
+        print("SUPABASE UPLOAD ERROR:", repr(e))
         raise
 
 def normalize_kehe_upload(df):

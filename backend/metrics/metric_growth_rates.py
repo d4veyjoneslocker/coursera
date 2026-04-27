@@ -9,10 +9,13 @@ from backend.metrics.monthly_metric_calculators import(
 )
 
 def pct_change(current, prior):
+    current = pd.to_numeric(current, errors="coerce")
+    prior = pd.to_numeric(prior, errors="coerce")
+
     return np.where(
-        prior > 0,
-        current / prior - 1,
-        np.nan
+        (prior.isna()) | (prior == 0),
+        np.nan,
+        current / prior - 1
     )
 
 def abs_change(current, prior):
@@ -80,8 +83,6 @@ def add_prior_month_columns(df, group_cols, metric, df_all_time=None, l1m=None, 
     original_start = df["month_year"].min()
     original_end = df["month_year"].max()
 
-    print (original_start, original_end)
-
     if df_all_time is None:
         df_all_time=df
 
@@ -93,27 +94,19 @@ def add_prior_month_columns(df, group_cols, metric, df_all_time=None, l1m=None, 
     if py:
         lookback_months = max(lookback_months, 12)
 
-    print(lookback_months)
 
     comparison_spine = build_comparison_spine(df_all_time, group_cols=non_time_cols, lookback_months=lookback_months, selected_years=selected_years, selected_months=selected_months, include_current_month=True)
 
-    print(comparison_spine)
-
     df = comparison_spine.merge(df, on=group_cols, how="left")
     df = df.sort_values(group_cols).copy()
-
-    print(df)
 
     if non_time_cols:
         if l1m:
             df[f"{metric}_l1m"] = df.groupby(non_time_cols)[metric].shift(1)
 
-            print(df)
-
         if l3m:
             df[f"{metric}_l3m"] = df.groupby(non_time_cols)[f"{metric}_3m"].shift(3)
 
-            print(df)
 
         if py:
             df[f"{metric}_py"] = df.groupby(non_time_cols)[metric].shift(12)
@@ -122,12 +115,8 @@ def add_prior_month_columns(df, group_cols, metric, df_all_time=None, l1m=None, 
         if l1m:
             df[f"{metric}_l1m"] = df[metric].shift(1)
 
-            print(df)
-
         if l3m:
             df[f"{metric}_l3m"] = df[f"{metric}_3m"].shift(3)
-
-            print(df)
 
         if py:
             df[f"{metric}_py"] = df[metric].shift(12)
@@ -142,8 +131,6 @@ def add_prior_month_columns(df, group_cols, metric, df_all_time=None, l1m=None, 
         (df["month_year"] <= original_end)
     ]
         
-        print(df)
-
     return df
 
 # Additive metric examples: units, revenue, new_pods
@@ -177,18 +164,7 @@ def add_additive_metric_3m(df, group_cols, metric, selected_years=None, selected
 def calculate_buying_stores_3m(df, group_cols, selected_years=None, selected_months=None):
 
 # Merge back onto spine / general fix
-
-    if isinstance(group_cols, str):
-        group_cols = [group_cols]
-
-    if "month_year" in group_cols:
-        group_cols = [c for c in group_cols if c != "month_year"] + ["month_year"]
-    else:
-        group_cols = group_cols + ["month_year"]
-
-    non_time_cols = [c for c in group_cols if c != "month_year"]
-
-    spine = build_spine(df, group_cols=non_time_cols, selected_years=selected_years, selected_months=selected_months)
+    spine, group_cols, non_time_cols = prepare_growth_time_series(df, group_cols, selected_years=selected_years, selected_months=selected_months)
     months = sorted(spine["month_year"].unique())
 
     rows = []
@@ -225,8 +201,6 @@ def calculate_buying_stores_3m(df, group_cols, selected_years=None, selected_mon
         on=group_cols,
         how="left"
     )
-
-    result["buying_stores_3m"] = result["buying_stores_3m"].fillna(0)
 
     return result[group_cols + ["buying_stores_3m"]]
 
@@ -307,3 +281,4 @@ def calculate_reorder_rate_3m(df_filtered, df_full, group_cols=None, selected_ye
     result["reorder_rate_3m"] = calculate_reorder_rate(result, "3m")
 
     return result[group_cols + ["reorder_rate_3m"]]
+

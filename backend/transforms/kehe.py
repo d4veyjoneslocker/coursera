@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-from backend.mappings.sku import sku_map
 from backend.mappings.channel import channel_map
 from backend.transforms.set_distributor_data_types import set_data_types
 from backend.data_pipeline.pipeline_helpers import apply_sku_map

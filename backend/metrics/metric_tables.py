@@ -228,3 +228,120 @@ def status_counts_dict(df):
         "Inactive": int(result.get("Inactive", 0)),
         "New": int(result.get("New", 0)),
     }
+
+def chain_insight_table(df):
+    monthly_result = calculate_monthly_units(df, "chain")
+    monthly_result = add_additive_metric_3m(monthly_result, "chain", "units")
+    monthly_result = add_prior_month_columns(monthly_result, "chain", "units", l3m=True)
+    monthly_result = add_pct_change_columns(monthly_result, "units", l3m=True)
+    monthly_result = add_abs_change_columns(monthly_result, "units", l3m=True)
+
+    current_month = pd.Timestamp.today().to_period("M")
+    monthly_result = monthly_result[monthly_result["month_year"] != current_month]
+
+    latest_month = monthly_result["month_year"].max()
+    monthly_latest = monthly_result[monthly_result["month_year"] == latest_month].copy()
+
+    return monthly_latest[
+        [
+            "chain",
+            "units_3m",
+            "units_l3m",
+            "units_l3m_pct",
+            "units_l3m_abs",
+        ]
+    ]
+
+def sku_insight_table(df):
+    monthly_units = calculate_monthly_units(df, "sku")
+    monthly_vpo = calculate_vpo_3m(df, df, "sku")
+
+    monthly_result = monthly_units.merge(
+        monthly_vpo,
+        on=["sku", "month_year"],
+        how="left",
+    )
+
+    monthly_result = add_additive_metric_3m(monthly_result, "sku", "units")
+    monthly_result = add_prior_month_columns(monthly_result, "sku", "units", l3m=True)
+
+    monthly_result = add_prior_month_columns(monthly_result, "sku", "vpo", l3m=True)
+    monthly_result = add_pct_change_columns(monthly_result, "vpo", l3m=True)
+    monthly_result = add_abs_change_columns(monthly_result, "vpo", l3m=True)
+
+    current_month = pd.Timestamp.today().to_period("M")
+    monthly_result = monthly_result[monthly_result["month_year"] != current_month]
+
+    latest_month = monthly_result["month_year"].max()
+    monthly_latest = monthly_result[monthly_result["month_year"] == latest_month].copy()
+
+    monthly_latest = monthly_latest.dropna(subset=["vpo_3m", "vpo_l3m"])
+
+    return monthly_latest[
+        [
+            "sku",
+            "units_3m",
+            "units_l3m",
+            "vpo_3m",
+            "vpo_l3m",
+            "vpo_l3m_pct",
+            "vpo_l3m_abs",
+        ]
+    ]
+
+def channel_reorder_insight_table(df, df_all_time):
+    df = df.copy()
+    df_all_time = df_all_time.copy()
+
+    df = df[df["month_year"].notna()]
+    df_all_time = df_all_time[df_all_time["month_year"].notna()]
+
+    df = df[df["channel"].notna()]
+    df_all_time = df_all_time[df_all_time["channel"].notna()]
+
+    monthly = calculate_reorder_rate_3m(df, df_all_time, "channel")
+
+    buying_stores = calculate_buying_stores_3m(df, "channel")
+
+    monthly = monthly.merge(
+        buying_stores[["channel", "month_year", "buying_stores_3m"]],
+        on=["channel", "month_year"],
+        how="left",
+    )
+
+    monthly = add_prior_month_columns(
+        monthly,
+        "channel",
+        "reorder_rate",
+        l3m=True,
+    )
+
+    monthly = add_prior_month_columns(
+        monthly,
+        "channel",
+        "buying_stores",
+        l3m=True,
+    )
+
+    monthly = add_abs_change_columns(
+        monthly,
+        "reorder_rate",
+        l3m=True,
+    )
+
+    current_month = pd.Timestamp.today().to_period("M")
+    monthly = monthly[monthly["month_year"] != current_month]
+
+    latest_month = monthly["month_year"].max()
+    latest = monthly[monthly["month_year"] == latest_month].copy()
+
+    return latest.dropna(subset=["reorder_rate_3m", "reorder_rate_l3m"])[
+        [
+            "channel",
+            "reorder_rate_3m",
+            "reorder_rate_l3m",
+            "reorder_rate_l3m_abs",
+            "buying_stores_3m",
+            "buying_stores_l3m",
+        ]
+    ]

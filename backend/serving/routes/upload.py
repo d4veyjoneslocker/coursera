@@ -1,13 +1,11 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from backend.data_pipeline.pipeline_helpers import get_source_file_paths
-from backend.data_pipeline.kehe_pipeline import (
-    update_kehe_raw_master,
-    update_kehe_processed_data,
-)
-from backend.data_pipeline.generate_tables import save_base_tables
-from backend.data_pipeline.table_loader import clear_table_cache
 import pandas as pd
 from io import StringIO
+from fastapi import APIRouter, UploadFile, File, HTTPException
+from backend.data_pipeline.pipeline_helpers import get_source_file_paths
+from backend.data_pipeline.kehe_pipeline import update_kehe_raw_master, update_kehe_processed_data
+from backend.data_pipeline.generate_tables import save_base_tables
+from backend.data_pipeline.table_loader import clear_table_cache
+from backend.storage.local_cleanup import delete_local_org_data
 
 router = APIRouter(prefix="/upload", tags=["Uploads"])
 
@@ -31,7 +29,6 @@ REQUIRED_COLUMNS_KEHE = [
 
 @router.post("/kehe")
 async def upload_kehe(org_id: str, file: UploadFile = File(...)):
-    org_id = org_id
 
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file was uploaded.")
@@ -81,6 +78,7 @@ async def upload_kehe(org_id: str, file: UploadFile = File(...)):
             raw_new_month_path=paths["raw_new_month"],
             raw_master_path=paths["raw_master"],
             raw_master_previous_path=paths["raw_master_previous"],
+            org_id=org_id
         )
         print("4. raw master updated")
 
@@ -93,7 +91,7 @@ async def upload_kehe(org_id: str, file: UploadFile = File(...)):
         print("5. processed kehe updated")
 
         # -----------------------------
-        # Rebuild combined tables (LOCAL ONLY)
+        # Rebuild combined tables and upload features_df to Supabase
         # -----------------------------
         save_base_tables(
             output_dir=f"backend/data/{org_id}",
@@ -107,15 +105,14 @@ async def upload_kehe(org_id: str, file: UploadFile = File(...)):
         clear_table_cache(org_id)
         print("7. cache cleared")
 
-        df_features = pd.read_parquet(f"backend/data/{org_id}/features_df.parquet")
+        delete_local_org_data(org_id)
+        print("8. local storage cleared")
 
         return {
             "status": "success",
             "message": f"{file.filename} uploaded and dashboard refreshed successfully.",
-            "rows": len(df_features),
-            "data_through": str(df_features["month_year"].max()) if "month_year" in df_features.columns else None,
         }
-
+    
     except HTTPException:
         raise
     except Exception as e:

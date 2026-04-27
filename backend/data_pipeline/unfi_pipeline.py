@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 from backend.data_pipeline.pipeline_helpers import get_source_file_paths
 from backend.transforms.unfi import transform_unfi_natural_vendor_sales
+from backend.storage.supabase_storage import upload_file
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -36,16 +37,53 @@ def refresh_unfi_processed_data(org_id: str):
         table="Direct_Unfi_Insights_Natural_Vendor_Sales_Customer_Details_Weekly",
     )
 
-    clean_unfi_df = transform_unfi_natural_vendor_sales(raw_unfi_df, org_id)
-
     current_path.parent.mkdir(parents=True, exist_ok=True)
+
+    raw_path = current_path.parent.parent / "raw" / "unfi" / "raw_master.parquet"
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        raw_unfi_df.to_parquet(raw_path, index=False)
+        print("Raw UNFI parquet saved", raw_path)
+    except Exception as e:
+        print("RAW PARQUET ERROR:", repr(e))
+        raise
+
+    try:
+        upload_file(
+            local_path=str(raw_path),
+            org_id=org_id,
+            remote_path="raw/unfi/raw_master.parquet",
+        )
+        print("✅ UNFI raw uploaded to Supabase")
+    except Exception as e:
+        print("SUPABASE RAW UPLOAD ERROR:", repr(e))
+        raise
+
+    clean_unfi_df = transform_unfi_natural_vendor_sales(raw_unfi_df, org_id)
 
     if current_path.exists():
         if previous_path.exists():
             previous_path.unlink()
         current_path.replace(previous_path)
 
-    clean_unfi_df.to_parquet(current_path, index=False)
+    try:
+        clean_unfi_df.to_parquet(current_path, index=False)
+        print("Parquet saved", current_path)
+    except Exception as e:
+        print("PARQUET ERROR:", repr(e))
+        raise
+
+    try:
+        upload_file(
+            local_path=str(current_path),
+            org_id=org_id,
+            remote_path="processed_sources/unfi_processed.parquet",
+        )
+        print("✅ UNFI processed uploaded to Supabase")
+    except Exception as e:
+        print("SUPABASE UPLOAD ERROR:", repr(e))
+        raise
 
     return clean_unfi_df
 

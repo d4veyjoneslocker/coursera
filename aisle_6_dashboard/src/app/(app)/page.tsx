@@ -34,7 +34,8 @@ import {
 import FilterBar from "@/components/ui/filters/FilterBar"
 import DashboardHeader from "@/components/ui/DashboardHeader"
 import KpiCard from "@/components/ui/charts/KpiCard"
-import KeheUploadCard from "@/components/ui/DistributorDataUploadCard"
+import { InsightsSection } from "@/components/InsightsSection"
+
 
 
 
@@ -567,6 +568,8 @@ export default function Home() {
   } | null>(null)
 
   const loadData = async () => {
+    if (!org?.id) return
+
     try {
       const filterRequests = Object.fromEntries(
         FILTER_KEYS.map((key) => [key, buildFilterUrl(key, filters, org.id)])
@@ -632,13 +635,12 @@ export default function Home() {
 
   useEffect(() => {
     loadData()
-  }, [filters])
+  }, [filters, org?.id])
 
   /* The chunk below renders the date*/
 
   const [dataThrough, setDataThrough] = useState<string | undefined>()
   const [isStale, setIsStale] = useState(false)
-  const [showUpload, setShowUpload] = useState(false)
 
   const formatMonthYear = (value?: string) => {
     if (!value) return undefined
@@ -653,6 +655,8 @@ export default function Home() {
   }
 
   const fetchStatus = async () => {
+    if (!org?.id) return
+
     try {
       const res = await fetch(`${API_BASE_URL}/distributors/kehe/status?org_id=${org.id}`)
       const data = await res.json()
@@ -668,44 +672,22 @@ export default function Home() {
 
   useEffect(() => {
     fetchStatus()
-  }, [])
+  }, [org?.id])
 
 
   return (
     <main className="min-h-screen p-8" style={{ backgroundColor: theme.bg }}>
       <div className="mx-auto max-w-7xl space-y-8">
         <DashboardHeader
-          brandName="Endcap"
           activePage="overview"
           dataThrough={dataThrough}
           isStale={isStale}
+          onDataRefresh={async () => {
+            await fetchStatus()
+            await loadData()
+          }}
         />
 
-        <button
-          onClick={() => setShowUpload((prev) => !prev)}
-          className="rounded-xl px-4 py-2 text-sm font-medium"
-          style={{
-            backgroundColor: "#F6F1E8",
-            border: "1px solid #D8CFBF",
-          }}
-        >
-          {showUpload ? "Hide Upload" : "Upload Data"}
-        </button>
-
-        <div className={`mt-4 transition-all duration-300 ${showUpload ? "opacity-100" : "opacity-0"}`}>
-          {showUpload && API_BASE_URL && (
-            <div className="mt-4">
-              <KeheUploadCard
-                apiBaseUrl={API_BASE_URL}
-                onUploadSuccess={async () => {
-                  await fetchStatus()
-                  await loadData()
-                  setShowUpload(false)
-                }}
-              />
-            </div>
-          )}
-        </div>
 
         <FilterBar
           filters={filters}
@@ -734,6 +716,8 @@ export default function Home() {
             month_year: "Month",
           }}
         />
+
+        <InsightsSection orgId={org?.id ?? null} filters={filters} endpoint="overview"/>
 
         <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">
           <ChartSection

@@ -1,6 +1,7 @@
 from pathlib import Path
 import pandas as pd
 import re
+from backend.storage.supabase_storage import download_file
 
 DATA_ROOT = Path("backend/data").resolve()
 
@@ -29,7 +30,13 @@ def load_org_tables(org_id: str):
     features_df_path = org_path / "features_df.parquet"
 
     if not features_df_path.exists():
-        raise FileNotFoundError(f"Missing features_df for org: {org_id}")
+        print(f"⬇️ Downloading features_df for {org_id} from Supabase...")
+
+        download_file(
+            org_id=org_id,
+            remote_path="processed/features_df.parquet",
+            local_path=str(features_df_path),
+        )
 
     features_df = pd.read_parquet(features_df_path)
 
