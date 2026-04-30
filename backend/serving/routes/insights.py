@@ -19,6 +19,7 @@ from backend.data_pipeline.table_loader import load_org_tables
 router = APIRouter(prefix="/insights", tags=["Insights"])
 
 
+
 @router.get("/overview")
 def get_overview_insights(
     org_id: str = Query(...),
@@ -26,43 +27,35 @@ def get_overview_insights(
 ):
     TIME_FILTERS = {"year", "month", "month_year"}
 
-    # Hide insights if time filtered
     has_time_filter = any(filters.get(k) for k in TIME_FILTERS)
     if has_time_filter:
         return []
 
     features_df = load_org_tables(org_id)
 
-    # 👇 Split filters
     NON_TIME_FILTERS = {
         k: v for k, v in filters.items()
         if k not in TIME_FILTERS
     }
 
-    # 👇 Apply ONLY non-time filters to BOTH
-    df = filter_table(features_df, **NON_TIME_FILTERS)
+    df = filter_table(features_df, **filters)
     df_all_time = filter_table(features_df, **NON_TIME_FILTERS)
-
-    BLOCK_VOID_FILTERS = {"sku", "status"}
 
     chain_df = chain_insight_table(df)
     sku_df = sku_insight_table(df)
 
-    chain_velocity_gap_df = chain_sku_velocity_gap_opportunity_table(
-        df,
-        df_all_time,
-    )
+    #chain_velocity_gap_df = chain_sku_velocity_gap_opportunity_table(
+    #    df,
+    #    df_all_time,
+    #)
+
     insights = []
 
-    chain_growth = build_chain_growth_insight(chain_df)
-    sku_velocity = build_sku_velocity_insight(sku_df)
+    # ✅ pass filters
+    chain_growth = build_chain_growth_insight(chain_df, filters=filters)
+    sku_velocity = build_sku_velocity_insight(sku_df, filters=filters)
 
-    print("CHAIN VELOCITY GAP DF")
-    print(chain_velocity_gap_df)
-    print(chain_velocity_gap_df.columns)
-    print(chain_velocity_gap_df.shape)
-
-    velocity_gap = build_velocity_gap_opportunity_insight(chain_velocity_gap_df)
+    #velocity_gap = build_velocity_gap_opportunity_insight(chain_velocity_gap_df)
 
     if chain_growth:
         insights.append(chain_growth)
@@ -70,10 +63,10 @@ def get_overview_insights(
     if sku_velocity:
         insights.append(sku_velocity)
 
-    if velocity_gap:
-        insights.append(velocity_gap)
+    #if velocity_gap:
+    #    insights.append(velocity_gap)
 
-    # Void logic (still special-case)
+    BLOCK_VOID_FILTERS = {"sku", "status"}
     has_blocked_void_filter = any(filters.get(k) for k in BLOCK_VOID_FILTERS)
 
     if not has_blocked_void_filter:
@@ -84,7 +77,8 @@ def get_overview_insights(
 
         void_df = filter_table(features_df, **void_filters)
 
-        sku_voids = build_void_opportunity_insight(void_df)
+        # ✅ pass filters
+        sku_voids = build_void_opportunity_insight(void_df, filters=filters)
 
         if sku_voids:
             insights.append(sku_voids)
@@ -101,9 +95,6 @@ def get_store_health_insights(
 
     insights = []
 
-    # 1. Channel reorder driver
-
-
     TIME_FILTERS = {"year", "month", "month_year"}
 
     NON_TIME_FILTERS = {
@@ -111,7 +102,6 @@ def get_store_health_insights(
         if k not in TIME_FILTERS
     }
 
-    df = filter_table(features_df, **filters)
     df_all_time_same_filters = filter_table(features_df, **NON_TIME_FILTERS)
 
     channel_reorder_df = channel_reorder_insight_table(
@@ -119,13 +109,17 @@ def get_store_health_insights(
         df_all_time_same_filters,
     )
 
-    channel_reorder = build_channel_reorder_driver_insight(channel_reorder_df)
+    # ✅ pass filters
+    channel_reorder = build_channel_reorder_driver_insight(
+        channel_reorder_df,
+        filters=filters,
+    )
 
     if channel_reorder:
         insights.append(channel_reorder)
 
-    # 2. Store health mix shift
-    store_health_mix = build_chain_struggling_insight(df)
+    # ✅ pass filters
+    store_health_mix = build_chain_struggling_insight(df, filters=filters)
 
     if store_health_mix:
         insights.append(store_health_mix)

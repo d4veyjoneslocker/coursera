@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Lightbulb, Target } from "lucide-react"
 
 type InsightPart =
@@ -264,6 +264,7 @@ export function InsightsSection({
 }: InsightsSectionProps) {
   const [insights, setInsights] = useState<Insight[]>([])
   const [loading, setLoading] = useState(false)
+  const latestInsightRequestRef = useRef(0)
 
   const hasTimeFilter = useMemo(() => {
     return Boolean(filters.year || filters.month || filters.month_year)
@@ -272,6 +273,7 @@ export function InsightsSection({
   useEffect(() => {
     async function fetchInsights() {
       if (!orgId) return
+      const requestId = ++latestInsightRequestRef.current
 
       setLoading(true)
 
@@ -300,12 +302,16 @@ export function InsightsSection({
         }
 
         const data = await res.json()
+
+        if (requestId !== latestInsightRequestRef.current) return
         setInsights(Array.isArray(data) ? data : [])
       } catch (err) {
         console.error("Failed to fetch insights:", err)
         setInsights([])
       } finally {
-        setLoading(false)
+          if (requestId === latestInsightRequestRef.current) {
+            setLoading(false)
+          }
       }
     }
 

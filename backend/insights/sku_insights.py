@@ -1,6 +1,8 @@
 import pandas as pd
+from backend.insights.insights_helper import build_filter_context
 
-def build_sku_velocity_insight(sku_df):
+
+def build_sku_velocity_insight(sku_df, filters=None):
     df = sku_df.copy()
 
     change_col = "vpo_l3m_abs"
@@ -35,11 +37,16 @@ def build_sku_velocity_insight(sku_df):
 
     tone = "positive" if row[change_col] > 0 else "negative"
 
+    context_str, context_parts = build_filter_context(
+        filters,
+        exclude_keys={"sku"},
+    )
+
     return {
         "type": "sku_velocity",
         "summary": (
             f"{row['sku']} velocity is {up_down} {abs(row[change_col]):.1f} "
-            f"units per pod per week vs the prior 3 months."
+            f"units per pod per week{context_str} vs the prior 3 months."
         ),
         "parts": [
             {"type": "chip", "value": row["sku"], "tone": "neutral"},
@@ -51,12 +58,14 @@ def build_sku_velocity_insight(sku_df):
                 "value": f"{abs(row[change_col]):.1f} units per pod/week",
                 "tone": tone,
             },
+            *context_parts,
             {"type": "text", "value": " vs the prior 3 months."},
         ],
         "sku": row["sku"],
         "abs_change": row[change_col],
         "pct_change": row.get("vpo_l3m_pct"),
     }
+
 
 def get_last_completed_months(df, month_col="month_year", n=3):
 
@@ -72,7 +81,7 @@ def get_last_completed_months(df, month_col="month_year", n=3):
     return completed_months[-n:]
 
 
-def build_void_opportunity_insight(df, penetration_threshold=0.15):
+def build_void_opportunity_insight(df, filters=None, penetration_threshold=0.15):
     """
     Returns the single highest-impact void opportunity insight.
     """
@@ -216,11 +225,16 @@ def build_void_opportunity_insight(df, penetration_threshold=0.15):
     # --- 6. Pick highest impact
     top = sorted(results, key=lambda x: x["captured_units"], reverse=True)[0]
 
+    context_str, context_parts = build_filter_context(
+        filters,
+        exclude_keys={"sku", "chain"},
+    )
+
     # --- 7. Return insight
     return {
         "type": "distribution_opportunity",
         "summary": (
-            f"{top['sku']} isn't sold in {top['void_stores']} stores in {top['chain']}, "
+            f"{top['sku']} isn't sold in {top['void_stores']} stores in {top['chain']}{context_str}, "
             f"representing ~{top['captured_units']:,} units/year in upside."
         ),
         "parts": [
@@ -229,6 +243,7 @@ def build_void_opportunity_insight(df, penetration_threshold=0.15):
             {"type": "chip", "value": f"{top['void_stores']} stores", "tone": "neutral"},
             {"type": "text", "value": " in "},
             {"type": "chip", "value": top["chain"], "tone": "neutral"},
+            *context_parts,
             {"type": "text", "value": ", representing "},
             {
                 "type": "chip",
@@ -242,7 +257,8 @@ def build_void_opportunity_insight(df, penetration_threshold=0.15):
         "impact_units": top["captured_units"],
     }
 
-def build_velocity_gap_opportunity_insight(chain_sku_df):
+
+def build_velocity_gap_opportunity_insight(chain_sku_df, filters=None):
     df = chain_sku_df.copy()
 
     required_cols = {
@@ -323,30 +339,36 @@ def build_velocity_gap_opportunity_insight(chain_sku_df):
     gap_ratio = best["gap_ratio"]
     estimated_units_opportunity = best["estimated_units_opportunity"]
 
+    context_str, context_parts = build_filter_context(
+        filters,
+        exclude_keys={"sku", "chain", "channel"},
+    )
+
     return {
-    "type": "distribution_opportunity",
-    "summary": (
-        f"{sku} is selling {gap_ratio:.1f}x faster in "
-        f"{high['chain']} than {low['chain']}."
-    ),
-    "parts": [
-        {"type": "chip", "value": str(sku), "tone": "neutral"},
-        {"type": "text", "value": " is selling "},
-        {
-            "type": "chip",
-            "value": f"{gap_ratio:.1f}x faster",
-            "tone": "positive",
-        },
-        {"type": "text", "value": " in "},
-        {"type": "chip", "value": str(high["chain"]), "tone": "neutral"},
-        {"type": "text", "value": " than "},
-        {"type": "chip", "value": str(low["chain"]), "tone": "neutral"},
-        {"type": "text", "value": ", representing "},
-        {
-            "type": "chip",
-            "value": f"~{estimated_units_opportunity:,.0f} units/month",
-            "tone": "positive",
-        },
-        {"type": "text", "value": " in upside."},
-    ],
-}
+        "type": "distribution_opportunity",
+        "summary": (
+            f"{sku} is selling {gap_ratio:.1f}x faster in "
+            f"{high['chain']} than {low['chain']}{context_str}."
+        ),
+        "parts": [
+            {"type": "chip", "value": str(sku), "tone": "neutral"},
+            {"type": "text", "value": " is selling "},
+            {
+                "type": "chip",
+                "value": f"{gap_ratio:.1f}x faster",
+                "tone": "positive",
+            },
+            {"type": "text", "value": " in "},
+            {"type": "chip", "value": str(high["chain"]), "tone": "neutral"},
+            {"type": "text", "value": " than "},
+            {"type": "chip", "value": str(low["chain"]), "tone": "neutral"},
+            *context_parts,
+            {"type": "text", "value": ", representing "},
+            {
+                "type": "chip",
+                "value": f"~{estimated_units_opportunity:,.0f} units/month",
+                "tone": "positive",
+            },
+            {"type": "text", "value": " in upside."},
+        ],
+    }

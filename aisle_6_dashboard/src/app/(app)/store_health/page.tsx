@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useOrg } from "@/components/OrgContext"
 
 import { Card, CardContent } from "@/components/ui/card"
@@ -241,6 +241,8 @@ export default function StoresPage() {
     "status",
   ])
 
+  const latestRequestRef = useRef(0)
+
   const [barOneData, setBarOneData] = useState<MetricRow[]>([])
   const [barTwoData, setBarTwoData] = useState<MetricRow[]>([])
   const [pieData, setPieData] = useState<PieRow[]>([])
@@ -293,9 +295,11 @@ export default function StoresPage() {
   }
 
   async function loadData() {
-        if (!org?.id) return
+      if (!org?.id) return
 
-        try {
+      const requestId = ++latestRequestRef.current
+
+      try {
         const filterRequests = Object.fromEntries(
           FILTER_KEYS.map((key) => [key, buildFilterUrl(key, filters, org.id)])
         )
@@ -323,6 +327,11 @@ export default function StoresPage() {
         )
 
         const results = Object.fromEntries(responseEntries)
+
+        if (requestId !== latestRequestRef.current) {
+          console.log("IGNORED STALE STORE HEALTH RESPONSE", { requestId })
+          return
+        }
 
         setFilterOptions({
           chain: Array.isArray(results.chain) ? results.chain : [],

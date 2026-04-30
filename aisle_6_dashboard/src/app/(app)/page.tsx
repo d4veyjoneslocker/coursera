@@ -1,7 +1,7 @@
 "use client"
 
 import { useOrg } from "@/components/OrgContext"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -437,6 +437,9 @@ export default function Home() {
     }
   }, [org])
 
+  const latestRequestRef = useRef(0)
+
+
   const [filters, setFilters] = useState<Record<string, string[]>>({
     chain: [],
     channel: [],
@@ -492,6 +495,14 @@ export default function Home() {
   const loadData = async () => {
     if (!org?.id) return
 
+    const requestId = ++latestRequestRef.current
+
+    console.log("LOAD DATA START", {
+      requestId,
+      time: new Date().toISOString(),
+      filters,
+    })
+
     try {
       const filterRequests = Object.fromEntries(
         FILTER_KEYS.map((key) => [key, buildFilterUrl(key, filters, org.id)])
@@ -522,6 +533,20 @@ export default function Home() {
       )
 
       const results = Object.fromEntries(responseEntries)
+
+      if (requestId !== latestRequestRef.current) {
+        console.log("IGNORED STALE RESPONSE", { requestId })
+        return
+      }
+
+      console.log("LOAD DATA FINISH", {
+        requestId,
+        time: new Date().toISOString(),
+        filters,
+        chainTableRows: Array.isArray(results.chainTable)
+          ? results.chainTable.length
+          : "not array",
+      })
 
       setFilterOptions({
         chain: Array.isArray(results.chain) ? results.chain : [],

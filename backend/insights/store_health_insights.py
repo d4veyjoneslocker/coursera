@@ -1,4 +1,7 @@
-def build_chain_struggling_insight(df):
+from backend.insights.insights_helper import build_filter_context
+
+
+def build_chain_struggling_insight(df, filters=None):
     df = df.copy()
 
     # Get one row per store
@@ -46,10 +49,15 @@ def build_chain_struggling_insight(df):
 
     row = counts.sort_values("vs_avg", ascending=False).iloc[0]
 
+    context_str, context_parts = build_filter_context(
+        filters,
+        exclude_keys={"chain", "status"},
+    )
+
     return {
         "type": "chain_struggling",
         "summary": (
-            f"{row['chain']} has {row['struggling_pct']:.0%} of stores marked as struggling, "
+            f"{row['chain']} has {row['struggling_pct']:.0%} of stores marked as struggling{context_str}, "
             f"{row['vs_avg']:+.0%} pts vs your overall average."
         ),
         "parts": [
@@ -60,7 +68,9 @@ def build_chain_struggling_insight(df):
                 "value": f"{row['struggling_pct']:.0%}",
                 "tone": "negative",
             },
-            {"type": "text", "value": " of stores marked as struggling, "},
+            {"type": "text", "value": " of stores marked as struggling"},
+            *context_parts,
+            {"type": "text", "value": ", "},
             {
                 "type": "chip",
                 "value": f"{row['vs_avg']:+.0%} pts",
