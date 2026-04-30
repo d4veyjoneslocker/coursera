@@ -106,6 +106,9 @@ def calculate_vpo(
         include_current_month=False,
     )
 
+    monthly_units["month_year"] = pd.PeriodIndex(monthly_units["month_year"], freq="M")
+    monthly_active_pods["month_year"] = pd.PeriodIndex(monthly_active_pods["month_year"], freq="M")
+
     result = monthly_units.merge(
         monthly_active_pods,
         on=non_time_cols + ["month_year"],
@@ -296,3 +299,67 @@ def calculate_average_skus_per_store(df, group_cols=None):
     )
 
     return result
+
+def calculate_store_table_vpo(df_all_time, group_cols):
+    current_month = pd.Timestamp.today().to_period("M")
+    last_full_month = current_month - 1
+
+    df = df_all_time[df_all_time["month_year"] <= last_full_month].copy()
+
+    if df.empty:
+        return pd.DataFrame(columns=group_cols + ["vpo"])
+
+    pod_cols = group_cols + ["sku"]
+
+    monthly_units = (
+        df.groupby(pod_cols + ["month_year"], as_index=False)
+        .agg(units=("units", "sum"))
+    )
+
+    if monthly_units.empty:
+        return pd.DataFrame(columns=group_cols + ["vpo"])
+
+    active_windows = monthly_units[pod_cols + ["month_year"]].drop_duplicates()
+    active_windows = active_windows.rename(columns={"month_year": "sale_month"})
+
+    if active_windows.empty:
+        return pd.DataFrame(columns=group_cols + ["vpo"])
+
+    def expand_active_window(row):
+        months = pd.period_range(row["sale_month"], row["sale_month"] + 5, freq="M")
+        months = [m for m in months if m <= last_full_month]
+
+        if len(months) == 0:
+            return None
+
+        return pd.DataFrame({
+            **{col: row[col] for col in pod_cols},
+            "month_year": months,
+        })
+
+    active_frames = [
+        frame
+        for _, row in active_windows.iterrows()
+        if (frame := expand_active_window(row)) is not None
+    ]
+
+    if not active_frames:
+        return pd.DataFrame(columns=group_cols + ["vpo"])
+
+    active_spine = pd.concat(active_frames, ignore_index=True).drop_duplicates()
+
+    pod_months = (
+        active_spine.groupby(group_cols, as_index=False)
+        .agg(active_pod_months=("sku", "count"))
+    )
+
+    units_total = (
+        monthly_units.groupby(group_cols, as_index=False)
+        .agg(units_total=("units", "sum"))
+    )
+
+    result = units_total.merge(pod_months, on=group_cols, how="left")
+
+    result["vpo"] = result["units_total"] / result["active_pod_months"] / 4
+
+    return result[group_cols + ["vpo"]]

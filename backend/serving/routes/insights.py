@@ -1,9 +1,13 @@
 from fastapi import APIRouter, Depends, Query
 from typing import Optional, List
+import time
 
-from backend.metrics.metric_tables import chain_insight_table, sku_insight_table, channel_reorder_insight_table
-from backend.insights.chain_insights import build_chain_growth_insight
-from backend.insights.sku_insights import build_sku_velocity_insight
+from backend.metrics.metric_tables import chain_insight_table, sku_insight_table, channel_reorder_insight_table, chain_sku_velocity_gap_opportunity_table
+from backend.insights.chain_insights import (
+    build_chain_growth_insight,
+    build_chain_decline_insight,
+)
+from backend.insights.sku_insights import build_sku_velocity_insight, build_void_opportunity_insight, build_velocity_gap_opportunity_insight
 from backend.insights.channel_insights import build_channel_reorder_driver_insight
 from backend.insights.store_health_insights import build_chain_struggling_insight
 from backend.filters.filters import get_filters  # assuming you already have this
@@ -20,22 +24,70 @@ def get_overview_insights(
     org_id: str = Query(...),
     filters: dict = Depends(get_filters),
 ):
+    TIME_FILTERS = {"year", "month", "month_year"}
+
+    # Hide insights if time filtered
+    has_time_filter = any(filters.get(k) for k in TIME_FILTERS)
+    if has_time_filter:
+        return []
+
     features_df = load_org_tables(org_id)
-    df = filter_table(features_df, **filters)
+
+    # 👇 Split filters
+    NON_TIME_FILTERS = {
+        k: v for k, v in filters.items()
+        if k not in TIME_FILTERS
+    }
+
+    # 👇 Apply ONLY non-time filters to BOTH
+    df = filter_table(features_df, **NON_TIME_FILTERS)
+    df_all_time = filter_table(features_df, **NON_TIME_FILTERS)
+
+    BLOCK_VOID_FILTERS = {"sku", "status"}
 
     chain_df = chain_insight_table(df)
     sku_df = sku_insight_table(df)
 
+    chain_velocity_gap_df = chain_sku_velocity_gap_opportunity_table(
+        df,
+        df_all_time,
+    )
     insights = []
 
     chain_growth = build_chain_growth_insight(chain_df)
     sku_velocity = build_sku_velocity_insight(sku_df)
+
+    print("CHAIN VELOCITY GAP DF")
+    print(chain_velocity_gap_df)
+    print(chain_velocity_gap_df.columns)
+    print(chain_velocity_gap_df.shape)
+
+    velocity_gap = build_velocity_gap_opportunity_insight(chain_velocity_gap_df)
 
     if chain_growth:
         insights.append(chain_growth)
 
     if sku_velocity:
         insights.append(sku_velocity)
+
+    if velocity_gap:
+        insights.append(velocity_gap)
+
+    # Void logic (still special-case)
+    has_blocked_void_filter = any(filters.get(k) for k in BLOCK_VOID_FILTERS)
+
+    if not has_blocked_void_filter:
+        void_filters = {
+            k: v for k, v in NON_TIME_FILTERS.items()
+            if k not in BLOCK_VOID_FILTERS
+        }
+
+        void_df = filter_table(features_df, **void_filters)
+
+        sku_voids = build_void_opportunity_insight(void_df)
+
+        if sku_voids:
+            insights.append(sku_voids)
 
     return insights
 
@@ -50,7 +102,23 @@ def get_store_health_insights(
     insights = []
 
     # 1. Channel reorder driver
-    channel_reorder_df = channel_reorder_insight_table(df, features_df)
+
+
+    TIME_FILTERS = {"year", "month", "month_year"}
+
+    NON_TIME_FILTERS = {
+        k: v for k, v in filters.items()
+        if k not in TIME_FILTERS
+    }
+
+    df = filter_table(features_df, **filters)
+    df_all_time_same_filters = filter_table(features_df, **NON_TIME_FILTERS)
+
+    channel_reorder_df = channel_reorder_insight_table(
+        df,
+        df_all_time_same_filters,
+    )
+
     channel_reorder = build_channel_reorder_driver_insight(channel_reorder_df)
 
     if channel_reorder:

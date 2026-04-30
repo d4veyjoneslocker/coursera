@@ -28,7 +28,7 @@ import pandas as pd
 
 
 def apply_sku_map(df: pd.DataFrame, org_id: str) -> pd.DataFrame:
-    sku_map_path = Path(f"backend/data/{org_id}/maps/sku_map.csv")
+    sku_map_path = Path(f"backend/data/{org_id}/maps/sku_name_map.csv")
 
     # -----------------------------
     # Ensure local copy exists
@@ -38,7 +38,7 @@ def apply_sku_map(df: pd.DataFrame, org_id: str) -> pd.DataFrame:
             print("⬇️ Downloading SKU map from Supabase...")
             download_file(
                 org_id=org_id,
-                remote_path="maps/sku_map.csv",
+                remote_path="maps/sku_name_map.csv",
                 local_path=str(sku_map_path),
             )
         except Exception as e:

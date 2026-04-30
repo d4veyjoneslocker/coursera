@@ -5,11 +5,12 @@ import KpiCard from "./KpiCard"
 import { BarChartCard, LineChartCard } from "./ChartCards"
 import type { MetricRow, KpiItem } from "./chartTypes"
 import { formatNumber } from "./chartUtils"
+import { ChartInfoButton } from "@/components/ui/ChartInfoButton" // 👈 add this
 
 type Theme = {
   surface: string
   line: string
-  brown: string
+  accent_color: string
   charcoal: string
 }
 
@@ -21,6 +22,7 @@ type ChartSectionProps = {
   theme: Theme
   valueFormatter?: (value: number) => string
   chartType?: "bar" | "line"
+  info?: React.ReactNode // 👈 add this
 }
 
 export default function ChartSection({
@@ -31,6 +33,7 @@ export default function ChartSection({
   theme,
   valueFormatter,
   chartType = "bar",
+  info, // 👈 add this
 }: ChartSectionProps) {
   const formatValue = (v: number) =>
     valueFormatter ? valueFormatter(v) : formatNumber(v)
@@ -44,20 +47,33 @@ export default function ChartSection({
       }}
     >
       <CardContent className="pt-2 pb-4 px-6 space-y-6">
-        <div className="flex items-center gap-3">
-          <div
-            className="h-[3px] w-24 rounded-full"
-            style={{ backgroundColor: accentColor + "CC" }}
-          />
+        
+        {/* Header */}
+        <div className="flex items-center justify-between gap-4">
+          
+          <div className="flex items-center gap-3">
+            <div
+              className="h-[3px] w-24 rounded-full"
+              style={{ backgroundColor: accentColor + "CC" }}
+            />
 
-          <p
-            className="text-[16px] uppercase tracking-[0.18em] font-medium"
-            style={{ color: "#6B6B6B" }}
-          >
-            {sectionLabel}
-          </p>
+            <p
+              className="text-[16px] uppercase tracking-[0.18em] font-medium"
+              style={{ color: "#6B6B6B" }}
+            >
+              {sectionLabel}
+            </p>
+          </div>
+
+          {/* 👇 Info button */}
+          {info && (
+            <ChartInfoButton title={sectionLabel}>
+              {info}
+            </ChartInfoButton>
+          )}
         </div>
 
+        {/* KPI Cards */}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {kpis.map((kpi) => (
             <KpiCard
@@ -72,6 +88,7 @@ export default function ChartSection({
           ))}
         </div>
 
+        {/* Chart */}
         <div
           className="rounded-[24px] border p-4"
           style={{

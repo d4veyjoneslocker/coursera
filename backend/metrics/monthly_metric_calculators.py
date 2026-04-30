@@ -117,6 +117,12 @@ def calculate_monthly_active_pods(
     full_df = pd.DataFrame(rows)
     if full_df.empty:
         return pd.DataFrame(columns=group_cols + ["active_pods"])
+    
+    spine = spine.copy()
+    full_df = full_df.copy()
+
+    spine["month_year"] = pd.PeriodIndex(spine["month_year"].astype(str), freq="M")
+    full_df["month_year"] = pd.PeriodIndex(full_df["month_year"].astype(str), freq="M")
 
     result = spine.merge(
         full_df[non_time_cols + ["month_year", "active_pods"]],

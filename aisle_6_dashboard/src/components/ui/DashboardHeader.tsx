@@ -21,9 +21,10 @@ type DashboardHeaderProps = {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
-const theme = {
-  blue: "#92B9DC",
-  brown: "#705C4F",
+const DEFAULT_THEME = {
+  primary_color: "#9A93B0",
+  secondary_color: "#C58E82",
+  accent_color: "#C8795A",
   charcoal: "#343332",
   line: "#E5DDD0",
   muted: "#7A746B",
@@ -46,7 +47,14 @@ export default function DashboardHeader({
   onDataRefresh,
 }: DashboardHeaderProps) {
   const router = useRouter()
-  const org = useOrg()
+  const {org, skuColors} = useOrg()
+
+  const theme = {
+    ...DEFAULT_THEME,
+    primary_color: org?.primary_color || DEFAULT_THEME.primary_color,
+    secondary_color: org?.secondary_color || DEFAULT_THEME.secondary_color,
+    accent_color: org?.accent_color || DEFAULT_THEME.accent_color,
+  }
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [dataModalOpen, setDataModalOpen] = useState(false)
@@ -194,8 +202,8 @@ export default function DashboardHeader({
                     href={page.href}
                     className="group relative flex items-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-medium transition-all duration-200"
                     style={{
-                      backgroundColor: isActive ? `${theme.blue}15` : "transparent",
-                      color: isActive ? theme.charcoal : theme.brown,
+                      backgroundColor: isActive ? `${theme.primary_color}15` : "transparent",
+                      color: isActive ? theme.charcoal : theme.accent_color,
                       boxShadow: isActive
                         ? "0 1px 2px rgba(52,51,50,0.08), inset 0 0 0 1px #E5DDD0"
                         : "none",
@@ -207,14 +215,14 @@ export default function DashboardHeader({
                     {!isActive && (
                       <span
                         className="absolute inset-0 rounded-full opacity-0 transition-all duration-200 group-hover:opacity-100"
-                        style={{ backgroundColor: `${theme.brown}15` }}
+                        style={{ backgroundColor: `${theme.accent_color}15` }}
                       />
                     )}
 
                     <span
                       className="absolute bottom-1.5 left-4 right-4 h-[2px] rounded-full transition-all duration-200"
                       style={{
-                        backgroundColor: theme.blue,
+                        backgroundColor: theme.primary_color,
                         opacity: isActive ? 1 : 0,
                       }}
                     />
@@ -422,7 +430,7 @@ export default function DashboardHeader({
                         disabled={isRefreshingUnfi}
                         className="rounded-xl px-4 py-2 text-sm font-medium transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
                         style={{
-                          backgroundColor: theme.blue,
+                          backgroundColor: theme.primary_color,
                           color: theme.charcoal,
                         }}
                       >

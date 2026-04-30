@@ -119,13 +119,10 @@
             "status",
             "skus_carrying",
             "reorders",
-            "reorder_rate",
             "revenue_3m",
             "units_3m",
             "vpo_3m",
-            "reorder_rate_3m",
             "revenue_l3m_pct",
             "units_l3m_pct",
             "vpo_l3m_pct",
-            "reorder_rate_l3m_pct"
         ] 

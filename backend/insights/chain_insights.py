@@ -1,54 +1,47 @@
 def build_chain_decline_insight(chain_df):
-    """
-    Returns a single most important decline insight at the chain level.
-    """
-
     df = chain_df.copy()
 
-    # --- Guard: need prior data
     df = df[df["units_l3m"] > 0]
-
     if df.empty:
         return None
 
-    # --- Total change
     total_change = df["units_l3m_abs"].sum()
 
-    # If business isn't declining, skip
     if total_change >= 0:
         return None
 
-    # --- Add contribution
-    df["contribution"] = df["units_l3m_abs"] / total_change
+    # 👉 Use absolute decline for contribution
+    total_decline = abs(df[df["units_l3m_abs"] < 0]["units_l3m_abs"].sum())
 
-    # --- Materiality filters (simple V1)
+    df["contribution"] = df["units_l3m_abs"].apply(
+        lambda x: abs(x) / total_decline if x < 0 else 0
+    )
+
     total_prior = df["units_l3m"].sum()
-
     df["prior_share"] = df["units_l3m"] / total_prior
 
     df = df[
-        (df["prior_share"] >= 0.02) &  # at least 2% of business
-        (df["units_l3m_abs"] <= -50)  # at least -50 units decline
+        (df["prior_share"] >= 0.02) &
+        (df["units_l3m_abs"] <= -50)
     ]
 
     if df.empty:
         return None
 
-    # --- Pick biggest driver (most negative change)
     row = df.sort_values("units_l3m_abs").iloc[0]
 
     contribution = row["contribution"]
 
-    insight = {
+    return {
         "type": "chain_decline_driver",
         "summary": (
-            f"{row['chain']} drove {abs(contribution):.0%} of your total unit decline, "
+            f"{row['chain']} drove {contribution:.0%} of your total unit decline, "
             f"down {abs(row['units_l3m_abs']):,.0f} units vs the prior 3 months."
         ),
         "parts": [
             {"type": "chip", "value": row["chain"], "tone": "neutral"},
             {"type": "text", "value": " drove "},
-            {"type": "chip", "value": f"{abs(contribution):.0%}", "tone": "negative"},
+            {"type": "chip", "value": f"{contribution:.0%}", "tone": "negative"},
             {"type": "text", "value": " of your total unit decline, "},
             {"type": "chip", "value": f"down {abs(row['units_l3m_abs']):,.0f} units", "tone": "negative"},
             {"type": "text", "value": " vs the prior 3 months."},
@@ -59,28 +52,29 @@ def build_chain_decline_insight(chain_df):
         "contribution": contribution,
     }
 
-    return insight
-
 def build_chain_growth_insight(chain_df):
     df = chain_df.copy()
 
     change_col = "units_l3m_abs"
 
     df = df[df["units_l3m"] > 0]
-
     if df.empty:
         return None
 
     total_change = df[change_col].sum()
 
-    # If business is not growing, skip
     if total_change <= 0:
         return None
 
-    total_prior = df["units_l3m"].sum()
+    # 👉 Explicit total growth (only positives)
+    total_growth = df[df[change_col] > 0][change_col].sum()
 
+    df["contribution"] = df[change_col].apply(
+        lambda x: x / total_growth if x > 0 else 0
+    )
+
+    total_prior = df["units_l3m"].sum()
     df["prior_share"] = df["units_l3m"] / total_prior
-    df["contribution"] = df[change_col] / total_change
 
     df = df[
         (df["prior_share"] >= 0.02) &

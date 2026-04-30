@@ -35,9 +35,6 @@ from backend.metrics.metric_growth_rates import (
 def export_monthly_summary(df):
     result = calculate_monthly_active_pods(df, df, [])
 
-    print("active_pods base:", len(result), result["month_year"].min(), result["month_year"].max())
-    print(result["month_year"].tolist())
-
     result = result.merge(calculate_monthly_revenue(df, []), on="month_year", how="left")
     result = result.merge(calculate_monthly_units(df, []), on="month_year", how="left")
     result = result.merge(calculate_monthly_new_pods(df, []), on="month_year", how="left")
@@ -52,15 +49,9 @@ def export_monthly_summary(df):
         calculate_monthly_average_skus_per_store(df, []), on="month_year", how="left"
     )
 
-    print("post merge:", len(result), result["month_year"].min(), result["month_year"].max())
-    print(result["month_year"].tolist())
-
     result = add_additive_metric_3m(result, [], "revenue")
     result = add_additive_metric_3m(result, [], "units")
     result = add_additive_metric_3m(result, [], "new_pods")
-
-    print("after additive:", len(result), result["month_year"].min(), result["month_year"].max())
-    print(result["month_year"].tolist())
 
     result = result.merge(
         calculate_buying_stores_3m(df, [])[["month_year", "buying_stores_3m"]], 
@@ -78,18 +69,12 @@ def export_monthly_summary(df):
         how="left"
     )
 
-    print("after all 3m:", len(result), result["month_year"].min(), result["month_year"].max())
-    print(result["month_year"].tolist())
-
     result = add_prior_month_columns(result, [], "revenue", l3m=True)
     result = add_prior_month_columns(result, [], "units", l3m=True)
     result = add_prior_month_columns(result, [], "new_pods", l3m=True)
     result = add_prior_month_columns(result, [], "buying_stores", l3m=True)
     result = add_prior_month_columns(result, [], "vpo", l3m=True)
     result = add_prior_month_columns(result, [], "reorder_rate", l3m=True)
-
-    print("after prior month columns:", len(result), result["month_year"].min(), result["month_year"].max())
-    print(result["month_year"].tolist())
 
     result = add_pct_change_columns(result, "revenue", l3m=True)
     result = add_pct_change_columns(result, "units", l3m=True)
@@ -221,12 +206,14 @@ def export_summary_by_grain(df, grain):
 
     result = result.merge(monthly_latest, on=grain, how="left")
 
+    result = result.rename(columns={"new_pods": "all_time_pods"})
+
     return result[
         grain
         + [
             "revenue",
             "units",
-            "new_pods",
+            "all_time_pods",
             "active_pods",
             "buying_stores",
             "vpo",

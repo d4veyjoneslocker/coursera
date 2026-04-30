@@ -15,9 +15,9 @@ import DashboardHeader from "@/components/ui/DashboardHeader"
 import { InsightsSection } from "@/components/InsightsSection"
 
 const DEFAULT_THEME = {
-  blue: "#92B9DC",
-  gold: "#F7B045",
-  brown: "#705C4F",
+  primary_color: "#9A93B0",
+  secondary_color: "#C58E82",
+  accent_color: "#C8795A",
   charcoal: "#343332",
   cream: "#E9E2C8",
   bg: "#F6F2EA",
@@ -187,33 +187,24 @@ function SortableHeader({
 }
 
 export default function StoresPage() {
-  const org = useOrg()
+  const {org, skuColors} = useOrg()
 
   const theme = useMemo(() => {
     return {
       ...DEFAULT_THEME,
-      blue: org?.primary_color || DEFAULT_THEME.blue,
-      gold: org?.secondary_color || DEFAULT_THEME.gold,
-      brown: org?.accent_color || DEFAULT_THEME.brown,
+      primary_color: org?.primary_color || DEFAULT_THEME.primary_color,
+      secondary_color: org?.secondary_color || DEFAULT_THEME.secondary_color,
+      accent_color: org?.accent_color || DEFAULT_THEME.accent_color,
       bg: org?.background_color || DEFAULT_THEME.bg,
     }
   }, [org])
 
   const PIE_COLORS: Record<string, string> = {
-    Healthy: theme.blue,
-    Struggling: theme.gold,
-    Inactive: theme.brown,
+    Healthy: theme.primary_color,
+    Struggling: theme.secondary_color,
+    Inactive: theme.accent_color,
     Revived: theme.charcoal,
     New: theme.cream,
-  }
-
-  const CHANNEL_COLOR_MAP: Record<string, string> = {
-    GROCERY: theme.blue,
-    "E-COMMERCE": theme.gold,
-    NATURAL: theme.brown,
-    INDEPENDENT: theme.charcoal,
-    SPECIALTY: "#A8A29E",
-    ALTERNATIVE: "#D6D3D1",
   }
 
   const FILTER_KEYS = [
@@ -336,7 +327,6 @@ export default function StoresPage() {
         setFilterOptions({
           chain: Array.isArray(results.chain) ? results.chain : [],
           channel: Array.isArray(results.channel) ? results.channel : [],
-          sku: Array.isArray(results.sku) ? results.sku : [],
           distributor: Array.isArray(results.distributor) ? results.distributor : [],
           dc: Array.isArray(results.dc) ? results.dc : [],
           state: Array.isArray(results.state) ? results.state : [],
@@ -415,6 +405,23 @@ export default function StoresPage() {
     fetchStatus()
   }, [org.id])
 
+  const CHANNEL_COLORS = [
+  "#6B8FD6", // blue
+  "#5FA8A0", // teal
+  "#9A7FBF", // purple
+  "#D8B98A", // tan
+  "#D97C6C", // muted red
+  "#8FA58E", // green
+]
+  
+
+  const channelColors = Object.fromEntries(
+    (channelMix ?? []).map((row, index) => [
+      row.name,
+      CHANNEL_COLORS[index % CHANNEL_COLORS.length],
+    ])
+  )
+
   return (
     <main className="min-h-screen p-8" style={{ backgroundColor: theme.bg }}>
       <div className="mx-auto max-w-7xl space-y-8">
@@ -450,6 +457,7 @@ export default function StoresPage() {
             state: "State",
             status: "Status",
           }}
+          theme = {theme}
         />
 
         <InsightsSection orgId={org?.id ?? null} filters={filters} endpoint="store-health"/>
@@ -459,7 +467,7 @@ export default function StoresPage() {
             sectionLabel="BUYING STORES"
             data={barOneData}
             kpis={buyersKpis}
-            accentColor={theme.blue}
+            accentColor={theme.primary_color}
             theme={theme}
           />
 
@@ -467,7 +475,7 @@ export default function StoresPage() {
             sectionLabel="REORDER RATE"
             data={barTwoData}
             kpis={reorderKpis}
-            accentColor={theme.gold}
+            accentColor={theme.secondary_color}
             theme={theme}
             chartType="line"
             valueFormatter={(v) => `${formatPercent(v)}%`}
@@ -528,7 +536,7 @@ export default function StoresPage() {
               <div className="flex items-center gap-3">
                 <div
                   className="h-[3px] w-24 rounded-full"
-                  style={{ backgroundColor: theme.blue + "CC" }}
+                  style={{ backgroundColor: theme.primary_color + "CC" }}
                 />
                 <p
                   className="text-[16px] font-medium uppercase tracking-[0.18em]"
@@ -548,7 +556,7 @@ export default function StoresPage() {
                 <div className="flex h-[240px] items-center">
                   <PieChartCard
                     data={channelMix}
-                    colorMap={CHANNEL_COLOR_MAP}
+                    colorMap={channelColors}
                     centerValue={channelPieKpis?.value}
                     centerLabel={channelPieKpis?.title}
                     theme={theme}
@@ -570,7 +578,7 @@ export default function StoresPage() {
           <div className="mb-4 flex items-center gap-3">
             <div
               className="h-[3px] w-24 rounded-full"
-              style={{ backgroundColor: theme.brown + "CC" }}
+              style={{ backgroundColor: theme.accent_color + "CC" }}
             />
             <p
               className="text-[16px] font-medium uppercase tracking-[0.18em]"
@@ -598,12 +606,12 @@ export default function StoresPage() {
                       ? {
                           borderColor: isActive ? theme.charcoal : "#D8CFBF",
                           backgroundColor: isActive ? theme.charcoal : "#FAF7F1",
-                          color: isActive ? "#FFFFFF" : theme.brown,
+                          color: isActive ? "#FFFFFF" : theme.accent_color,
                         }
                       : {
                           borderColor: isActive ? style!.border : "#D8CFBF",
                           backgroundColor: isActive ? style!.bg : "#FAF7F1",
-                          color: isActive ? style!.text : theme.brown,
+                          color: isActive ? style!.text : theme.accent_color,
                         }
                   }
                   onClick={() =>
@@ -624,7 +632,7 @@ export default function StoresPage() {
               <table className="w-full text-sm">
                 <thead
                   className="sticky top-0 z-10"
-                  style={{ backgroundColor: theme.blue }}
+                  style={{ backgroundColor: theme.primary_color }}
                 >
                   <tr className="[&_th]:px-4 [&_th]:py-3 [&_th]:text-left [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.14em] [&_th]:text-white">
                     <th onClick={() => handleSort("coded_customer")} className="cursor-pointer">

@@ -19,7 +19,10 @@ def build_chain_struggling_insight(df):
     counts["total"] = counts.drop(columns=["chain"]).sum(axis=1)
 
     # % struggling
-    counts["struggling_pct"] = counts.get("Struggling", 0) / counts["total"]
+    if "Struggling" not in counts.columns:
+        counts["Struggling"] = 0
+
+    counts["struggling_pct"] = counts["Struggling"] / counts["total"]
 
     # Filter meaningful chains
     counts = counts[counts["total"] >= 10]
@@ -29,7 +32,7 @@ def build_chain_struggling_insight(df):
 
     # Compare vs overall
     total_stores = counts["total"].sum()
-    total_struggling = counts.get("Struggling", 0).sum()
+    total_struggling = counts["Struggling"].sum() if "Struggling" in counts else 0
 
     overall_pct = total_struggling / total_stores if total_stores > 0 else 0
 

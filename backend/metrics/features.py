@@ -3,16 +3,20 @@ from backend.data_validation.phase_1 import validate_first_pod_flag
 import numpy as np
 
 def calculate_store_health_status_monthly(df):
+    df = df.copy()
 
-    today = pd.Timestamp.today()
-    current_period = pd.Period(today, freq="M")
+    if df.empty:
+        return pd.DataFrame(columns=[
+            "coded_customer",
+            "first_month_purchased",
+            "second_to_last_month_purchased",
+            "last_month_purchased",
+            "status",
+            "units",
+            "revenue",
+        ])
 
-    # last full month
-    last_full_month = current_period - 1
-
-    # only keep data up to last full month
-    df = df[df["month_year"] <= last_full_month]
-
+    # 🔥 Use latest available month (includes current month)
     current_month = df["month_year"].max()
 
     table = df.groupby(
@@ -29,10 +33,10 @@ def calculate_store_health_status_monthly(df):
     table["status"] = ""
 
     conditions = [
-        table["first_month_purchased"] >= (current_month),
-        table["last_month_purchased"] <= (current_month - 5),
+        table["first_month_purchased"] >= (current_month-1),
+        table["last_month_purchased"] <= (current_month - 6),
         table["last_month_purchased"] <= (current_month - 3),
-        (table["last_month_purchased"] >= (current_month - 2)) & (table["second_to_last_month_purchased"] <= (current_month - 5)),
+        (table["last_month_purchased"] >= (current_month - 2)) & (table["second_to_last_month_purchased"] <= (current_month - 6)),
         table["last_month_purchased"] >= (current_month - 2),
     ]
 

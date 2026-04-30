@@ -1,6 +1,7 @@
 "use client"
 
-import { createContext, useContext } from "react"
+import { createContext, useContext, useEffect, useState } from "react"
+import { supabase } from "@/lib/supabase"
 
 export type Org = {
   id: string
@@ -14,7 +15,12 @@ export type Org = {
   refresh_cadence: string | null
 }
 
-const OrgContext = createContext<Org | null>(null)
+type OrgContextValue = {
+  org: Org
+  skuColors: Record<string, string>
+}
+
+const OrgContext = createContext<OrgContextValue | null>(null)
 
 export function OrgProvider({
   org,
@@ -23,15 +29,45 @@ export function OrgProvider({
   org: Org
   children: React.ReactNode
 }) {
-  return <OrgContext.Provider value={org}>{children}</OrgContext.Provider>
+  const [skuColors, setSkuColors] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    if (!org?.id) return
+
+    async function loadSkuColors() {
+      const { data, error } = await supabase
+        .from("sku_display_colors")
+        .select("sku_name,color")
+        .eq("org_id", org.id)
+
+      if (error) {
+        console.error("Failed to load SKU colors:", error)
+        return
+      }
+
+      setSkuColors(
+        Object.fromEntries(
+          (data ?? []).map((row) => [row.sku_name, row.color])
+        )
+      )
+    }
+
+    loadSkuColors()
+  }, [org?.id])
+
+  return (
+    <OrgContext.Provider value={{ org, skuColors }}>
+      {children}
+    </OrgContext.Provider>
+  )
 }
 
 export function useOrg() {
-  const org = useContext(OrgContext)
+  const context = useContext(OrgContext)
 
-  if (!org) {
+  if (!context) {
     throw new Error("useOrg must be used inside OrgProvider")
   }
 
-  return org
+  return context
 }

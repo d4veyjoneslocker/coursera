@@ -35,17 +35,14 @@ import FilterBar from "@/components/ui/filters/FilterBar"
 import DashboardHeader from "@/components/ui/DashboardHeader"
 import KpiCard from "@/components/ui/charts/KpiCard"
 import { InsightsSection } from "@/components/InsightsSection"
-
-
-
+import ChartSection from "@/components/ui/charts/ChartSection"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
-
 const DEFAULT_THEME = {
-  blue: "#92B9DC",
-  gold: "#F7B045",
-  brown: "#705C4F",
+  primary_color: "#9A93B0",
+  secondary_color: "#C58E82",
+  accent_color: "#C8795A",
   charcoal: "#343332",
   cream: "#E9E2C8",
   bg: "#F6F2EA",
@@ -54,20 +51,9 @@ const DEFAULT_THEME = {
   surface: "#FFFDF9",
 }
 
-const SKU_COLORS: Record<string, string> = {
-  "VANILLA BEAN": "#92B9DC",
-  "PEANUT BUTTER": "#F7B045",
-  "MOCHA JOE": "#705C4F",
-  "STRAWBERRY": "#F8AAB9",
-}
 
-const CHANNEL_COLORS: Record<string, string> = {
-  "GROCERY": "#6B8FD6",
-  "E-COMMERCE": "#5FA8A0",
-  "NATURAL": "#9A7FBF",
-  "INDEPENDENT": "#D8B98A",
-  "ALTERNATIVE": "#D97C6C",
-}
+
+
 
 const FILTER_KEYS = [
   "chain",
@@ -396,7 +382,7 @@ function PieChartCard({
                   x={pieCx}
                   y={pieCy}
                   textAnchor="middle"
-                  fill={theme.brown}
+                  fill={theme.accent_color}
                   fontSize={11}
                   fontWeight={500}
                   letterSpacing="0.12em"
@@ -437,80 +423,16 @@ function PieChartCard({
   )
 }
 
-function ChartSection({
-  sectionLabel,
-  data,
-  kpis,
-  accentColor,
-  theme,
-}: {
-  sectionLabel: string
-  data: MetricRow[]
-  kpis: KpiItem[]
-  accentColor: string
-  theme: typeof DEFAULT_THEME
-}) {
-  return (
-    <Card
-      className="rounded-[28px] shadow-sm"
-      style={{
-        backgroundColor: theme.surface,
-        borderColor: theme.line,
-      }}
-    >
-      <CardContent className="space-y-6 px-6 pt-2 pb-4">
-        <div className="flex items-center gap-3">
-          <div
-            className="h-[3px] w-24 rounded-full"
-            style={{ backgroundColor: accentColor + "CC" }}
-          />
-
-          <p
-            className="text-[16px] font-medium uppercase tracking-[0.18em]"
-            style={{ color: "#6B6B6B" }}
-          >
-            {sectionLabel}
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          {Array.isArray(kpis) &&
-            kpis.map((kpi) => (
-              <KpiCard
-                key={kpi.key}
-                title={kpi.title}
-                theme={theme}
-                value={formatNumber(kpi.value)}
-                sideValue={kpi.sideValue ?? undefined}
-                sideLabel={kpi.sideLabel ?? undefined}
-                sideType={kpi.sideType ?? "percent"}
-              />
-            ))}
-        </div>
-
-        <div
-          className="rounded-[24px] border p-4"
-          style={{
-            backgroundColor: "#FCFAF6",
-            borderColor: "#EEE5D8",
-          }}
-        >
-          <BarChartCard data={data} accentColor={accentColor} />
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
 
 export default function Home() {
-  const org = useOrg()
+  const {org, skuColors} = useOrg()
 
   const theme = useMemo(() => {
     return {
       ...DEFAULT_THEME,
-      blue: org?.primary_color || DEFAULT_THEME.blue,
-      gold: org?.secondary_color || DEFAULT_THEME.gold,
-      brown: org?.accent_color || DEFAULT_THEME.brown,
+      primary_color: org?.primary_color || DEFAULT_THEME.primary_color,
+      secondary_color: org?.secondary_color || DEFAULT_THEME.secondary_color,
+      accent_color: org?.accent_color || DEFAULT_THEME.accent_color,
       bg: org?.background_color || DEFAULT_THEME.bg,
     }
   }, [org])
@@ -674,6 +596,23 @@ export default function Home() {
     fetchStatus()
   }, [org?.id])
 
+  const CHANNEL_COLORS = [
+  "#6B8FD6", // blue
+  "#5FA8A0", // teal
+  "#9A7FBF", // purple
+  "#D8B98A", // tan
+  "#D97C6C", // muted red
+  "#8FA58E", // green
+]
+  
+
+  const channelColors = Object.fromEntries(
+    (channelPieData ?? []).map((row, index) => [
+      row.name,
+      CHANNEL_COLORS[index % CHANNEL_COLORS.length],
+    ])
+  )
+
 
   return (
     <main className="min-h-screen p-8" style={{ backgroundColor: theme.bg }}>
@@ -715,24 +654,42 @@ export default function Home() {
             year: "Year",
             month_year: "Month",
           }}
+          theme = {theme}
         />
 
-        <InsightsSection orgId={org?.id ?? null} filters={filters} endpoint="overview"/>
-
+        <InsightsSection 
+          orgId={org?.id ?? null} 
+          filters={filters} 
+          endpoint="overview"
+          brandPrimary={DEFAULT_THEME.primary_color}
+          brandPrimaryBg="#EAF3F9"       // soft primary_color bg (lighter version)
+          brandSecondary={DEFAULT_THEME.secondary_color}
+          brandSecondaryBg="#FFF4E3"     // soft gold bg
+        />
+        
         <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">
           <ChartSection
             sectionLabel="Sales"
             data={unitsData}
             kpis={unitsKpis}
-            accentColor={theme.blue}
+            accentColor={theme.primary_color}
             theme={theme}
+            info={
+              <>
+                <p>Sales performance over time.</p>
+                <ul className="mt-2 list-disc pl-4 text-sm text-[#705C4F]">
+                  <li>Includes all distributors</li>
+                  <li>Monthly aggregation</li>
+                </ul>
+              </>
+  }
           />
 
           <ChartSection
             sectionLabel="Distribution"
             data={buyersData}
             kpis={buyersKpis}
-            accentColor={theme.gold}
+            accentColor={theme.secondary_color}
             theme={theme}
           />
 
@@ -740,7 +697,7 @@ export default function Home() {
             sectionLabel="Velocity"
             data={velocityData}
             kpis={velocityKpis}
-            accentColor={theme.brown}
+            accentColor={theme.accent_color}
             theme={theme}
           />
 
@@ -785,7 +742,7 @@ export default function Home() {
                 <div className="flex h-[240px] items-center">
                   <PieChartCard
                     data={skuPieData}
-                    colorMap={SKU_COLORS}
+                    colorMap={skuColors}
                     centerValue={skuPieKpis?.value}
                     centerLabel={skuPieKpis?.title}
                     theme={theme}
@@ -806,7 +763,7 @@ export default function Home() {
               <div className="flex items-center gap-3">
                 <div
                   className="h-[3px] w-24 rounded-full"
-                  style={{ backgroundColor: theme.blue + "CC" }}
+                  style={{ backgroundColor: theme.primary_color + "CC" }}
                 />
                 <p
                   className="text-[16px] font-medium uppercase tracking-[0.18em]"
@@ -826,7 +783,7 @@ export default function Home() {
                 <div className="flex h-[240px] items-center">
                   <PieChartCard
                     data={channelPieData}
-                    colorMap={CHANNEL_COLORS}
+                    colorMap={channelColors}
                     centerValue={channelPieKpis?.value}
                     centerLabel={channelPieKpis?.title}
                     theme={theme}
@@ -841,7 +798,7 @@ export default function Home() {
           <div className="mb-4 flex items-center gap-3">
             <div
               className="h-[3px] w-24 rounded-full"
-              style={{ backgroundColor: theme.blue + "CC" }}
+              style={{ backgroundColor: theme.primary_color + "CC" }}
             />
             <p
               className="text-[16px] font-medium uppercase tracking-[0.18em]"
@@ -856,7 +813,7 @@ export default function Home() {
               <Table>
                 <TableHeader
                   className="sticky top-0 z-10 [&_th]:text-[12px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.14em] [&_th]:text-white"
-                  style={{ backgroundColor: theme.blue }}
+                  style={{ backgroundColor: theme.primary_color }}
                 >
                   <TableRow className="border-b border-black/10">
                     <TableHead className="h-12 px-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">

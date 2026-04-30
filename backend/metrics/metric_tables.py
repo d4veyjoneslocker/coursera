@@ -2,7 +2,7 @@
 import pandas as pd
 from backend.metrics.monthly_metric_calculators import calculate_monthly_units, calculate_monthly_active_pods, calculate_monthly_new_pods, calculate_monthly_buying_stores, calculate_monthly_vpo, calculate_monthly_reorder_rate, calculate_monthly_revenue
 from backend.metrics.metric_growth_rates import add_additive_metric_3m, calculate_buying_stores_3m, calculate_vpo_3m, calculate_reorder_rate_3m, add_prior_month_columns, add_pct_change_columns, add_abs_change_columns
-from backend.metrics.metric_calculators import calculate_units, calculate_revenue, calculate_buying_stores, calculate_vpo
+from backend.metrics.metric_calculators import calculate_units, calculate_revenue, calculate_buying_stores, calculate_vpo, calculate_store_table_vpo
 
 
 def kpi_monthly_table(df, df_all_time, selected_years=None, selected_months=None):
@@ -134,79 +134,54 @@ def chain_table(df):
         "units_l3m_pct",
         ]]
 
-def store_performance(df, df_all_time):
 
-    grain = ["coded_customer"] + ["chain"]
+def store_performance(df, df_all_time):
+    grain = ["coded_customer", "chain"]
 
     store_month = (
         df.groupby(grain + ["month_year"], as_index=False)
         .agg(reordered=("reorder_flag", "max"))
     )
-
     reorders = (
         store_month.groupby(grain, as_index=False)
         .agg(reorders=("reordered", "sum"))
     )
 
     base_result = (
-        df.groupby("coded_customer", as_index=False)
+        df.groupby(grain, as_index=False)
         .agg(
-            chain =("chain", "first"),
             status=("status", "first"),
             first_month_purchased=("first_month_purchased", "first"),
             last_month_purchased=("last_month_purchased", "first"),
         )
     )
 
-    base_result = base_result.merge(reorders, on=grain, how="left")
-    base_result = base_result.merge(calculate_revenue(df, grain), on=grain, how="left")
-    base_result = base_result.merge(calculate_units(df, grain), on=grain, how="left")
-    base_result = base_result.merge(calculate_vpo(df, df_all_time, group_cols=grain), on=grain, how="left")
+    revenue = calculate_revenue(df, grain)
+    units = calculate_units(df, grain)
+    vpo = calculate_store_table_vpo(df_all_time, group_cols=grain)
 
-    monthly_result = calculate_monthly_revenue(df, grain)
-    monthly_result = monthly_result.merge(
-        calculate_monthly_units(df, grain),
-        on=grain + ["month_year"],
-        how="left",
+    result = (
+        base_result
+        .merge(reorders, on=grain, how="left")
+        .merge(revenue, on=grain, how="left")
+        .merge(units, on=grain, how="left")
+        .merge(vpo, on=grain, how="left")
     )
-
-    monthly_result = add_additive_metric_3m(monthly_result, grain, "revenue")
-    monthly_result = add_additive_metric_3m(monthly_result, grain, "units")
-
-
-    monthly_result = add_prior_month_columns(monthly_result, grain, "revenue", l3m=True)
-    monthly_result = add_prior_month_columns(monthly_result, grain, "units", l3m=True)
-
-    monthly_result = add_pct_change_columns(monthly_result, "revenue", l3m=True)
-    monthly_result = add_pct_change_columns(monthly_result, "units", l3m=True)
-
-    current_month = pd.Timestamp.today().to_period("M")
-    monthly_result = monthly_result[monthly_result["month_year"] != current_month]
-
-    latest_month = monthly_result["month_year"].max()
-    monthly_latest = monthly_result[monthly_result["month_year"] == latest_month].copy()
-
-    monthly_latest = monthly_latest[
-        ["coded_customer"] + [
-            "revenue_l3m_pct",
-            "units_l3m_pct",
-        ]
-    ]
-
-    result = base_result.merge(monthly_latest, on="coded_customer", how="left")
 
     result = result.sort_values("units", ascending=False)
 
-    return result[[
-        "coded_customer",
-        "units",
-        "revenue",
-        "reorders",
-        "vpo",
-        "first_month_purchased",
-        "last_month_purchased",
-        "status"
-    ]]
+    return result[
+        [
+            "coded_customer",
+            "units",
+            "revenue",
+            "reorders",
+            "vpo",
+            "first_month_purchased",
+            "last_month_purchased",
+            "status",
+        ]
+    ]
 
 # this is for status pie chart
 def status_counts_dict(df):
@@ -343,5 +318,57 @@ def channel_reorder_insight_table(df, df_all_time):
             "reorder_rate_l3m_abs",
             "buying_stores_3m",
             "buying_stores_l3m",
+        ]
+    ]
+
+def chain_sku_velocity_gap_opportunity_table(df, df_all_time):
+    df = df.copy()
+    df_all_time = df_all_time.copy()
+
+    df["month_year"] = pd.PeriodIndex(df["month_year"].astype(str), freq="M")
+    df_all_time["month_year"] = pd.PeriodIndex(df_all_time["month_year"].astype(str), freq="M")
+
+    grain = ["channel", "sku", "chain"]
+
+    monthly_vpo = calculate_vpo_3m(df, df_all_time, grain)
+    buying_stores = calculate_buying_stores_3m(df, grain)
+    units = calculate_monthly_units(df, grain)
+
+    monthly = (
+        monthly_vpo
+        .merge(
+            buying_stores[grain + ["month_year", "buying_stores_3m"]],
+            on=grain + ["month_year"],
+            how="left",
+        )
+        .merge(
+            units,
+            on=grain + ["month_year"],
+            how="left",
+        )
+    )
+
+    monthly = add_additive_metric_3m(monthly, grain, "units")
+
+    current_month = pd.Timestamp.today().to_period("M")
+    monthly = monthly[monthly["month_year"] != current_month]
+
+    if monthly.empty:
+        return monthly
+
+    latest_month = monthly["month_year"].max()
+    latest = monthly[monthly["month_year"] == latest_month].copy()
+
+    return latest.dropna(
+        subset=["channel", "sku", "chain", "vpo_3m", "buying_stores_3m", "units_3m"]
+    )[
+        [
+            "channel",
+            "sku",
+            "chain",
+            "month_year",
+            "vpo_3m",
+            "buying_stores_3m",
+            "units_3m",
         ]
     ]
