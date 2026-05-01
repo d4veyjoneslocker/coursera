@@ -27,7 +27,7 @@ export default function KeheUploadCard({
   onUploadSuccess,
 }: KeheUploadCardProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const org = useOrg() // 🔥 get org here
+  const {org} = useOrg() // 🔥 get org here
 
   const [file, setFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
