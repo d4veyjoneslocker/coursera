@@ -1,6 +1,6 @@
 import pandas as pd
 from backend.transforms.kehe import transform_kehe_full_pod_vendor
-from backend.storage.supabase_storage import upload_file
+from backend.supabase.storage import upload_file
 
 
 def update_kehe_raw_master(raw_new_month_path, raw_master_path, raw_master_previous_path, org_id: str):

@@ -1,6 +1,6 @@
 from pathlib import Path
 import pandas as pd
-from backend.storage.supabase_storage import download_file
+from backend.supabase.storage import download_file
 
 BASE_DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
@@ -23,7 +23,7 @@ def get_source_file_paths(org_id: str, distributor):
     }
 
 from pathlib import Path
-from backend.storage.supabase_storage import download_file
+from backend.supabase.storage import download_file
 import pandas as pd
 
 

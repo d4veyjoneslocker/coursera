@@ -3,19 +3,17 @@ from __future__ import annotations
 import argparse
 import os
 import requests
+import pandas as pd
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-
-import pandas as pd
 from dotenv import load_dotenv
 from supabase import Client, create_client
-
 from backend.data_pipeline.generate_tables import save_base_tables
+from backend.supabase.storage import get_supabase_client
 
 
 load_dotenv()
-
 
 DATA_ROOT = Path("backend/data")
 ALLOWED_CADENCES = {"daily", "weekly", "monthly"}
@@ -26,29 +24,6 @@ class OrgRecord:
     id: str
     name: str | None
     refresh_cadence: str | None
-
-
-@dataclass
-class OrgCredentials:
-    org_id: str
-    provider: str | None
-    source: str | None
-    account_id: str | None
-    connector_id: str | None
-    username: str | None
-    password: str | None
-
-
-def get_supabase_client() -> Client:
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-
-    if not url or not key:
-        raise ValueError(
-            "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment."
-        )
-
-    return create_client(url, key)
 
 
 def get_orgs_for_cadence(supabase: Client, cadence: str) -> list[OrgRecord]:
@@ -66,32 +41,6 @@ def get_orgs_for_cadence(supabase: Client, cadence: str) -> list[OrgRecord]:
             id=row["id"],
             name=row.get("name"),
             refresh_cadence=row.get("refresh_cadence"),
-        )
-        for row in rows
-    ]
-
-
-def get_org_credentials(supabase: Client, org_id: str) -> list[OrgCredentials]:
-    response = (
-        supabase.table("org_credentials")
-        .select(
-            "org_id, provider, source, account_id, connector_id, username, password"
-        )
-        .eq("org_id", org_id)
-        .execute()
-    )
-
-    rows = response.data or []
-
-    return [
-        OrgCredentials(
-            org_id=row["org_id"],
-            provider=row.get("provider"),
-            source=row.get("source"),
-            account_id=row.get("account_id"),
-            connector_id=row.get("connector_id"),
-            username=row.get("username"),
-            password=row.get("password"),
         )
         for row in rows
     ]
@@ -120,20 +69,6 @@ def write_refresh_metadata(
     pd.Series(meta).to_json(output_dir / "refresh_metadata.json", indent=2)
 
 
-def build_credential_dict(cred: OrgCredentials) -> dict[str, str]:
-    if not cred.account_id or not cred.connector_id or not cred.username or not cred.password:
-        raise ValueError(
-            f"Missing required credential fields for org_id={cred.org_id}, source={cred.source}"
-        )
-
-    return {
-        "account_id": cred.account_id,
-        "connector_id": cred.connector_id,
-        "username": cred.username,
-        "password": cred.password,
-    }
-
-
 def get_row_counts_from_saved_tables(output_dir: Path) -> dict[str, int]:
     row_counts: dict[str, int] = {}
 
@@ -150,22 +85,11 @@ def refresh_org(
 ) -> None:
     print(f"\nRefreshing org: {org.name or org.id} ({org.id})")
 
-    credentials = get_org_credentials(supabase, org.id)
-    if not credentials:
-        raise ValueError(f"No credentials found for org_id={org.id}")
-
-    kehe_cred = next((c for c in credentials if (c.source or "").lower() == "kehe"), None)
-    unfi_cred = next((c for c in credentials if (c.source or "").lower() == "unfi"), None)
-
-    if not kehe_cred and not unfi_cred:
-        raise ValueError(f"Missing both KEHE and UNFI credentials for org_id={org.id}")
-
     output_dir = ensure_org_output_dir(org.id)
 
     save_base_tables(
         output_dir=str(output_dir),
-        kehe_cred=build_credential_dict(kehe_cred) if kehe_cred else None,
-        unfi_cred=build_credential_dict(unfi_cred) if unfi_cred else None,
+        org_id=org.id,
     )
 
     refreshed_at = datetime.now(timezone.utc)
@@ -223,6 +147,7 @@ def refresh_all_for_cadence(cadence: str) -> None:
         print("\nFailure summary:")
         for org_id, message in failures:
             print(f"- {org_id}: {message}")
+
 
 def notify_api_to_clear_cache():
     api_url = os.getenv("API_BASE_URL")

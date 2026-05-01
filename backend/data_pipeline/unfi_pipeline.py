@@ -1,29 +1,22 @@
-import os
 import pandas as pd
 import requests
+from supabase import Client
 from backend.data_pipeline.pipeline_helpers import get_source_file_paths
 from backend.transforms.unfi import transform_unfi_natural_vendor_sales
-from backend.storage.supabase_storage import upload_file
-from dotenv import load_dotenv
-
-load_dotenv()
+from backend.supabase.storage import upload_file
+from backend.supabase.credentials import get_source_credentials
 
 
-
-def get_unfi_env_credentials():
-    return {
-        "account_id": os.getenv("UNFI_ACCOUNT_ID"),
-        "connector_id": os.getenv("UNFI_CONNECTOR_ID"),
-        "username": os.getenv("UNFI_USERNAME"),
-        "password": os.getenv("UNFI_PASSWORD"),
-    }
-
-
-def refresh_unfi_processed_data(org_id: str):
-    unfi_cred = get_unfi_env_credentials()
+def refresh_unfi_processed_data(org_id: str, supabase: Client):
+    unfi_cred = get_source_credentials(
+        supabase=supabase,
+        org_id=org_id,
+        source="unfi",
+        required=True,
+    )
 
     if not all(unfi_cred.values()):
-        raise ValueError("Missing UNFI credentials in environment.")
+        raise ValueError("Missing UNFI credentials for org_id={org_id}")
 
     paths = get_source_file_paths(org_id, "unfi")
     current_path = paths["processed_current"]

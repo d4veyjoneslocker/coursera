@@ -1,7 +1,7 @@
 from pathlib import Path
 import pandas as pd
 import re
-from backend.storage.supabase_storage import download_file
+from backend.supabase.storage import download_file
 
 DATA_ROOT = Path("backend/data").resolve()
 

@@ -8,6 +8,9 @@ from backend.data_pipeline.unfi_pipeline import refresh_unfi_processed_data
 from backend.data_pipeline.generate_tables import save_base_tables
 from backend.data_pipeline.table_loader import clear_table_cache, load_org_tables
 from backend.storage.local_cleanup import delete_local_org_data
+from backend.supabase.storage import get_supabase_client
+
+
 
 router = APIRouter(prefix="/distributors", tags=["Distributors"])
 
@@ -51,7 +54,12 @@ def get_data_status(org_id: str = Query(...)):
 @router.post("/unfi/refresh")
 def refresh_unfi(org_id: str = Query(...)):
     try:
-        refresh_unfi_processed_data(org_id=org_id)
+        supabase = get_supabase_client()
+
+        refresh_unfi_processed_data(
+            org_id=org_id,
+            supabase=supabase,
+        )
 
         save_base_tables(
             output_dir=f"backend/data/{org_id}",
@@ -60,7 +68,6 @@ def refresh_unfi(org_id: str = Query(...)):
 
         clear_table_cache(org_id)
         delete_local_org_data(org_id)
-
 
         return {
             "status": "success",

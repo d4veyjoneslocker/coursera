@@ -4,7 +4,7 @@ import pandas as pd
 from backend.metrics.features import add_features
 from backend.data_pipeline.validate_data import validate_data
 from backend.data_pipeline.pipeline_helpers import get_source_file_paths
-from backend.storage.supabase_storage import upload_file, download_file
+from backend.supabase.storage import upload_file, download_file
 
 
 def load_source(df_list, org_id, source, remote_path):
