@@ -638,7 +638,6 @@ export default function Home() {
     ])
   )
 
-
   return (
     <main className="min-h-screen p-8" style={{ backgroundColor: theme.bg }}>
       <div className="mx-auto max-w-7xl space-y-8">
