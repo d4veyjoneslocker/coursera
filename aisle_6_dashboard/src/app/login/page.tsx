@@ -105,7 +105,7 @@ export default function LoginPage() {
       }
 
       setStatus("Logged in. Redirecting...")
-      router.push("/overview")
+      window.location.href = "/overview"
     } catch (err) {
       console.error(err)
       setStatus("Something went wrong. Please try again.")
