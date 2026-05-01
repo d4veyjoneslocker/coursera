@@ -90,7 +90,7 @@ export default function LoginPage() {
 
 
         setStatus("Account created. Redirecting...")
-        router.push("/overview")
+        router.push("/")
         return
       }
 
@@ -105,7 +105,7 @@ export default function LoginPage() {
       }
 
       setStatus("Logged in. Redirecting...")
-      window.location.href = "/overview"
+      window.location.href = "/"
     } catch (err) {
       console.error(err)
       setStatus("Something went wrong. Please try again.")
