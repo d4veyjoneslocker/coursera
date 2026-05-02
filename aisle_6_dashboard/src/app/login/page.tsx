@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 
 export default function LoginPage() {
+
+  console.log("LOGIN PAGE RENDERED")
+  
   const router = useRouter()
 
   const [mode, setMode] = useState<"login" | "signup">("login")
@@ -118,7 +121,7 @@ export default function LoginPage() {
       setTimeout(() => {
         window.location.href = "/"
       }, 250)
-      
+
     } catch (err) {
       console.error(err)
       setStatus("Something went wrong. Please try again.")
