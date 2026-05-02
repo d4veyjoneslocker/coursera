@@ -118,9 +118,10 @@ export default function LoginPage() {
 
       setStatus("Logged in. Redirecting...")
 
-      console.log("ABOUT TO GO TO ROOT:", window.location.origin + "/")
-      router.push("/")
-      
+      setTimeout(() => {
+        window.location.assign(window.location.origin + "/")
+      }, 1000)
+
     } catch (err) {
       console.error(err)
       setStatus("Something went wrong. Please try again.")
