@@ -94,18 +94,31 @@ export default function LoginPage() {
         return
       }
 
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
+
+      console.log("LOGIN DATA:", data)
+      console.log("LOGIN ERROR:", error)
 
       if (error) {
         setStatus(error.message)
         return
       }
 
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      console.log("SESSION AFTER LOGIN:", session)
+
       setStatus("Logged in. Redirecting...")
-      window.location.href = "/"
+
+      setTimeout(() => {
+        window.location.href = "/"
+      }, 250)
+      
     } catch (err) {
       console.error(err)
       setStatus("Something went wrong. Please try again.")
