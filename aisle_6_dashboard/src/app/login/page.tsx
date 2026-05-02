@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase"
 export default function LoginPage() {
 
   console.log("LOGIN PAGE RENDERED")
-  
+
   const router = useRouter()
 
   const [mode, setMode] = useState<"login" | "signup">("login")
@@ -118,10 +118,9 @@ export default function LoginPage() {
 
       setStatus("Logged in. Redirecting...")
 
-      setTimeout(() => {
-        window.location.href = "/"
-      }, 250)
-
+      console.log("ABOUT TO GO TO ROOT:", window.location.origin + "/")
+      router.push("/")
+      
     } catch (err) {
       console.error(err)
       setStatus("Something went wrong. Please try again.")
@@ -209,7 +208,7 @@ export default function LoginPage() {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           {mode === "signup" && (
             <AuthInput
               id="orgName"

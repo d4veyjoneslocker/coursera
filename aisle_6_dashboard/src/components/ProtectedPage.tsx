@@ -39,23 +39,16 @@ export default function ProtectedPage({
         data: { session },
       } = await supabase.auth.getSession()
 
-      console.log("PROTECTED SESSION:", session)
-
       if (!session?.user) {
-        console.log("NO SESSION — redirecting to login")
-        router.push("/login")
+        router.replace("/login")
         return
       }
-
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("org_id")
         .eq("user_id", session.user.id)
         .single()
-
-      console.log("PROFILE:", profile)
-      console.log("PROFILE ERROR:", profileError)
 
       if (profileError || !profile) {
         setError("Your account exists, but it is not linked to an organization yet.")
@@ -86,9 +79,9 @@ export default function ProtectedPage({
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session?.user) {
-        router.push("/login")
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        router.replace("/login")
       }
     })
 
