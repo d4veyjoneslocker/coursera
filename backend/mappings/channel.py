@@ -9,7 +9,8 @@ channel_map = {
     "Independent East" : "INDEPENDENT",
     "Alternate Channel" : "ALTERNATIVE",
     "Grocery - Chain (National)": "GROCERY",
-    "Grocery - Independent": "GROCERY"
+    "Grocery - Independent": "GROCERY",
+    "Grocery - Regional": "GROCERY"
 }
 
 

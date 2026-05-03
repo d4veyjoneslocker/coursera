@@ -4,23 +4,18 @@ import React, { useEffect, useMemo, useRef, useState } from "react"
 
 
 
-const MONTH_MAP: Record<string, string> = {
-    "1": "January",
-    "2": "February",
-    "3": "March",
-    "4": "April",
-    "5": "May",
-    "6": "June",
-    "7": "July",
-    "8": "August",
-    "9": "September",
-    "10": "October",
-    "11": "November",
-    "12": "December",
-  }
+function formatMonthYear(value: string) {
+  const [year, month] = value.split("-")
+  const date = new Date(Number(year), Number(month) - 1)
 
+  return date.toLocaleString("en-US", {
+    month: "short",   // or "long" if you want "March 2025"
+    year: "numeric",
+  })
+}
 
 type Filters = Record<string, string[]>
+
 
 type FilterBarProps = {
   filters: Filters
@@ -30,19 +25,10 @@ type FilterBarProps = {
   visibleFilters: string[]
   setVisibleFilters: React.Dispatch<React.SetStateAction<string[]>>
   filterLabels?: Record<string, string>
+  theme: any 
 }
 
-const theme = {
-  blue: "#92B9DC",
-  gold: "#F7B045",
-  brown: "#705C4F",
-  charcoal: "#343332",
-  cream: "#E9E2C8",
-  bg: "#F6F2EA",
-  line: "#E5DDD0",
-  chip: "#EEF4F8",
-  surface: "#FFFDF9",
-}
+
 
 const DEFAULT_LABELS: Record<string, string> = {
   chain: "Retailer",
@@ -52,30 +38,9 @@ const DEFAULT_LABELS: Record<string, string> = {
   dc: "DC",
   state: "State",
   year: "Year",
-  month: "Month",
+  month_year: "Month",
   status: "Status",
 }
-
-function getAccent(filterKey: string) {
-  if (filterKey === "channel") return theme.gold
-  if (filterKey === "sku") return theme.charcoal
-  if (filterKey === "year" || filterKey === "month") return theme.brown
-  if (filterKey === "chain") return theme.blue
-  return theme.blue
-}
-
-const SLOT_ACCENTS = [theme.blue, theme.gold, theme.brown, theme.charcoal, theme.blue]
-
-const ALL_FILTER_CARD_ACCENTS = [
-  theme.blue,
-  theme.gold,
-  theme.brown,
-  theme.charcoal,
-  theme.blue,
-  theme.gold,
-  theme.brown,
-  theme.charcoal,
-]
 
 type DropdownStyle = {
   top: number
@@ -91,6 +56,7 @@ export default function FilterBar({
   visibleFilters,
   setVisibleFilters,
   filterLabels,
+  theme
 }: FilterBarProps) {
   const labels = { ...DEFAULT_LABELS, ...filterLabels }
 
@@ -104,6 +70,27 @@ export default function FilterBar({
   const allFiltersPanelRef = useRef<HTMLDivElement | null>(null)
   const singleDropdownRef = useRef<HTMLDivElement | null>(null)
   const filterButtonRefs = useRef<Partial<Record<string, HTMLButtonElement | null>>>({})
+
+  function getAccent(filterKey: string) {
+    if (filterKey === "channel") return theme.secondary_color
+    if (filterKey === "sku") return theme.charcoal
+    if (filterKey === "year" || filterKey === "month_year") return theme.accent_color
+    if (filterKey === "chain") return theme.primary_color
+    return theme.primary_color
+  }
+
+  const SLOT_ACCENTS = [theme.primary_color, theme.secondary_color, theme.accent_color, theme.charcoal, theme.primary_color]
+
+  const ALL_FILTER_CARD_ACCENTS = [
+    theme.primary_color,
+    theme.secondary_color,
+    theme.accent_color,
+    theme.charcoal,
+    theme.primary_color,
+    theme.secondary_color,
+    theme.accent_color,
+    theme.charcoal,
+  ]
 
   useEffect(() => {
     const validVisible = visibleFilters.filter((f) => availableFilters.includes(f))
@@ -201,7 +188,7 @@ export default function FilterBar({
       if (filterKey === "channel") return "All Channels"
       if (filterKey === "sku") return "All SKUs"
       if (filterKey === "year") return "All Years"
-      if (filterKey === "month") return "All Months"
+      if (filterKey === "month_year") return "All Months"
       if (filterKey === "status") return "All Statuses"
       return `All ${label}s`
     }
@@ -209,7 +196,7 @@ export default function FilterBar({
     if (selected.length <= 2) {
       return selected
         .map((value) =>
-          filterKey === "month" ? MONTH_MAP[value] ?? value : value
+          filterKey === "month_year" ? formatMonthYear(value) : value
         )
         .join(", ")
     }
@@ -222,6 +209,13 @@ export default function FilterBar({
     setFilters((prev) => {
       const current = prev[filterKey] ?? []
       const exists = current.includes(value)
+
+      if (filterKey === "month_year") {
+        return {
+          ...prev,
+          [filterKey]: exists ? [] : [value],
+        }
+      }
 
       return {
         ...prev,
@@ -268,10 +262,6 @@ export default function FilterBar({
   function getFilteredOptions(filterKey: string) {
     let raw = filterOptions[filterKey] ?? []
 
-    // 🔥 FIX: sort months numerically
-    if (filterKey === "month") {
-      raw = [...raw].sort((a, b) => Number(a) - Number(b))
-    }
 
     const q = (searchByFilter[filterKey] ?? "").trim().toLowerCase()
 
@@ -332,7 +322,7 @@ export default function FilterBar({
         <div className="space-y-3">
           <p
             className="text-xs uppercase tracking-[0.2em]"
-            style={{ color: theme.brown }}
+            style={{ color: theme.accent_color }}
           >
             Viewing
           </p>
@@ -376,7 +366,7 @@ export default function FilterBar({
               className="rounded-full border px-3 py-1.5 text-xs font-medium"
               style={{
                 borderColor: "#D8CFBF",
-                color: theme.brown,
+                color: theme.accent_color,
                 backgroundColor: "#FAF7F1",
               }}
               onClick={() => {
@@ -393,7 +383,7 @@ export default function FilterBar({
               className="rounded-full border px-3 py-1.5 text-xs font-medium"
               style={{
                 borderColor: "#D8CFBF",
-                color: theme.brown,
+                color: theme.accent_color,
                 backgroundColor: "#FAF7F1",
               }}
               onClick={() => {
@@ -407,7 +397,7 @@ export default function FilterBar({
 
             <button
               className="rounded-full px-3 py-1.5 text-xs font-medium"
-              style={{ color: theme.brown }}
+              style={{ color: theme.accent_color }}
               onClick={clearAllFilters}
             >
               Reset view
@@ -421,7 +411,7 @@ export default function FilterBar({
                 style={{
                   borderColor: "#D8CFBF",
                   backgroundColor: "#FAF7F1",
-                  color: theme.brown,
+                  color: theme.accent_color,
                 }}
               >
                 + {hiddenActiveFilters.length} more filter{hiddenActiveFilters.length > 1 ? "s" : ""} applied
@@ -464,7 +454,7 @@ export default function FilterBar({
               <div>
                 <p
                   className="text-xs uppercase tracking-[0.18em]"
-                  style={{ color: theme.brown }}
+                  style={{ color: theme.accent_color }}
                 >
                   Change {labels[openFilter].toLowerCase()}
                 </p>
@@ -534,14 +524,14 @@ export default function FilterBar({
                       </div>
 
                       <span className="truncate">
-                        {openFilter === "month" ? MONTH_MAP[item] ?? item : item}
+                        {openFilter === "month_year" ? formatMonthYear(item) : item}
                       </span>
                     </div>
 
                     {isSelected && (
                       <span
                         className="ml-3 shrink-0 text-xs font-medium"
-                        style={{ color: theme.brown }}
+                        style={{ color: theme.accent_color }}
                       >
                         selected
                       </span>
@@ -572,7 +562,7 @@ export default function FilterBar({
 
             <button
               className="text-sm font-medium"
-              style={{ color: theme.brown }}
+              style={{ color: theme.accent_color }}
               onClick={() => setOpenFilter(null)}
             >
               Done
@@ -592,12 +582,12 @@ export default function FilterBar({
               <div className="flex items-center gap-3">
                 <div
                   className="h-10 w-[4px] rounded-full"
-                  style={{ backgroundColor: theme.blue }}
+                  style={{ backgroundColor: theme.primary_color }}
                 />
                 <div>
                   <p
                     className="text-xs uppercase tracking-[0.18em]"
-                    style={{ color: theme.brown }}
+                    style={{ color: theme.accent_color }}
                   >
                     Customize
                   </p>
@@ -628,7 +618,7 @@ export default function FilterBar({
 
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             {topFilters.map((currentFilter, index) => {
-            const slotAccent = SLOT_ACCENTS[index] ?? theme.blue
+            const slotAccent = SLOT_ACCENTS[index] ?? theme.primary_color
 
             return (
                 <div
@@ -643,7 +633,7 @@ export default function FilterBar({
                     />
                     <p
                       className="text-xs uppercase tracking-[0.16em]"
-                      style={{ color: theme.brown }}
+                      style={{ color: theme.accent_color }}
                     >
                       Filter {index + 1}
                     </p>
@@ -673,7 +663,7 @@ export default function FilterBar({
                             {active && (
                               <span
                                 className="text-xs font-medium"
-                                style={{ color: theme.brown }}
+                                style={{ color: theme.accent_color }}
                               >
                                 selected
                               </span>
@@ -702,12 +692,12 @@ export default function FilterBar({
               <div className="flex items-center gap-3">
                 <div
                   className="h-10 w-[4px] rounded-full"
-                  style={{ backgroundColor: theme.blue }}
+                  style={{ backgroundColor: theme.primary_color }}
                 />
                 <div>
                   <p
                     className="text-xs uppercase tracking-[0.18em]"
-                    style={{ color: theme.brown }}
+                    style={{ color: theme.accent_color }}
                   >
                     Filter data
                   </p>
@@ -734,7 +724,7 @@ export default function FilterBar({
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {availableFilters.map((filterKey, index) => {
-                const cardAccent = ALL_FILTER_CARD_ACCENTS[index] ?? theme.blue
+                const cardAccent = ALL_FILTER_CARD_ACCENTS[index] ?? theme.primary_color
 
                 return (
                 <div
@@ -750,7 +740,7 @@ export default function FilterBar({
                     <div>
                       <p
                         className="text-xs uppercase tracking-[0.16em]"
-                        style={{ color: theme.brown }}
+                        style={{ color: theme.accent_color }}
                       >
                         {labels[filterKey]}
                       </p>
@@ -821,14 +811,14 @@ export default function FilterBar({
                               </div>
 
                               <span className="truncate">
-                                {filterKey === "month" ? MONTH_MAP[item] ?? item : item}
+                                {filterKey === "month_year" ? formatMonthYear(item) : item}
                               </span>
                             </div>
 
                             {isSelected && (
                               <span
                                 className="ml-3 shrink-0 text-xs font-medium"
-                                style={{ color: theme.brown }}
+                                style={{ color: theme.accent_color }}
                               >
                                 selected
                               </span>
@@ -855,7 +845,7 @@ export default function FilterBar({
             <div className="mt-5 flex gap-3">
               <button
                 className="text-sm font-medium"
-                style={{ color: theme.brown }}
+                style={{ color: theme.accent_color }}
                 onClick={() => setIsAllFiltersOpen(false)}
               >
                 Done

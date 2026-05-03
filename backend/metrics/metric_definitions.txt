@@ -1,0 +1,17 @@
+
+
+| Metric Name            | Type       | Base Definition                                  | Monthly Definition                                       | 3M Definition                                              
+|------------------------|------------|--------------------------------------------------|----------------------------------------------------------|-------------------------------------------------------------|
+| units                  | additive   | Sum of units sold                                | Sum(units) per month                                     | Sum of last 3 months of units                               |
+| revenue                | additive   | Sum of revenue                                   | Sum(revenue) per month                                   | Sum of last 3 months of revenue                             |
+| buying_stores          | additive*  | Unique stores purchasing                         | Count distinct stores per month                          | Sum of monthly buying_stores (NOT deduped)                  |
+| new_buyers             | additive   | Stores purchasing for first time                 | Sum(first_store_flag)                                    | Sum over last 3 months                                      |
+| existing_buyers        | stateful   | Stores eligible to reorder                       | cumulative new_buyers - new_buyers                       | NOT summed — recomputed or rolled carefully                 |
+| repeat_buyers          | additive   | Stores that reordered                            | Sum(reorder_flag at store level)                         | Sum over last 3 months                                      |
+| reorder_rate           | ratio      | repeat_buyers / existing_buyers                  | Monthly repeat / monthly existing                        | (3m repeat_buyers) / (3m existing_buyers)                   |
+| pods (active_pods)     | stateful   | Active store-SKU combinations                    | Cumulative unique pods at that month                     | Sum of monthly pods across 3 months                         |
+| new_pods               | additive   | First-time store-SKU purchases                   | Sum(first_pod_flag)                                      | Sum over last 3 months                                      |
+| vpo                    | ratio      | Total units divided by active pods               | units / pods / 4                                         | units_3m / pods_3m / 4                                      |
+| skus_selling           | additive*  | Unique SKUs selling                              | Count distinct SKUs per month                            | Sum of monthly SKUs                                         |
+| average_skus_per_store | ratio      | Average SKUs selling per store                   | skus_selling / buying_stores                             | recomputed from 3m components                               |
+| reorder_opportunities  | derived    | Same as existing_buyers                          | Same as existing_buyers                                  | Same logic                                                  |

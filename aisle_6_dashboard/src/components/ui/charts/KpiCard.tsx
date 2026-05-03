@@ -9,7 +9,7 @@ type KpiCardProps = {
   sideValue?: number
   sideType?: "percent" | "absolute"
   theme: {
-    brown: string
+    accent_color: string
     charcoal: string
   }
 }
@@ -28,23 +28,17 @@ export default function KpiCard({
   const chipStyles =
     isPositive
       ? {
-          bg: "#EEF6F0",
-          border: "#D7E8DB",
-          text: "#5F7F68",
-          arrowBg: "#E4F0E7",
+          bg: "#EAF3DE",
+          text: "#3B6D11",
         }
       : isNegative
       ? {
-          bg: "#FBF0F0",
-          border: "#EEDADA",
-          text: "#A06161",
-          arrowBg: "#F6E6E6",
+          bg: "#FBF1EF",
+          text: "#A06057",
         }
       : {
           bg: "#F4F1EC",
-          border: "#E7DED2",
-          text: "#7A746B",
-          arrowBg: "#ECE6DD",
+          text: "#705C4F",
         }
 
   return (
@@ -59,7 +53,7 @@ export default function KpiCard({
         <div className="min-w-0">
           <p
             className="text-xs uppercase tracking-[0.12em] leading-tight"
-            style={{ color: theme.brown }}
+            style={{ color: theme.accent_color }}
           >
             {title}
           </p>
@@ -79,17 +73,14 @@ export default function KpiCard({
             {sideValue !== undefined && (
               <>
                 <div
-                  className="inline-flex items-center gap-1.5 rounded-full border px-2 py-1"
+                  className="inline-flex items-center gap-1 rounded-full px-2.5 py-[3px] text-[12px] font-medium ml-[-10px]"                  
                   style={{
                     backgroundColor: chipStyles.bg,
-                    borderColor: chipStyles.border,
                     color: chipStyles.text,
                   }}
                 >
-                  <span
-                    className="flex items-center justify-center rounded-full"
-                    style={{ backgroundColor: chipStyles.arrowBg }}
-                  >
+                  {/* Arrow (no background) */}
+                  <span className="flex h-3 w-3 items-center justify-center">
                     {isPositive ? (
                       <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                         <path
@@ -122,7 +113,8 @@ export default function KpiCard({
                     )}
                   </span>
 
-                  <span className="text-[12px] font-semibold leading-none">
+                  {/* Value */}
+                  <span>
                     {sideType === "absolute"
                       ? `${isPositive ? "+" : isNegative ? "-" : ""}${formatPercent(Math.abs(sideValue))}`
                       : `${formatPercent(sideValue)}%`}
@@ -131,8 +123,8 @@ export default function KpiCard({
 
                 {sideLabel && (
                   <span
-                    className="text-[10px] uppercase tracking-[0.12em]"
-                    style={{ color: theme.brown, opacity: 0.72 }}
+                    className="pr-[3px] text-[10px] uppercase tracking-[0.12em]"
+                    style={{ color: theme.accent_color, opacity: 0.72 }}
                   >
                     {sideLabel}
                   </span>

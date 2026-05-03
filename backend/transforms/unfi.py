@@ -1,10 +1,13 @@
 import pandas as pd
 import numpy as np
-from mappings.sku import sku_map
-from mappings.channel import channel_map
-from mappings.upc import upc_map
+from backend.mappings.channel import channel_map
+from backend.mappings.upc import upc_map
+from backend.data_pipeline.pipeline_helpers import apply_sku_map
+from backend.transforms.set_distributor_data_types import set_data_types
+from backend.transforms.whole_foods_id import add_whole_foods_flags
 
-def transform_unfi_natural_vendor_sales(df):
+def transform_unfi_natural_vendor_sales(df, org_id):
+
     # Convert date columns to datetime format
     date_columns = ['SalesPeriodEnd', 'SalesPeriodStart_Week']
     for col in date_columns:
@@ -39,7 +42,8 @@ def transform_unfi_natural_vendor_sales(df):
 
     # map SKUs
 
-    df["sku"] = df["Description"].map(sku_map)
+    df["sku"] = df["Description"]
+    df = apply_sku_map(df, org_id)
 
     # map UPCs
 
@@ -67,18 +71,18 @@ def transform_unfi_natural_vendor_sales(df):
         df["zip_length"] == 4, "0" + df["Zip"].astype(str),
         df["Zip"].astype(str),
     )
+
+    df["state"] = df["State"].str.upper()
     
     # map Whole Foods
 
-    wf_map = pd.read_csv("mappings/whole_foods.csv", dtype={"zip": str})
-
-    df = df.merge(wf_map, on="zip", how="left")
+    df = add_whole_foods_flags(df, "backend/mappings/whole_foods.csv")
 
     # Updated chain for WF and fill in chain blanks as "Independent"
 
     df["chain"] = np.select(
         [
-            (df["wf_Chain"] == "Whole Foods") & (df["chain"] == "CONFIDENTIAL"),
+            df["is_whole_foods"],
             (df["chain"].isna()) | (df["chain"] == "")            
         ],
         [
@@ -113,7 +117,7 @@ def transform_unfi_natural_vendor_sales(df):
 
     df["state"] = np.where(
         df["chain"] == "WHOLE FOODS", df["wf_State"],
-        df["State"].str.upper()
+        df["state"]
     )
 
     # Update customer name for WF
@@ -140,7 +144,6 @@ def transform_unfi_natural_vendor_sales(df):
     )
 
     # Aggregating all entries in the same month into 1 row
-
     df = (
     df.groupby([
         "coded_customer",
@@ -159,12 +162,19 @@ def transform_unfi_natural_vendor_sales(df):
         "year",
         "month",
         "month_year",
-        ], as_index=False)
+        "possible_whole_foods"
+        ], as_index=False, dropna=False)
       .agg({
           "units": "sum",
           "revenue": "sum",
       })
     )
+
+
+    df["helper"] = df["coded_customer"] + "-" + df["sku"] + "-" + df["month_year"].astype(str)
+    df["pod_helper"] = df["coded_customer"] + "-" + df["sku"]
+
+    df = set_data_types(df)
 
     #------------------------------------------------------------
 
@@ -172,6 +182,8 @@ def transform_unfi_natural_vendor_sales(df):
 
     df = df[
         [
+            "helper",
+            "pod_helper",
             "coded_customer",
             "customer_name",
             "store_number",
@@ -190,6 +202,7 @@ def transform_unfi_natural_vendor_sales(df):
             "month_year",
             "revenue",
             "units",
+            "possible_whole_foods"
         ]
     ]
 

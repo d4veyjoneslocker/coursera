@@ -1,41 +1,416 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabase"
+
 export default function LoginPage() {
+
+  console.log("LOGIN PAGE RENDERED")
+
+  const router = useRouter()
+
+  const [mode, setMode] = useState<"login" | "signup" | "reset">("login")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [orgName, setOrgName] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [status, setStatus] = useState("")
+  const [mounted, setMounted] = useState(false)
+
+  const theme = {
+    bg: "#F7F3E8",
+    surface: "#FFFDF8",
+    gold: "#F7B045",
+    brown: "#705C4F",
+    charcoal: "#343332",
+    line: "#D8CFB7",
+  }
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setStatus("")
+
+    try {
+      if (mode === "reset") {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/update-password`,
+        })
+
+        if (error) {
+          setStatus(error.message)
+          return
+        }
+
+        setStatus("Check your email for a reset link.")
+        return
+      }
+
+      if (mode === "signup") {
+        const trimmedOrgName = orgName.trim()
+
+        if (!trimmedOrgName) {
+          setStatus("Please enter your brand name.")
+          return
+        }
+
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+        })
+
+        if (signUpError) {
+          setStatus(signUpError.message)
+          return
+        }
+
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+
+        if (signInError) {
+          setStatus(`Signup worked, but login failed: ${signInError.message}`)
+          return
+        }
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+
+        if (!session?.user) {
+          setStatus("Signup worked, but no active session was created.")
+          return
+        }
+
+        const user = session.user
+
+        if (!user) {
+          setStatus("Account created, but no user record was returned.")
+          return
+        }
+
+        const { error: rpcError } = await supabase.rpc("create_org_and_profile", {
+          org_name: trimmedOrgName,
+        })
+
+        if (rpcError) {
+          setStatus(`Setup error: ${rpcError.message}`)
+          return
+        }
+
+        setStatus("Account created. Redirecting...")
+        router.push("/")
+        return
+      }
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      console.log("LOGIN DATA:", data)
+      console.log("LOGIN ERROR:", error)
+
+      if (error) {
+        setStatus(error.message)
+        return
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      console.log("SESSION AFTER LOGIN:", session)
+
+      setStatus("Logged in. Redirecting...")
+
+      setTimeout(() => {
+        window.location.assign(window.location.origin + "/")
+      }, 1000)
+
+    } catch (err) {
+      console.error(err)
+      setStatus("Something went wrong. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!mounted) return null
+
   return (
-    <main className="min-h-screen flex items-center justify-center bg-[#FAF7F1] px-6">
-      <div className="w-full max-w-md rounded-2xl border border-[#E5DED3] bg-white p-8 shadow-sm">
-        
-        {/* Title */}
-        <div className="mb-6">
-          <p className="text-xs uppercase tracking-[0.18em] text-[#705C4F]">
-            Aisle 6 Analytics Dashboard
-          </p>
-          <h1 className="mt-2 text-2xl font-semibold text-[#343332]">
-            Enter Password
+    <main
+      className="flex min-h-screen items-center justify-center px-6 py-10"
+      style={{ backgroundColor: theme.bg, color: theme.charcoal }}
+    >
+      <section
+        className="w-full max-w-md rounded-[32px] border p-7 md:p-8"
+        style={{
+          backgroundColor: theme.surface,
+          borderColor: theme.line,
+          boxShadow: "0 18px 50px rgba(52,51,50,0.08)",
+        }}
+      >
+        <div className="mb-8 space-y-3">
+          <div className="flex items-center gap-3">
+            <div
+              className="h-[3px] w-12 rounded-full"
+              style={{ backgroundColor: theme.gold }}
+            />
+            <p
+              className="text-xs font-semibold uppercase tracking-[0.25em]"
+              style={{ color: theme.brown }}
+            >
+              SKUba
+            </p>
+          </div>
+
+          <h1 className="text-3xl font-semibold">
+            {mode === "login"
+              ? "Welcome back"
+              : mode === "reset"
+                ? "Reset your password"
+                : "Create your account"}
           </h1>
+
+          <p className="text-sm leading-6" style={{ color: theme.brown }}>
+            {mode === "login"
+              ? "Log in to access your dashboard."
+              : mode === "reset"
+                ? "Enter your email and we'll send you a reset link."
+                : "Set up your brand account and start building your dashboard."}
+          </p>
         </div>
 
-        {/* Form */}
-        <form action="/api/login" method="POST">
-          <input
-            type="password"
-            name="password"
-            placeholder="Password"
-            className="w-full rounded-xl border border-[#D8CFBF] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#92B9DC]"
-            required
+        {mode !== "reset" && (
+          <div
+            className="mb-6 inline-flex rounded-2xl border p-1"
+            style={{
+              borderColor: theme.line,
+              backgroundColor: theme.bg,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setMode("login")
+                setStatus("")
+              }}
+              className="rounded-xl px-4 py-2 text-sm font-medium transition"
+              style={{
+                backgroundColor: mode === "login" ? theme.charcoal : "transparent",
+                color: mode === "login" ? "#FFFFFF" : theme.brown,
+              }}
+            >
+              Log in
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signup")
+                setStatus("")
+              }}
+              className="rounded-xl px-4 py-2 text-sm font-medium transition"
+              style={{
+                backgroundColor:
+                  mode === "signup" ? theme.charcoal : "transparent",
+                color: mode === "signup" ? "#FFFFFF" : theme.brown,
+              }}
+            >
+              Sign up
+            </button>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          {mode === "signup" && (
+            <AuthInput
+              id="orgName"
+              label="Brand name"
+              type="text"
+              value={orgName}
+              onChange={setOrgName}
+              placeholder="Your brand"
+              theme={theme}
+            />
+          )}
+
+          <AuthInput
+            id="email"
+            label="Email"
+            type="email"
+            value={email}
+            onChange={setEmail}
+            placeholder="you@brand.com"
+            autoComplete="email"
+            theme={theme}
           />
+
+          {mode !== "reset" && (
+            <AuthInput
+              id="password"
+              label="Password"
+              type="password"
+              value={password}
+              onChange={setPassword}
+              placeholder={
+                mode === "login" ? "Enter your password" : "Create a password"
+              }
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              theme={theme}
+            />
+          )}
+
+          {mode === "login" && (
+            <button
+              type="button"
+              onClick={() => {
+                setMode("reset")
+                setStatus("")
+                setPassword("")
+              }}
+              className="text-xs font-semibold underline underline-offset-4"
+              style={{ color: theme.brown }}
+            >
+              Forgot password?
+            </button>
+          )}
 
           <button
             type="submit"
-            className="mt-4 w-full rounded-xl bg-[#343332] px-4 py-3 text-sm font-medium text-white transition hover:opacity-90"
+            disabled={loading}
+            className="w-full rounded-2xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-70"
+            style={{
+              backgroundColor: theme.charcoal,
+              color: "#FFFFFF",
+            }}
           >
-            Continue
+            {loading
+              ? mode === "login"
+                ? "Logging in..."
+                : mode === "reset"
+                  ? "Sending reset link..."
+                  : "Creating account..."
+              : mode === "login"
+                ? "Log in"
+                : mode === "reset"
+                  ? "Send reset link"
+                  : "Create account"}
           </button>
         </form>
 
-        {/* Footer */}
-        <p className="mt-6 text-center text-xs text-[#9A8F82]">
-          Private dashboard
+        {status && (
+          <div
+            className="mt-5 rounded-2xl border px-4 py-3 text-sm"
+            style={{
+              borderColor: theme.line,
+              backgroundColor: theme.bg,
+              color: theme.brown,
+            }}
+          >
+            {status}
+          </div>
+        )}
+
+        <p className="mt-6 text-xs leading-6" style={{ color: theme.brown }}>
+          {mode === "login" ? (
+            <>
+              Need an account?{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signup")
+                  setStatus("")
+                }}
+                className="font-semibold underline underline-offset-4"
+              >
+                Create one
+              </button>
+            </>
+          ) : mode === "reset" ? (
+            <>
+              Remember your password?{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("login")
+                  setStatus("")
+                }}
+                className="font-semibold underline underline-offset-4"
+              >
+                Log in
+              </button>
+            </>
+          ) : (
+            <>
+              Already have an account?{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("login")
+                  setStatus("")
+                }}
+                className="font-semibold underline underline-offset-4"
+              >
+                Log in
+              </button>
+            </>
+          )}
         </p>
-      </div>
+      </section>
     </main>
+  )
+}
+
+function AuthInput({
+  id,
+  label,
+  type,
+  value,
+  onChange,
+  placeholder,
+  autoComplete,
+  theme,
+}: {
+  id: string
+  label: string
+  type: string
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+  autoComplete?: string
+  theme: {
+    line: string
+    charcoal: string
+  }
+}) {
+  return (
+    <div className="space-y-2">
+      <label htmlFor={id} className="text-sm font-medium">
+        {label}
+      </label>
+      <input
+        id={id}
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition"
+        style={{
+          borderColor: theme.line,
+          backgroundColor: "#FFFFFF",
+          color: theme.charcoal,
+        }}
+        required
+      />
+    </div>
   )
 }

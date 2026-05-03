@@ -9,7 +9,7 @@ monthly_filter = [
     "distributor",
     "dc",
     "year",
-    "month",
+    "month_year",
     "status"
 ]
 
@@ -32,7 +32,7 @@ class Filters(BaseModel):
     distributor: list[str] | None = None
     dc: list[str] | None = None
     year: list[str] | None = None
-    month: list[str] | None = None
+    month_year: list[str] | None = None
     status: list[str] | None = None
 
 def generate_filter_api(df, filter_name):
@@ -56,7 +56,7 @@ def get_filters(
     year: list[str] | None = Query(None),
     dc: list[str] | None = Query(None),
     distributor: list[str] | None = Query(None),
-    month: list[str] | None = Query(None),
+    month_year: list[str] | None = Query(None),
     state: list[str] | None = Query(None),
     sku: list[str] | None = Query(None),
     status: list[str] | None = Query(None)
@@ -67,7 +67,7 @@ def get_filters(
         "year": year,
         "dc": dc,
         "distributor": distributor,
-        "month": month,
+        "month_year": month_year,
         "state": state,
         "sku": sku,
         "status": status

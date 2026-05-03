@@ -31,7 +31,7 @@ import CustomLegend from "@/components/ui/CustomLegend"
 type Theme = {
   surface: string
   line: string
-  brown: string
+  accent_color: string
   charcoal: string
 }
 
@@ -407,7 +407,7 @@ export function PieChartCard({
                   x={pieCx}
                   y={pieCy}
                   textAnchor="middle"
-                  fill={theme.brown}
+                  fill={theme.accent_color}
                   fontSize={11}
                   fontWeight={500}
                   letterSpacing="0.12em"
