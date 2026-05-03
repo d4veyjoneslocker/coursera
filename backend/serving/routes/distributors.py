@@ -40,8 +40,10 @@ def get_data_status(org_id: str = Query(...)):
     latest_month = months.max()
 
     current_month = pd.Timestamp.today().to_period("M")
+    last_full_month = current_month - 1
+
     data_month = pd.Period(latest_month, freq="M")
-    is_stale = data_month < current_month
+    is_stale = data_month < last_full_month
 
     return {
         "status": "ready",

@@ -1,5 +1,6 @@
 from backend.insights.insights_helper import build_filter_context
 
+
 def build_chain_decline_insight(chain_df, filters=None):
     df = chain_df.copy()
 
@@ -29,6 +30,8 @@ def build_chain_decline_insight(chain_df, filters=None):
         return None
 
     df["prior_share"] = df["units_l3m"] / total_prior
+
+    df = df[df["chain"].astype(str).str.upper() != "CONFIDENTIAL"]
 
     df = df[
         (df["prior_share"] >= 0.02) &
@@ -104,8 +107,9 @@ def build_chain_growth_insight(chain_df, filters=None):
     df["prior_share"] = df["units_l3m"] / total_prior
 
     df = df[
-        (df["prior_share"] >= 0.02) &
-        (df[change_col] >= 50)
+        (df["chain"].astype(str).str.upper() != "CONFIDENTIAL") &
+        (df[change_col] >= 50) &
+        (df["contribution"] >= 0.10)
     ]
 
     if df.empty:

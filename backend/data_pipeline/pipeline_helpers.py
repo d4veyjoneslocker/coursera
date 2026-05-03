@@ -9,22 +9,15 @@ def get_source_file_paths(org_id: str, distributor):
     base = BASE_DATA_DIR / org_id
 
     return {
-        # RAW LAYER
-        "raw_new_month": base / "raw" / f"{distributor}_new_month.csv",
-        "raw_master": base / "raw" / f"{distributor}_master.csv",
-        "raw_master_previous": base / "raw" / f"{distributor}_master_previous.csv",
+        "raw_new_month": base / "raw" / distributor / f"{distributor}_new_month.csv",
+        "raw_master": base / "raw" / distributor / "raw_master.csv",
+        "raw_master_previous": base / "raw" / distributor / "raw_master_previous.csv",
 
-        # PROCESSED LAYER
-        "processed_current": base / "processed" / f"{distributor}_current.parquet",
-        "processed_previous": base / "processed" / f"{distributor}_previous.parquet",
+        "processed_current": base / "processed_sources" / f"{distributor}_processed.parquet",
+        "processed_previous": base / "processed_sources" / f"{distributor}_processed_previous.parquet",
 
-        # ANALYTICS (unchanged)
-        "analytics_current": base / "analytics" / "combined.parquet",
+        "analytics_current": base / "processed" / "features_df.parquet",
     }
-
-from pathlib import Path
-from backend.supabase.storage import download_file
-import pandas as pd
 
 
 def apply_sku_map(df: pd.DataFrame, org_id: str) -> pd.DataFrame:

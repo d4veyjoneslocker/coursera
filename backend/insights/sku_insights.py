@@ -285,6 +285,9 @@ def build_velocity_gap_opportunity_insight(chain_sku_df, filters=None):
         & (df["vpo_3m"] > 0)
         & (df["vpo_3m"] <= 15)
     ]
+    if "month_year" in df.columns:
+        latest_month = df["month_year"].max()
+        df = df[df["month_year"] == latest_month]
 
     if df.empty:
         return None

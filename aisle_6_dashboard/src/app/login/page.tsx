@@ -10,7 +10,7 @@ export default function LoginPage() {
 
   const router = useRouter()
 
-  const [mode, setMode] = useState<"login" | "signup">("login")
+  const [mode, setMode] = useState<"login" | "signup" | "reset">("login")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [orgName, setOrgName] = useState("")
@@ -37,6 +37,20 @@ export default function LoginPage() {
     setStatus("")
 
     try {
+      if (mode === "reset") {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/update-password`,
+        })
+
+        if (error) {
+          setStatus(error.message)
+          return
+        }
+
+        setStatus("Check your email for a reset link.")
+        return
+      }
+
       if (mode === "signup") {
         const trimmedOrgName = orgName.trim()
 
@@ -89,8 +103,6 @@ export default function LoginPage() {
           setStatus(`Setup error: ${rpcError.message}`)
           return
         }
-
-
 
         setStatus("Account created. Redirecting...")
         router.push("/")
@@ -160,54 +172,62 @@ export default function LoginPage() {
           </div>
 
           <h1 className="text-3xl font-semibold">
-            {mode === "login" ? "Welcome back" : "Create your account"}
+            {mode === "login"
+              ? "Welcome back"
+              : mode === "reset"
+                ? "Reset your password"
+                : "Create your account"}
           </h1>
 
           <p className="text-sm leading-6" style={{ color: theme.brown }}>
             {mode === "login"
               ? "Log in to access your dashboard."
-              : "Set up your brand account and start building your dashboard."}
+              : mode === "reset"
+                ? "Enter your email and we'll send you a reset link."
+                : "Set up your brand account and start building your dashboard."}
           </p>
         </div>
 
-        <div
-          className="mb-6 inline-flex rounded-2xl border p-1"
-          style={{
-            borderColor: theme.line,
-            backgroundColor: theme.bg,
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => {
-              setMode("login")
-              setStatus("")
-            }}
-            className="rounded-xl px-4 py-2 text-sm font-medium transition"
+        {mode !== "reset" && (
+          <div
+            className="mb-6 inline-flex rounded-2xl border p-1"
             style={{
-              backgroundColor: mode === "login" ? theme.charcoal : "transparent",
-              color: mode === "login" ? "#FFFFFF" : theme.brown,
+              borderColor: theme.line,
+              backgroundColor: theme.bg,
             }}
           >
-            Log in
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("login")
+                setStatus("")
+              }}
+              className="rounded-xl px-4 py-2 text-sm font-medium transition"
+              style={{
+                backgroundColor: mode === "login" ? theme.charcoal : "transparent",
+                color: mode === "login" ? "#FFFFFF" : theme.brown,
+              }}
+            >
+              Log in
+            </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setMode("signup")
-              setStatus("")
-            }}
-            className="rounded-xl px-4 py-2 text-sm font-medium transition"
-            style={{
-              backgroundColor:
-                mode === "signup" ? theme.charcoal : "transparent",
-              color: mode === "signup" ? "#FFFFFF" : theme.brown,
-            }}
-          >
-            Sign up
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signup")
+                setStatus("")
+              }}
+              className="rounded-xl px-4 py-2 text-sm font-medium transition"
+              style={{
+                backgroundColor:
+                  mode === "signup" ? theme.charcoal : "transparent",
+                color: mode === "signup" ? "#FFFFFF" : theme.brown,
+              }}
+            >
+              Sign up
+            </button>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           {mode === "signup" && (
@@ -233,18 +253,35 @@ export default function LoginPage() {
             theme={theme}
           />
 
-          <AuthInput
-            id="password"
-            label="Password"
-            type="password"
-            value={password}
-            onChange={setPassword}
-            placeholder={
-              mode === "login" ? "Enter your password" : "Create a password"
-            }
-            autoComplete={mode === "login" ? "current-password" : "new-password"}
-            theme={theme}
-          />
+          {mode !== "reset" && (
+            <AuthInput
+              id="password"
+              label="Password"
+              type="password"
+              value={password}
+              onChange={setPassword}
+              placeholder={
+                mode === "login" ? "Enter your password" : "Create a password"
+              }
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              theme={theme}
+            />
+          )}
+
+          {mode === "login" && (
+            <button
+              type="button"
+              onClick={() => {
+                setMode("reset")
+                setStatus("")
+                setPassword("")
+              }}
+              className="text-xs font-semibold underline underline-offset-4"
+              style={{ color: theme.brown }}
+            >
+              Forgot password?
+            </button>
+          )}
 
           <button
             type="submit"
@@ -258,10 +295,14 @@ export default function LoginPage() {
             {loading
               ? mode === "login"
                 ? "Logging in..."
-                : "Creating account..."
+                : mode === "reset"
+                  ? "Sending reset link..."
+                  : "Creating account..."
               : mode === "login"
                 ? "Log in"
-                : "Create account"}
+                : mode === "reset"
+                  ? "Send reset link"
+                  : "Create account"}
           </button>
         </form>
 
@@ -291,6 +332,20 @@ export default function LoginPage() {
                 className="font-semibold underline underline-offset-4"
               >
                 Create one
+              </button>
+            </>
+          ) : mode === "reset" ? (
+            <>
+              Remember your password?{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("login")
+                  setStatus("")
+                }}
+                className="font-semibold underline underline-offset-4"
+              >
+                Log in
               </button>
             </>
           ) : (
