@@ -19,7 +19,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "https://crisp-dashboard.vercel.app",
-        "https://crisp-dashboard-pywlvkw09-d4veyjoneslockers-projects.vercel.app/"
+        "https://crisp-dashboard-git-dev-d4veyjoneslockers-projects.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
