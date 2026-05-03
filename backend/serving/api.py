@@ -18,7 +18,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://crisp-dashboard.vercel.app",  # use your real URL
+        "https://crisp-dashboard.vercel.app",
+        "https://crisp-dashboard-pywlvkw09-d4veyjoneslockers-projects.vercel.app/"
     ],
     allow_credentials=True,
     allow_methods=["*"],
