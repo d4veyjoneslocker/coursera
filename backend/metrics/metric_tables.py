@@ -173,6 +173,7 @@ def store_performance(df, df_all_time):
     return result[
         [
             "coded_customer",
+            "chain",
             "units",
             "revenue",
             "reorders",
@@ -372,3 +373,24 @@ def chain_sku_velocity_gap_opportunity_table(df, df_all_time):
             "units_3m",
         ]
     ]
+
+def top_sales_month_insight_table(df, df_all_time):
+    monthly = kpi_monthly_table(
+        df=df,
+        df_all_time=df_all_time,
+        selected_years=None,
+        selected_months=None,
+    )
+
+    monthly = monthly[[
+        "month_year",
+        "units",
+        "buying_stores",
+        "vpo",
+        "reorder_rate",
+    ]].copy()
+
+    current_month = pd.Timestamp.today().to_period("M")
+    monthly = monthly[monthly["month_year"] != current_month]
+
+    return monthly

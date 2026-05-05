@@ -8,6 +8,7 @@ from backend.serving.routes.upload import router as upload_router
 from backend.serving.routes.distributors import router as distributors_router
 from backend.serving.routes.exports import router as exports_router
 from backend.serving.routes.insights import router as insights_router
+from backend.serving.routes.email import router as email_router
 from backend.data_pipeline.table_loader import clear_table_cache
 
 load_dotenv()
@@ -36,6 +37,7 @@ app.include_router(upload_router)
 app.include_router(distributors_router)
 app.include_router(exports_router)
 app.include_router(insights_router)
+app.include_router(email_router)
 
 
 

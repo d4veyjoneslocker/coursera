@@ -11,7 +11,6 @@ from backend.storage.local_cleanup import delete_local_org_data
 from backend.supabase.storage import get_supabase_client
 
 
-
 router = APIRouter(prefix="/distributors", tags=["Distributors"])
 
 

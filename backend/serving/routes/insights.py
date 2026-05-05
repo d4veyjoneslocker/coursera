@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, Query
 from typing import Optional, List
 import time
 
-from backend.metrics.metric_tables import chain_insight_table, sku_insight_table, channel_reorder_insight_table, chain_sku_velocity_gap_opportunity_table
+from backend.serving.api_helpers import clean_for_json
+from backend.metrics.metric_tables import chain_insight_table, sku_insight_table, channel_reorder_insight_table, chain_sku_velocity_gap_opportunity_table, top_sales_month_insight_table
 from backend.insights.chain_insights import (
     build_chain_growth_insight,
     build_chain_decline_insight,
@@ -14,10 +15,11 @@ from backend.filters.filters import get_filters  # assuming you already have thi
 from backend.filters.filter_table import filter_table
 from backend.serving.api_helpers import clean_for_json  # or wherever this lives
 from backend.data_pipeline.table_loader import load_org_tables
+from backend.insights.sales_insights import build_top_sales_month_insight, build_top_reorder_rate_month_insight
+from backend.exports.insights_email.email_tables import chain_struggling_store_detail_table
 
 
 router = APIRouter(prefix="/insights", tags=["Insights"])
-
 
 
 @router.get("/overview")
@@ -55,7 +57,13 @@ def get_overview_insights(
     chain_growth = build_chain_growth_insight(chain_df, filters=filters)
     sku_velocity = build_sku_velocity_insight(sku_df, filters=filters)
 
+    top_sales_month_df = top_sales_month_insight_table(df, df_all_time)
+    top_sales_month = build_top_sales_month_insight(top_sales_month_df)
+
     #velocity_gap = build_velocity_gap_opportunity_insight(chain_velocity_gap_df)
+
+    if top_sales_month:
+        insights.append(top_sales_month)
 
     if chain_growth:
         insights.append(chain_growth)
@@ -92,6 +100,7 @@ def get_store_health_insights(
 ):
     features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
+    df
 
     insights = []
 
@@ -102,11 +111,18 @@ def get_store_health_insights(
         if k not in TIME_FILTERS
     }
 
-    df_all_time_same_filters = filter_table(features_df, **NON_TIME_FILTERS)
+    df_all_time = filter_table(features_df, **NON_TIME_FILTERS)
+
+    top_sales_month_df = top_sales_month_insight_table(df, df_all_time)
+
+    top_reorder_rate = build_top_reorder_rate_month_insight(top_sales_month_df)
+
+    if top_reorder_rate:
+        insights.append(top_reorder_rate)
 
     channel_reorder_df = channel_reorder_insight_table(
         df,
-        df_all_time_same_filters,
+        df_all_time,
     )
 
     # ✅ pass filters
@@ -125,3 +141,40 @@ def get_store_health_insights(
         insights.append(store_health_mix)
 
     return insights
+
+@router.get("/struggling_stores")
+def get_chain_struggling_stores(
+    org_id: str = Query(...),
+    chain: str = Query(...),
+):
+    features_df = load_org_tables(org_id)
+
+    df = features_df.copy()
+
+    table = chain_struggling_store_detail_table(df, df, chain=chain)
+
+    if table.empty:
+        return {
+            "title": f"Struggling stores in {chain}",
+            "subtitle": "No struggling stores found.",
+            "columns": [],
+            "rows": [],
+        }
+    
+    result = clean_for_json(table)
+
+    return {
+        "title": f"Struggling stores in {chain}",
+        "subtitle": "Stores currently marked as struggling, ranked by unit volume.",
+        "columns": [
+            {"key": "coded_customer", "label": "Customer", "align": "left"},
+            {"key": "chain", "label": "Chain", "align": "left"},
+            {"key": "units", "label": "Units", "align": "right", "format": "number"},
+            {"key": "revenue", "label": "Revenue", "align": "right", "format": "currency"},
+            {"key": "reorders", "label": "Reorders", "align": "right", "format": "number"},
+            {"key": "first_month_purchased", "label": "First Order", "align": "left", "format": "month"},
+            {"key": "last_month_purchased", "label": "Last Order", "align": "left", "format": "month"},
+            {"key": "status", "label": "Status", "align": "left", "format": "status"},
+        ],
+        "rows": table.to_dict(orient="records"),
+    }
