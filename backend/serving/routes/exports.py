@@ -1,9 +1,12 @@
 from fastapi import APIRouter
 from pathlib import Path
+import io
+from io import BytesIO
 import zipfile
 import shutil
+import pandas as pd
 
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from datetime import datetime
 from backend.data_pipeline.table_loader import load_org_tables
@@ -59,4 +62,32 @@ def export_ai_package(org_id: str):
         media_type="application/zip",
         filename="ai_package.zip",
         background=BackgroundTask(lambda: shutil.rmtree(export_path, ignore_errors=True)),
+    )
+
+@router.get("/store_list")
+def export_store_list(org_id: str):
+    df = load_org_tables(org_id)
+
+    result = (
+        df.groupby("coded_customer", as_index=False)
+        .agg({
+            "chain": "first",
+            "store_number": "first",
+            "street_address": "first",
+            "city": "first",
+            "state": "first",
+            "zip": "first",
+        })
+    )
+
+    output = io.StringIO()
+    result.to_csv(output, index=False)
+    output.seek(0)
+
+    return StreamingResponse(
+        output,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=store_list.csv"
+        },
     )
