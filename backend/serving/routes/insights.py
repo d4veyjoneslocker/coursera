@@ -3,7 +3,7 @@ from typing import Optional, List
 import time
 
 from backend.serving.api_helpers import clean_for_json
-from backend.metrics.metric_tables import chain_insight_table, sku_insight_table, channel_reorder_insight_table, chain_sku_velocity_gap_opportunity_table, top_sales_month_insight_table
+from backend.metrics.metric_tables import chain_insight_table, sku_insight_table, channel_reorder_insight_table, chain_sku_velocity_gap_opportunity_table, top_sales_month_insight_table, distribution_opportunity_store_detail_table
 from backend.insights.chain_insights import (
     build_chain_growth_insight,
     build_chain_decline_insight,
@@ -177,4 +177,54 @@ def get_chain_struggling_stores(
             {"key": "status", "label": "Status", "align": "left", "format": "status"},
         ],
         "rows": table.to_dict(orient="records"),
+    }
+
+@router.get("/distribution_opportunity")
+def get_distribution_opportunity_stores(
+    org_id: str = Query(...),
+    chain: str = Query(...),
+    sku: str = Query(...),
+    channel: str = Query(...),
+):
+    features_df = load_org_tables(org_id)
+
+    df = features_df.copy()
+
+    table = distribution_opportunity_store_detail_table(
+        df=df,
+        chain=chain,
+        sku=sku,
+        channel=channel,
+    )
+
+    if table.empty:
+        return {
+            "title": f"Opportunity stores for {sku} in {chain}",
+            "subtitle": "No opportunity stores found.",
+            "columns": [],
+            "rows": [],
+        }
+
+    cleaned = clean_for_json(table)
+    result = cleaned.to_dict(orient="records")
+
+    return {
+        "title": f"Opportunity stores for {sku} in {chain}",
+        "subtitle": (
+            f"Stores in {chain} that buy the brand, "
+            f"but do not currently carry {sku}."
+        ),
+        "columns": [
+            {"key": "coded_customer", "label": "Customer", "align": "left"},            {"key": "street_address", "label": "Address", "align": "left"},
+            {"key": "city", "label": "City", "align": "left"},
+            {"key": "state", "label": "State", "align": "left"},
+            {"key": "zip", "label": "ZIP", "align": "left"},
+            {"key": "carried_skus", "label": "Carried SKUs", "align": "left", "format": "sku_pills"},
+            {"key": "brand_units", "label": "Brand Units", "align": "right", "format": "number"},
+            {"key": "first_month_purchased", "label": "First Order", "align": "left", "format": "month"},
+            {"key": "last_month_purchased", "label": "Last Order", "align": "left", "format": "month"},
+            {"key": "brand_reorders", "label": "Reorders", "align": "left", "format": "month"},
+            {"key": "status", "label": "Status", "align": "left", "format": "status"},
+            ],
+        "rows": result,
     }

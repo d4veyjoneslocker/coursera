@@ -330,6 +330,7 @@ def chain_sku_velocity_gap_opportunity_table(df, df_all_time):
     df_all_time["month_year"] = pd.PeriodIndex(df_all_time["month_year"].astype(str), freq="M")
 
     grain = ["channel", "sku", "chain"]
+    base_grain = ["channel", "chain"]
 
     monthly_vpo = calculate_vpo_3m(df, df_all_time, grain)
     buying_stores = calculate_buying_stores_3m(df, grain)
@@ -342,11 +343,7 @@ def chain_sku_velocity_gap_opportunity_table(df, df_all_time):
             on=grain + ["month_year"],
             how="left",
         )
-        .merge(
-            units,
-            on=grain + ["month_year"],
-            how="left",
-        )
+        .merge(units, on=grain + ["month_year"], how="left")
     )
 
     monthly = add_additive_metric_3m(monthly, grain, "units")
@@ -360,9 +357,183 @@ def chain_sku_velocity_gap_opportunity_table(df, df_all_time):
     latest_month = monthly["month_year"].max()
     latest = monthly[monthly["month_year"] == latest_month].copy()
 
-    return latest.dropna(
+    latest = latest.dropna(
         subset=["channel", "sku", "chain", "vpo_3m", "buying_stores_3m", "units_3m"]
-    )[
+    )
+
+    if latest.empty:
+        return latest
+
+    completed_months = sorted(
+        m for m in df["month_year"].unique()
+        if m < current_month and m <= latest_month
+    )
+
+    recent_3m = completed_months[-3:]
+    carrying_months = completed_months[-6:]
+    universe_months = completed_months[-12:]
+
+    explanation_df = df[df["month_year"].isin(recent_3m)].copy()
+    carrying_df = df[df["month_year"].isin(carrying_months)].copy()
+    universe_df = df[df["month_year"].isin(universe_months)].copy()
+
+    if "status" in explanation_df.columns:
+        explanation_df = explanation_df[explanation_df["status"] != "Inactive"]
+
+    if "status" in carrying_df.columns:
+        carrying_df = carrying_df[carrying_df["status"] != "Inactive"]
+
+    if "status" in universe_df.columns:
+        universe_df = universe_df[universe_df["status"] != "Inactive"]
+
+    if explanation_df.empty or carrying_df.empty or universe_df.empty:
+        return latest
+
+    store_brand_universe = (
+        universe_df
+        .groupby(base_grain + ["coded_customer"], as_index=False)
+        .agg(brand_units_12m=("units", "sum"))
+    )
+
+    store_brand_universe = store_brand_universe[
+        store_brand_universe["brand_units_12m"] > 0
+    ]
+
+    store_brand_units = (
+        explanation_df
+        .groupby(base_grain + ["coded_customer"], as_index=False)
+        .agg(brand_units_3m=("units", "sum"))
+    )
+
+    store_sku_units_3m = (
+        explanation_df
+        .groupby(grain + ["coded_customer"], as_index=False)
+        .agg(sku_units_3m=("units", "sum"))
+    )
+
+    store_sku_units_3m = store_sku_units_3m[
+        store_sku_units_3m["sku_units_3m"] > 0
+    ]
+
+    store_sku_units_6m = (
+        carrying_df
+        .groupby(grain + ["coded_customer"], as_index=False)
+        .agg(sku_units_6m=("units", "sum"))
+    )
+
+    store_sku_units_6m = store_sku_units_6m[
+        store_sku_units_6m["sku_units_6m"] > 0
+    ]
+
+    universe = latest[grain].drop_duplicates().merge(
+        store_brand_universe,
+        on=base_grain,
+        how="left",
+    )
+
+    universe = universe.merge(
+        store_brand_units,
+        on=base_grain + ["coded_customer"],
+        how="left",
+    )
+
+    universe = universe.merge(
+        store_sku_units_3m[grain + ["coded_customer", "sku_units_3m"]],
+        on=grain + ["coded_customer"],
+        how="left",
+    )
+
+    universe = universe.merge(
+        store_sku_units_6m[grain + ["coded_customer", "sku_units_6m"]],
+        on=grain + ["coded_customer"],
+        how="left",
+    )
+
+    store_sku_counts = (
+        universe_df
+        .groupby(base_grain + ["coded_customer"], as_index=False)
+        .agg(num_skus_carried=("sku", "nunique"))
+    )
+
+    universe = universe.merge(
+        store_sku_counts,
+        on=base_grain + ["coded_customer"],
+        how="left",
+    )
+
+    universe["brand_units_3m"] = universe["brand_units_3m"].fillna(0)
+    universe["carries_sku_3m"] = universe["sku_units_3m"].fillna(0) > 0
+    universe["carries_sku_6m"] = universe["sku_units_6m"].fillna(0) > 0
+
+    explanation = (
+        universe
+        .groupby(grain, as_index=False)
+        .agg(
+            total_brand_stores_3m=("coded_customer", "nunique"),
+            carrying_stores_6m=(
+                "coded_customer",
+                lambda x: x[universe.loc[x.index, "carries_sku_6m"]].nunique(),
+            ),
+            carrying_brand_units_per_store_3m=(
+                "brand_units_3m",
+                lambda x: x[universe.loc[x.index, "carries_sku_3m"]].mean(),
+            ),
+            noncarrying_brand_units_per_store_3m=(
+                "brand_units_3m",
+                lambda x: x[~universe.loc[x.index, "carries_sku_6m"]].mean(),
+            ),
+            opportunity_avg_skus=(
+                "num_skus_carried",
+                lambda x: x[~universe.loc[x.index, "carries_sku_6m"]].mean(),
+            ),
+            opportunity_stores_1_sku=(
+                "num_skus_carried",
+                lambda x: int(
+                    (
+                        (~universe.loc[x.index, "carries_sku_6m"])
+                        & (x <= 1)
+                    ).sum()
+                ),
+            ),
+            chain_avg_skus=("num_skus_carried", "mean"),
+        )
+    )
+
+    latest = latest.merge(explanation, on=grain, how="left")
+
+    channel_sku_counts = (
+        universe_df
+        .groupby(["channel", "coded_customer"], as_index=False)
+        .agg(num_skus_carried=("sku", "nunique"))
+    )
+
+    channel_avg_skus = (
+        channel_sku_counts
+        .groupby("channel", as_index=False)
+        .agg(channel_avg_skus=("num_skus_carried", "mean"))
+    )
+
+    latest = latest.merge(channel_avg_skus, on="channel", how="left")
+
+    latest["void_stores_3m"] = (
+        latest["total_brand_stores_3m"] - latest["carrying_stores_6m"]
+    )
+
+    latest["brand_units_lift_pct"] = (
+        (
+            latest["carrying_brand_units_per_store_3m"]
+            - latest["noncarrying_brand_units_per_store_3m"]
+        )
+        / latest["noncarrying_brand_units_per_store_3m"]
+    )
+
+    latest.loc[
+        latest["noncarrying_brand_units_per_store_3m"].isna()
+        | (latest["noncarrying_brand_units_per_store_3m"] <= 0),
+        "brand_units_lift_pct",
+    ] = pd.NA
+
+    return latest[
         [
             "channel",
             "sku",
@@ -370,7 +541,17 @@ def chain_sku_velocity_gap_opportunity_table(df, df_all_time):
             "month_year",
             "vpo_3m",
             "buying_stores_3m",
+            "carrying_stores_6m",
             "units_3m",
+            "total_brand_stores_3m",
+            "void_stores_3m",
+            "carrying_brand_units_per_store_3m",
+            "noncarrying_brand_units_per_store_3m",
+            "brand_units_lift_pct",
+            "opportunity_avg_skus",
+            "opportunity_stores_1_sku",
+            "chain_avg_skus",
+            "channel_avg_skus",
         ]
     ]
 
@@ -394,3 +575,107 @@ def top_sales_month_insight_table(df, df_all_time):
     monthly = monthly[monthly["month_year"] != current_month]
 
     return monthly
+
+def distribution_opportunity_store_detail_table(df, chain, sku, channel):
+    table = df.copy()
+
+    chain_norm = chain.strip().upper()
+    sku_norm = sku.strip().upper()
+    channel_norm = channel.strip().upper()
+
+    table = table[
+        (table["chain"].astype(str).str.strip().str.upper() == chain_norm)
+        & (table["channel"].astype(str).str.strip().str.upper() == channel_norm)
+    ].copy()
+
+    if table.empty:
+        return table
+
+    store_month = (
+        table.groupby(["coded_customer", "month_year"], as_index=False)
+        .agg(reordered=("reorder_flag", "max"))
+    )
+
+    reorders = (
+        store_month.groupby("coded_customer", as_index=False)
+        .agg(brand_reorders=("reordered", "sum"))
+    )
+
+    brand_stores = (
+        table.groupby("coded_customer", as_index=False)
+        .agg({
+            "chain": "first",
+            "channel": "first",
+            "store_number": "first",
+            "street_address": "first",
+            "city": "first",
+            "state": "first",
+            "zip": "first",
+            "units": "sum",
+            "first_month_purchased": "first",
+            "last_month_purchased": "first",
+            "status": "first",
+            "sku": lambda x: sorted(x.dropna().astype(str).unique()),
+        })
+    )
+
+    brand_stores["num_skus_carried"] = brand_stores["sku"].apply(len)
+    brand_stores["carried_skus"] = brand_stores["sku"]
+
+    brand_stores = brand_stores.rename(columns={
+        "units": "brand_units",
+    })
+
+    brand_stores = brand_stores.merge(
+        reorders,
+        on="coded_customer",
+        how="left",
+    )
+
+    sku_stores = (
+        table[
+            table["sku"].astype(str).str.strip().str.upper() == sku_norm
+        ]
+        .groupby("coded_customer", as_index=False)
+        .agg(
+            sku_units=("units", "sum"),
+        )
+    )
+
+    result = brand_stores.merge(
+        sku_stores,
+        on="coded_customer",
+        how="left",
+    )
+
+    result = result[result["sku_units"].isna()].copy()
+
+    if result.empty:
+        return result
+
+    result["target_sku"] = sku
+
+    columns = [
+        "coded_customer",
+        "chain",
+        "channel",
+        "store_number",
+        "street_address",
+        "city",
+        "state",
+        "zip",
+        "carried_skus",
+        "num_skus_carried",
+        "brand_units",
+        "brand_reorders",
+        "first_month_purchased",
+        "last_month_purchased",
+        "status",
+    ]
+
+    existing_cols = [col for col in columns if col in result.columns]
+
+    return result[existing_cols].sort_values(
+        "brand_units",
+        ascending=False,
+    )

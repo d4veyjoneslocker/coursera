@@ -50,8 +50,7 @@ def get_overindexed_concentration(
     group_col: str,
     entity_col: str = "coded_customer",
     min_affected_pct: float = 0.40,
-    min_overindex_pts: float = 0.15,
-    min_index: float = 1.5,
+    min_overindex_pts: float = 0.1,
     min_count: int = 2,
     min_outside_universe_count: int = 5,  # 👈 NEW
 ):
@@ -116,7 +115,6 @@ def get_overindexed_concentration(
             and affected_pct >= min_affected_pct
             and overindex_pts >= min_overindex_pts
             and index is not None
-            and index >= min_index
         ):
             signals.append({
                 "dimension": group_col,
@@ -147,11 +145,13 @@ def get_root_cause_concentration(
     min_count: int = 2,
 ):
     """
-    Checks root-cause-style concentration.
+    Finds the strongest root-cause signal.
 
-    For now:
-    - SKU uses raw concentration among affected stores
-    - State uses over-index vs the relevant store universe
+    If universe_df is provided:
+        → use over-index logic for all dimensions (sku, state)
+
+    If not:
+        → fallback to raw concentration
     """
 
     if dimensions is None:
@@ -160,7 +160,8 @@ def get_root_cause_concentration(
     signals = []
 
     for dim in dimensions:
-        if dim == "state" and universe_df is not None:
+        # ✅ Use over-index logic when possible
+        if universe_df is not None:
             signal = get_overindexed_concentration(
                 affected_df=affected_df,
                 universe_df=universe_df,
@@ -169,6 +170,7 @@ def get_root_cause_concentration(
                 min_count=min_count,
             )
         else:
+            # fallback (shouldn't really happen in your case)
             signal = get_top_concentration(
                 df=affected_df,
                 group_col=dim,
@@ -183,8 +185,8 @@ def get_root_cause_concentration(
     if not signals:
         return None
 
+    # pick strongest signal
     return max(signals, key=lambda x: x.get("overindex_pts", x["pct"]))
-
 
 def describe_root_cause_signal(signal):
     """

@@ -3,6 +3,7 @@ from backend.metrics.metric_tables import (
     chain_insight_table,
     sku_insight_table,
     top_sales_month_insight_table,
+    chain_sku_velocity_gap_opportunity_table
 )
 from backend.insights.chain_insights import build_chain_growth_insight, build_chain_decline_insight
 from backend.insights.store_health_insights import build_chain_struggling_insight
@@ -29,6 +30,7 @@ def build_weekly_digest(features_df):
     chain_df = chain_insight_table(df)
     sku_df = sku_insight_table(df)
     top_month_df = top_sales_month_insight_table(df, df_all_time)
+    opportunity_df = chain_sku_velocity_gap_opportunity_table(df, df_all_time)
 
     what_working = sort_insights([
         build_top_sales_month_insight(top_month_df),
@@ -38,17 +40,23 @@ def build_weekly_digest(features_df):
     ])
 
     opportunities = sort_insights([
-        build_void_opportunity_insight(df_all_time, filters=filters),
+        build_void_opportunity_insight(opportunity_df, filters=filters),
     ])
 
+    chain_struggling_insights = build_chain_struggling_insight(
+        df,
+        filters=filters,
+        limit=2,
+    )
+
     at_risk = sort_insights([
-        build_chain_struggling_insight(df, filters=filters),
+        *chain_struggling_insights,
         build_chain_decline_insight(chain_df, filters=filters),
     ])
 
     return {
-        "subject": "Your weekly SKUba digest",
-        "preview_text": "What’s working, what to chase, and what’s at risk.",
+        "subject": "SKUba Deep Dive — April",
+        "preview_text": "The trends, opportunities, and risks shaping the business beneath the surface.",
         "sections": [
             {
                 "key": "whats_working",

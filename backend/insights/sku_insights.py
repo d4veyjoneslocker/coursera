@@ -81,182 +81,302 @@ def get_last_completed_months(df, month_col="month_year", n=3):
     return completed_months[-n:]
 
 
-def build_void_opportunity_insight(df, filters=None, penetration_threshold=0.15):
-    """
-    Returns the single highest-impact void opportunity insight.
-    """
+def build_void_opportunity_insight(df, filters=None):
+    table = df.copy()
 
-    d = df.copy()
-    d["month_year"] = pd.PeriodIndex(d["month_year"], freq="M")
-
-    # --- 1. Get last 3 months INCLUDING current (for void detection)
-    current_month = pd.Timestamp.today().to_period("M")
-    all_months = sorted(d["month_year"].unique())
-
-    last_3m = [m for m in all_months if m <= current_month][-3:]
-
-    if len(last_3m) < 2:
+    if table.empty:
         return None
 
-    d = d[d["month_year"].isin(last_3m)]
+    required_cols = [
+        "channel",
+        "sku",
+        "chain",
+        "vpo_3m",
+        "buying_stores_3m",
+        "total_brand_stores_3m",
+        "void_stores_3m",
+        "brand_units_lift_pct",
+    ]
 
-    if d.empty:
+    missing_cols = [col for col in required_cols if col not in table.columns]
+    if missing_cols:
         return None
 
-    # --- 2. Store universe (stores buying the brand)
-    store_total = (
-        d.groupby(["chain", "coded_customer"], as_index=False)
-        .agg(total_units_3m=("units", "sum"))
-    )
+    table = table[
+        table["chain"].notna()
+        & ~table["chain"].astype(str).str.strip().str.upper().eq("CONFIDENTIAL")
+    ].copy()
 
-    active_stores = store_total[store_total["total_units_3m"] > 0]
-
-    if active_stores.empty:
+    if table.empty:
         return None
 
-    # --- 3. Store x SKU units (for carry detection)
-    store_sku = (
-        d.groupby(["chain", "coded_customer", "sku"], as_index=False)
-        .agg(units_3m=("units", "sum"))
-    )
+    table = table[
+        (table["void_stores_3m"] > 0)
+        & (table["buying_stores_3m"] >= 2)
+        & (table["brand_units_lift_pct"].notna())
+        & (table["brand_units_lift_pct"] > 0)
+        & (table["vpo_3m"] > 0)
+    ].copy()
 
-    # --- 4. SKU universe per chain
-    chain_skus = (
-        d.groupby(["chain", "sku"], as_index=False)
-        .agg(chain_sku_units_3m=("units", "sum"))
-    )
-
-    chain_skus = chain_skus[chain_skus["chain_sku_units_3m"] > 0]
-
-    universe = active_stores[["chain", "coded_customer"]].merge(
-        chain_skus[["chain", "sku"]],
-        on="chain",
-        how="inner"
-    )
-
-    merged = universe.merge(
-        store_sku,
-        on=["chain", "coded_customer", "sku"],
-        how="left"
-    )
-
-    merged["units_3m"] = merged["units_3m"].fillna(0)
-
-    # --- 5. Evaluate voids
-    results = []
-
-    grouped = merged.groupby(["chain", "sku"])
-
-    # Precompute completed months for velocity (EXCLUDE current)
-    completed_months = [m for m in all_months if m < current_month][-3:]
-
-    for (chain, sku), g in grouped:
-
-        total_stores = g["coded_customer"].nunique()
-
-        carrying_df = g[g["units_3m"] > 0]
-        carrying_stores = carrying_df["coded_customer"].nunique()
-
-        if carrying_stores < 2:
-            continue
-
-        penetration = carrying_stores / total_stores if total_stores > 0 else 0
-
-        if penetration < penetration_threshold:
-            continue
-
-        void_stores = total_stores - carrying_stores
-
-        if void_stores <= 0:
-            continue
-
-        if void_stores < 2:
-            continue
-
-        # --- Velocity (EXCLUDE current month)
-        velocity_df = df.copy()
-        velocity_df["month_year"] = pd.PeriodIndex(velocity_df["month_year"], freq="M")
-
-        velocity_df = velocity_df[
-            (velocity_df["month_year"].isin(completed_months)) &
-            (velocity_df["chain"] == chain) &
-            (velocity_df["sku"] == sku)
-        ]
-
-        velocity_by_store = (
-            velocity_df.groupby("coded_customer", as_index=False)
-            .agg(units_3m_completed=("units", "sum"))
-        )
-
-        velocity_by_store = velocity_by_store[
-            velocity_by_store["units_3m_completed"] > 0
-        ]
-
-        if velocity_by_store.empty:
-            continue
-
-        median_units_3m = velocity_by_store["units_3m_completed"].median()
-        vpo_weekly = median_units_3m / 13
-
-        if vpo_weekly <= 0:
-            continue
-
-        # --- Opportunity
-        annual_units = vpo_weekly * void_stores * 52
-
-        if annual_units < 200:
-            continue
-
-        results.append({
-            "chain": chain,
-            "sku": sku,
-            "void_stores": int(void_stores),
-            "carrying_stores": int(carrying_stores),
-            "total_stores": int(total_stores),
-            "penetration": round(penetration, 2),
-            "vpo_weekly": round(vpo_weekly, 2),
-            "annual_units": int(annual_units),
-            "captured_units": int(annual_units),
-        })
-
-    if not results:
+    if table.empty:
         return None
 
-    # --- 6. Pick highest impact
-    top = sorted(results, key=lambda x: x["captured_units"], reverse=True)[0]
+    table["captured_units"] = (
+        table["vpo_3m"] * table["void_stores_3m"] * 52
+    )
+
+    table = table[table["captured_units"] >= 200]
+
+    if table.empty:
+        return None
+
+    top = table.sort_values("captured_units", ascending=False).iloc[0]
 
     context_str, context_parts = build_filter_context(
         filters,
-        exclude_keys={"sku", "chain"},
+        exclude_keys={"sku", "chain", "channel"},
     )
 
-    # --- 7. Return insight
+    sku = top["sku"]
+    chain = top["chain"]
+    channel = top["channel"]
+
+    buying_stores = int(top["carrying_stores_6m"])
+    void_stores = int(top["void_stores_3m"])
+    total_stores = int(top["total_brand_stores_3m"])
+
+    vpo = float(top["vpo_3m"])
+    lift = float(top["brand_units_lift_pct"])
+    captured_units = int(top["captured_units"])
+
+    # -----------------------------
+# New insight signals
+# -----------------------------
+    opportunity_stores_1_sku = int(top.get("opportunity_stores_1_sku", 0) or 0)
+
+    assortment_distribution_context = ""
+
+    if opportunity_stores_1_sku >= 5:
+        assortment_distribution_context = (
+            f"{opportunity_stores_1_sku} of these stores are only carrying 1 SKU, "
+            f"suggesting an opportunity to expand assortment within existing accounts. "
+        )
+
+    distribution_context = ""
+
+    if (
+        void_stores >= 10
+        and buying_stores >= 5
+        and lift > 0.2
+    ):
+        distribution_context = (
+            "This pattern may indicate a distribution or item setup issue, "
+            "where the SKU is present in some stores but not being consistently distributed across the chain. "
+        )
+
+    assortment_context = ""
+
+    opportunity_avg_skus = top.get("opportunity_avg_skus")
+    chain_avg_skus = top.get("chain_avg_skus")
+    channel_avg_skus = top.get("channel_avg_skus")
+
+    if (
+        pd.notna(opportunity_avg_skus)
+        and pd.notna(chain_avg_skus)
+        and pd.notna(channel_avg_skus)
+    ):
+        assortment_context = (
+            f"These opportunity stores carry {float(opportunity_avg_skus):.1f} SKUs on average, "
+            f"compared to {float(chain_avg_skus):.1f} across {chain} and "
+            f"{float(channel_avg_skus):.1f} across {channel}. "
+        )
+
+    headline = f"{sku} may have room to expand in {chain}."
+
+    body = (
+        f"{sku} is currently sold in {buying_stores} of {total_stores} active {chain} stores "
+        f"in {channel}, leaving {void_stores} stores that buy the brand but do not carry this SKU. "
+        f"{assortment_context}"
+        f"{assortment_distribution_context}"
+        f"{distribution_context}"
+        f"Among the stores that do carry it, velocity is {vpo:.1f} units per store per week. "
+        f"Those stores also sell {lift:.0%} more total brand units per store than stores that do not carry it. "
+        f"Expanding into the remaining stores could represent approximately {captured_units:,} units per year."
+    )
+
+    summary = (
+        f"{sku} is missing from {void_stores} active {chain} stores{context_str}, "
+        f"with ~{captured_units:,} units/year in potential upside."
+    )
+
     return {
         "type": "distribution_opportunity",
-        "summary": (
-            f"{top['sku']} isn't sold in {top['void_stores']} stores in {top['chain']}{context_str}, "
-            f"representing ~{top['captured_units']:,} units/year in upside."
-        ),
+        "section": "opportunities",
+        "priority": 30,
+
+        "summary": summary,
+
         "parts": [
-            {"type": "chip", "value": top["sku"], "tone": "neutral"},
-            {"type": "text", "value": " isn't sold in "},
-            {"type": "chip", "value": f"{top['void_stores']} stores", "tone": "neutral"},
+            {"type": "chip", "value": sku, "tone": "neutral"},
+            {"type": "text", "value": " is missing from "},
+            {
+                "type": "chip",
+                "value": f"{void_stores} stores",
+                "tone": "neutral",
+            },
             {"type": "text", "value": " in "},
-            {"type": "chip", "value": top["chain"], "tone": "neutral"},
+            {"type": "chip", "value": chain, "tone": "neutral"},
             *context_parts,
             {"type": "text", "value": ", representing "},
             {
                 "type": "chip",
-                "value": f"~{top['captured_units']:,} units/year",
+                "value": f"~{captured_units:,} units/year",
                 "tone": "positive",
             },
             {"type": "text", "value": " in upside."},
         ],
-        "sku": top["sku"],
-        "chain": top["chain"],
-        "impact_units": top["captured_units"],
-    }
 
+        "headline": headline,
+        "body": body,
+
+        "body_parts": [
+            {"type": "sku_chip", "value": sku},
+
+            {"type": "text", "value": " is currently sold in "},
+
+            {
+                "type": "metric_chip",
+                "value": f"{buying_stores} stores",
+                "tone": "neutral",
+            },
+
+            {"type": "text", "value": " in "},
+
+            {"type": "chain_chip", "value": chain},
+
+            {
+                "type": "text",
+                "value": ", leaving ",
+            },
+
+            {
+                "type": "metric_chip",
+                "value": f"{void_stores} stores",
+                "tone": "positive",
+            },
+
+            {
+                "type": "text",
+                "value": " that buy the brand but do not carry this SKU. These non-buying stores carry only ",
+            },
+
+            {
+                "type": "metric_chip",
+                "value": f"{opportunity_avg_skus:.1f} SKUs on average",
+                "tone": "neutral",
+            },
+
+            {"type": "text", "value": ", compared to "},
+
+            {
+                "type": "metric_chip",
+                "value": f"{chain_avg_skus:.1f} across {chain}",
+                "tone": "neutral",
+            },
+
+            {"type": "text", "value": " and "},
+
+            {
+                "type": "metric_chip",
+                "value": f"{channel_avg_skus:.1f} across the {channel} channel",
+                "tone": "neutral",
+            },
+
+            {
+                "type": "text",
+                "value": ". This pattern may indicate a distribution or item setup issue, as the SKU is present in some stores but not consistently distributed across the chain. ",
+            },
+
+            {"type": "chain_chip", "value": chain},
+
+            {"type": "text", "value": " stores currently carrying "},
+
+            {"type": "sku_chip", "value": sku},
+
+            {"type": "text", "value": " sell "},
+
+            {
+                "type": "metric_chip",
+                "value": f"{lift:.0%} more total brand units/store",
+                "tone": "positive",
+            },
+
+            {
+                "type": "text",
+                "value": " than stores that do not currently carry it, while ",
+            },
+
+            {"type": "sku_chip", "value": sku},
+
+            {"type": "text", "value": " itself averages "},
+
+            {
+                "type": "metric_chip",
+                "value": f"{vpo:.1f} units/store/week",
+                "tone": "positive",
+            },
+
+            {
+                "type": "text",
+                "value": ". Based on this rate, expanding into the remaining stores could represent approximately ",
+            },
+
+            {
+                "type": "metric_chip",
+                "value": f"{captured_units:,} units/year",
+                "tone": "positive",
+            },
+
+            {"type": "text", "value": "."},
+        ],
+
+        "metrics": {
+            "buying_stores_3m": buying_stores,
+            "void_stores_3m": void_stores,
+            "total_brand_stores_3m": total_stores,
+            "vpo_3m": vpo,
+            "brand_units_lift_pct": lift,
+            "impact_units": captured_units,
+            "opportunity_avg_skus": opportunity_avg_skus,
+            "chain_avg_skus": chain_avg_skus,
+            "channel_avg_skus": channel_avg_skus,
+            "carrying_brand_units_per_store_3m": top.get(
+                "carrying_brand_units_per_store_3m"
+            ),
+            "noncarrying_brand_units_per_store_3m": top.get(
+                "noncarrying_brand_units_per_store_3m"
+            ),
+        },
+
+        "entities": {
+            "sku": sku,
+            "chain": chain,
+            "channel": channel,
+        },
+
+        "sku": sku,
+        "chain": chain,
+        "channel": channel,
+        "impact_units": captured_units,
+
+        "cta": {
+            "label": "View opportunity stores",
+            "href": (
+                f"/insights/distribution_opportunity"
+                f"?chain={chain}&sku={sku}&channel={channel}"
+            ),
+        },
+    }
 
 def build_velocity_gap_opportunity_insight(chain_sku_df, filters=None):
     df = chain_sku_df.copy()

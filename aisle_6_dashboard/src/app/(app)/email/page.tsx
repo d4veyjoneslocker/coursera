@@ -1,0 +1,452 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { Lightbulb, Target, AlertTriangle, TrendingUp } from "lucide-react"
+import { useOrg } from "@/components/OrgContext"
+
+type InsightPart =
+  | {
+      type: "text"
+      value: string
+    }
+
+  | {
+      type: "chip"
+      value: string
+      tone?: "positive" | "negative" | "neutral"
+    }
+
+  | {
+      type: "metric_chip"
+      value: string
+      tone?: "positive" | "negative" | "neutral"
+    }
+
+  | {
+      type: "sku_chip"
+      value: string
+    }
+
+  | {
+      type: "chain_chip"
+      value: string
+    }
+
+type Insight = {
+  type: string
+  summary: string
+  parts?: InsightPart[]
+
+  body?: string
+  body_parts?: InsightPart[]
+
+  cta?: {
+    label: string
+    href: string
+  }
+}
+
+type Section = {
+  key: string
+  title: string
+  insights: Insight[]
+}
+
+type Digest = {
+  subject?: string
+  preview_text?: string
+  sections?: Section[]
+}
+
+const theme = {
+  surface: "#FCFAF6",
+  line: "#EEE5D8",
+  brown: "#705C4F",
+  charcoal: "#343332",
+}
+
+const toneStyles = {
+  positive: { bg: "#EAF3DE", text: "#3B6D11" },
+  negative: { bg: "#FBF1EF", text: "#A06057" },
+  neutral: { bg: "#F4F1EC", text: "#705C4F" },
+}
+
+function formatInsightType(type: string) {
+  return type
+    .replace(/_/g, " ")
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function getInsightTone(insight: Insight): "positive" | "negative" | "neutral" {
+  const chip = insight.parts?.find(
+  (p) =>
+    (p.type === "chip" || p.type === "metric_chip") &&
+    p.tone !== "neutral"
+) as Extract<InsightPart, { type: "chip" }> | undefined
+
+  return chip?.tone ?? "neutral"
+}
+
+function NeutralChip({ value }: { value: string }) {
+  return (
+    <span
+      className="inline-block items-center rounded px-1.5 py-0.5 text-[13px] font-medium uppercase tracking-wide"
+      style={{
+        backgroundColor: "#F4F1EC",
+        border: "0.5px solid #E7DED2",
+        color: theme.brown,
+      }}
+    >
+      {value}
+    </span>
+  )
+}
+
+function InsightCard({ insight }: { insight: any }) {
+  const { skuColors } = useOrg()
+  const tone = getInsightTone(insight)
+  const styles = toneStyles[tone]
+
+  const renderParts = (parts: any[]) => {
+    return parts.map((part: any, index: number) => {
+      const isLastPart = index === parts.length - 1
+      const isTrailingValueChip =
+        isLastPart &&
+        part.type === "chip" &&
+        part.tone === "positive" &&
+        insight.type === "top_month"
+
+      if (isTrailingValueChip) return null
+      if (part.type === "text") {
+        if (!part.value.trim()) return null
+
+        return (
+          <span key={index} style={{ color: theme.brown }}>
+            {part.value}
+          </span>
+        )
+      }
+
+      if (part.type === "sku_chip") {
+        const skuColor = skuColors?.[part.value] || "#94A3B8"
+
+        return (
+          <span
+            key={index}
+            className="inline-block rounded-full px-2.5 py-1 text-[13px] font-medium"
+            style={{
+              backgroundColor: `${skuColor}20`,
+              color: skuColor,
+              border: `1px solid ${skuColor}40`,
+            }}
+          >
+            {part.value}
+          </span>
+        )
+      }
+
+      if (part.type === "chain_chip") {
+        return (
+          <span
+            key={index}
+            className="inline-block items-center rounded-full px-2.5 py-1 text-[13px] font-medium"
+            style={{
+              backgroundColor: "#F4F1EC",
+              color: theme.brown,
+            }}
+          >
+            {part.value}
+          </span>
+        )
+      }
+
+      if (part.type === "chip" || part.type === "metric_chip") {
+        const chipTone = (part.tone ?? "neutral") as
+          | "positive"
+          | "negative"
+          | "neutral"
+
+        const chipStyles = toneStyles[chipTone]
+
+        return (
+          <span
+            key={index}
+            className="inline-block items-center rounded-full px-2.5 py-1 text-[13px] font-medium"
+            style={{
+              backgroundColor: chipStyles.bg,
+              color: chipStyles.text,
+            }}
+          >
+            {part.value}
+          </span>
+        )
+      }
+
+      return null
+    })
+  }
+
+  return (
+    <div
+      className="rounded-[16px] border px-6 py-5 transition-all"
+      style={{ backgroundColor: "#FFFEFB", borderColor: theme.line }}
+    >
+      <p
+        className="mb-2 text-xs uppercase tracking-[0.12em] leading-tight"
+        style={{ color: theme.brown }}
+      >
+        {formatInsightType(insight.type)}
+      </p>
+
+      <p
+        className="text-[16px] font-medium leading-relaxed"
+        style={{ color: theme.brown }}
+      >
+        {insight.parts?.length ? renderParts(insight.parts) : insight.summary}
+      </p>
+
+      {insight.body_parts?.length ? (
+        <div
+          className="mt-4 rounded-xl border px-4 py-3"
+          style={{
+            backgroundColor: "#FCFAF6",
+            borderColor: theme.line,
+          }}
+        >
+          <p
+            className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em]"
+            style={{ color: "#9A8A7C" }}
+          >
+            Why it matters
+          </p>
+
+          <p
+            className="text-[14px] leading-relaxed"
+            style={{ color: theme.brown }}
+          >
+            {insight.body_parts.map((part: any, index: number) => {
+              if (part.type === "text") {
+                return (
+                  <span key={index}>
+                    {part.value}
+                  </span>
+                )
+              }
+
+              if (part.type === "sku_chip") {
+                const skuColor =
+                  skuColors?.[part.value.trim().toUpperCase()] || "#94A3B8"
+
+                return (
+                  <span
+                    key={index}
+                    className="inline-block rounded-full px-2 py-0.5 text-[14px] font-medium"
+                    style={{
+                      backgroundColor: `${skuColor}20`,
+                      color: skuColor,
+                      border: `1px solid ${skuColor}40`,
+                    }}
+                  >
+                    {part.value}
+                  </span>
+                )
+              }
+
+              if (part.type === "chain_chip") {
+                return (
+                  <span
+                    key={index}
+                    className="inline-block rounded-full px-2 py-0.5 text-[14px] font-medium"
+                    style={{
+                      backgroundColor: "#F4F1EC",
+                      color: theme.brown,
+                    }}
+                  >
+                    {part.value}
+                  </span>
+                )
+              }
+
+              if (part.type === "metric_chip") {
+                const chipTone = (part.tone ?? "neutral") as
+                  | "positive"
+                  | "negative"
+                  | "neutral"
+
+                const chipStyles = toneStyles[chipTone]
+
+                return (
+                  <span
+                    key={index}
+                    className="inline-block rounded-full px-2 py-0.5 text-[14px] font-medium"
+                    style={{
+                      backgroundColor: chipStyles.bg,
+                      color: chipStyles.text,
+                    }}
+                  >
+                    {part.value}
+                  </span>
+                )
+              }
+
+              return null
+            })}
+          </p>
+        </div>
+      ) : null}
+
+      {insight.cta && (
+        <div className="mt-4">
+          <a
+            href={insight.cta.href}
+            className="inline-flex rounded-full border border-black/10 bg-[#F6F2EA] px-4 py-2 text-sm font-medium text-[#343332] hover:bg-[#E9E2C8]"
+          >
+            {insight.cta.label} →
+          </a>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SectionIcon({ sectionKey }: { sectionKey: string }) {
+  if (sectionKey === "whats_working") return <TrendingUp size={17} strokeWidth={2.2} />
+  if (sectionKey === "opportunities") return <Target size={17} strokeWidth={2.2} />
+  if (sectionKey === "at_risk") return <AlertTriangle size={17} strokeWidth={2.2} />
+  return <Lightbulb size={17} strokeWidth={2.2} />
+}
+
+export default function EmailPreviewPage() {
+  const { org } = useOrg()
+  const [data, setData] = useState<Digest | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!org?.id) return
+
+    async function load() {
+      try {
+        const url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/email/weekly-digest?org_id=${org.id}`
+        const res = await fetch(url)
+
+        if (!res.ok) {
+          throw new Error(`Digest request failed: ${res.status}`)
+        }
+
+        const json = await res.json()
+        setData(json)
+      } catch (err: any) {
+        console.error(err)
+        setError(err.message)
+      }
+    }
+
+    load()
+  }, [org?.id])
+
+  if (!org?.id) return <div className="p-8">Missing org id.</div>
+  if (error) return <div className="p-8 text-red-600">Error: {error}</div>
+  if (!data) return <div className="p-8">Loading digest...</div>
+
+  const sections = Array.isArray(data.sections) ? data.sections : []
+
+  return (
+    <main className="min-h-screen bg-[#F6F2EA] px-6 py-10">
+      <div className="mx-auto max-w-5xl space-y-8">
+        <header className="rounded-[32px] border border-black/10 bg-white p-7 shadow-[0_14px_34px_rgba(52,51,50,0.05)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#705C4F]">
+            Smearcase FroCo
+          </p>
+
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#343332]">
+            {data.subject ?? "Weekly Digest"}
+          </h1>
+
+          {data.preview_text && (
+            <p className="mt-2 text-sm text-[#705C4F]">{data.preview_text}</p>
+          )}
+        </header>
+
+        <div className="space-y-6">
+          {sections.map((section) => (
+            <section
+              key={section.key}
+              className="relative rounded-[32px] border p-5 shadow-[0_14px_34px_rgba(52,51,50,0.05)] md:p-6"
+              style={{ backgroundColor: theme.surface, borderColor: theme.line }}
+            >
+              <div className="mb-4 flex items-center gap-3">
+                <div
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border"
+                  style={{
+                    backgroundColor: "#FFFDF9",
+                    borderColor: theme.line,
+                    color: org?.primary_color ?? "#92B9DC",
+                  }}
+                >
+                  <SectionIcon sectionKey={section.key} />
+                </div>
+
+                <p
+                  className="text-[16px] font-medium uppercase tracking-[0.18em]"
+                  style={{ color: "#6B6B6B" }}
+                >
+                  {section.title}
+                </p>
+              </div>
+
+              {(section.insights ?? []).length === 0 ? (
+                <div
+                  className="rounded-2xl border px-5 py-4 text-[13px]"
+                  style={{
+                    backgroundColor: "#FFFDF9",
+                    borderColor: theme.line,
+                    color: theme.brown,
+                  }}
+                >
+                  No major changes to flag right now.
+                </div>
+              ) : (
+                (() => {
+                  const topMonthInsights = section.insights.filter(
+                    (i) => i.type === "top_month"
+                  )
+
+                  const otherInsights = section.insights.filter(
+                    (i) => i.type !== "top_month"
+                  )
+
+                  return (
+                    <div className="space-y-3">
+                      {topMonthInsights.length > 0 && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {topMonthInsights.map((insight) => (
+                            <InsightCard
+                              key={`${section.key}-${insight.type}-${insight.summary}`}
+                              insight={insight}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {otherInsights.length > 0 && (
+                        <div className="grid grid-cols-1 gap-3">
+                          {otherInsights.map((insight) => (
+                            <InsightCard
+                              key={`${section.key}-${insight.type}-${insight.summary}`}
+                              insight={insight}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()
+              )}
+            </section>
+          ))}
+        </div>
+      </div>
+    </main>
+  )
+}
