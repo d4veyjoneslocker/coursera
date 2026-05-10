@@ -706,7 +706,6 @@ def build_chain_struggling_insight(
     return {
         "type": "chain_struggling",
         "section": "at_risk",
-        "priority": 20,
 
         **description,
 
