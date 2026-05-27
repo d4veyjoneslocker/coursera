@@ -699,6 +699,9 @@ export default function Home() {
             kpis={unitsKpis}
             accentColor={theme.primary_color}
             theme={theme}
+            metricKey="units"
+            orgId={org?.id ?? null}
+            filters={filters}
             info={
               <>
                 <p>Sales performance over time.</p>
@@ -707,7 +710,7 @@ export default function Home() {
                   <li>Monthly aggregation</li>
                 </ul>
               </>
-  }
+            }
           />
 
           <ChartSection
@@ -716,6 +719,9 @@ export default function Home() {
             kpis={buyersKpis}
             accentColor={theme.secondary_color}
             theme={theme}
+            metricKey="buyers"
+            orgId={org?.id ?? null}
+            filters={filters}
           />
 
           <ChartSection
@@ -724,6 +730,9 @@ export default function Home() {
             kpis={velocityKpis}
             accentColor={theme.accent_color}
             theme={theme}
+            metricKey="velocity"
+            orgId={org?.id ?? null}
+            filters={filters}
           />
 
           <ChartSection
@@ -732,6 +741,9 @@ export default function Home() {
             kpis={podKpis}
             accentColor={theme.charcoal}
             theme={theme}
+            metricKey="pods"
+            orgId={org?.id ?? null}
+            filters={filters}
           />
         </div>
 

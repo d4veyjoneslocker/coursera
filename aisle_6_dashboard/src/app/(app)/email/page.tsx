@@ -356,7 +356,7 @@ export default function EmailPreviewPage() {
       <div className="mx-auto max-w-5xl space-y-8">
         <header className="rounded-[32px] border border-black/10 bg-white p-7 shadow-[0_14px_34px_rgba(52,51,50,0.05)]">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#705C4F]">
-            Smearcase FroCo
+            Demo Brand
           </p>
 
           <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#343332]">

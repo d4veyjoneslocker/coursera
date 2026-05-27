@@ -3,7 +3,6 @@ from fastapi import (FastAPI, APIRouter, Depends, Query)
 from backend.filters.filter_table import filter_table
 from backend.filters.filters import get_filters, generate_filter_api
 from backend.metrics.metric_calculators import calculate_units
-from backend.serving.api_helpers import clean_for_json, prep_monthly_graph, remove_time_filters, convert_selected_months, convert_selected_years
 from backend.metrics.metric_tables import chain_table, kpi_monthly_table
 from backend.metrics.kpis.overview_kpis import unit_kpis, buying_kpis, pod_kpis, vpo_kpis, count_channels, avg_skus_per_store
 from backend.data_pipeline.table_loader import load_org_tables
@@ -14,6 +13,11 @@ from backend.metrics.monthly_metric_calculators import (
     calculate_monthly_buying_stores,
     calculate_monthly_vpo
 )
+from backend.serving.api_helpers import (
+    clean_for_json, prep_monthly_graph, remove_time_filters, convert_selected_months, convert_selected_years,
+    ChartMetric, ChartView, build_expanded_chart,
+)
+
 
 router = APIRouter(prefix="/overview", tags=["Overview"])
 
@@ -154,7 +158,7 @@ def pods_test(org_id: str = Query(...), filters: dict = Depends(get_filters)):
 
     pod_filters = filters.copy()
     pod_filters.pop("year", None)
-    pod_filters.pop("month", None)
+    pod_filters.pop("month_year", None)
 
     pod_df = filter_table(features_df, **pod_filters)
 
@@ -213,3 +217,21 @@ def chain_table_api(org_id: str = Query(...), filters: dict = Depends(get_filter
     result = clean_for_json(result)
 
     return result.to_dict(orient="records")
+
+@router.get("/chart")
+def expanded_chart(
+    org_id: str = Query(...),
+    metric: ChartMetric = Query(...),
+    view: ChartView = Query("default"),
+    filters: dict = Depends(get_filters),
+):
+    features_df = load_org_tables(org_id)
+
+    result = build_expanded_chart(
+        features_df=features_df,
+        metric=metric,
+        view=view,
+        filters=filters,
+    )
+
+    return result
