@@ -85,11 +85,18 @@ def get_overview_insights(
 
         void_df = filter_table(features_df, **void_filters)
 
-        # ✅ pass filters
-        sku_voids = build_void_opportunity_insight(void_df, filters=filters)
+        #opportunity_df = chain_sku_velocity_gap_opportunity_table(
+        #    void_df,
+        #    void_df,
+        #)
 
-        if sku_voids:
-            insights.append(sku_voids)
+        #sku_voids = build_void_opportunity_insight(
+        #    opportunity_df,
+        #    filters=filters,
+        #)
+
+        #if sku_voids:
+        #    insights.append(sku_voids)
 
     return insights
 

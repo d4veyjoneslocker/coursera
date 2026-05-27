@@ -1,4 +1,8 @@
 import pandas as pd
+from backend.metrics.metric_calculators import calculate_units
+from backend.metrics.metric_growth_rates import add_additive_metric_3m, calculate_active_pods_3m_opportunities, calculate_vpo_3m
+from backend.metrics.metric_helpers import clean_group_cols
+from backend.insights.insights_helper import get_last_full_month
 
 
 def get_top_concentration(
@@ -230,20 +234,155 @@ def describe_root_cause_signal(signal):
         f"{pct:.0%} of affected stores ({count} of {total})."
     )
 
+def calculate_units_growth_decomposition_3m(
+    df_filtered,
+    df_full,
+    group_cols=None,
+    selected_years=None,
+    selected_months=None,
+    include_current_month=False,
+):
+    group_cols = clean_group_cols(group_cols)
+
+    units = calculate_units(
+        df_filtered,
+        group_cols=group_cols,
+    )
+
+    units_3m = add_additive_metric_3m(
+        units,
+        group_cols,
+        "units",
+    )
+
+    active_pods_3m = calculate_active_pods_3m_opportunities(
+        df_filtered=df_filtered,
+        df_full=df_full,
+        group_cols=group_cols,
+        selected_years=selected_years,
+        selected_months=selected_months,
+        include_current_month=include_current_month,
+    )
+
+    vpo_3m = calculate_vpo_3m(
+        df_filtered=df_filtered,
+        df_full=df_full,
+        group_cols=group_cols,
+        selected_years=selected_years,
+        selected_months=selected_months,
+        #include_current_month=include_current_month,
+    )
+
+    result = (
+        units_3m
+        .merge(
+            active_pods_3m,
+            on=group_cols,
+            how="left",
+        )
+        .merge(
+            vpo_3m,
+            on=group_cols,
+            how="left",
+        )
+    )
+
+    if result.empty:
+        return result
+    
+    if include_current_month:
+        latest_month = pd.Period(pd.Timestamp.today(), freq="M")
+    else:
+        latest_month = get_last_full_month()
+
+    current = (
+        result[result["month_year"] == latest_month]
+        .copy()
+        .rename(columns={
+            "units_3m": "units_current",
+            "active_pods_3m_opportunities": "active_pods_current",
+            "vpo_3m": "vpo_current",
+        })
+    )
+
+    prior_month = latest_month - 3
+
+    prior = (
+        result[result["month_year"] == prior_month]
+        .copy()
+        .rename(columns={
+            "units_3m": "units_prior",
+            "active_pods_3m_opportunities": "active_pods_prior",
+            "vpo_3m": "vpo_prior",
+        })
+    )
+
+    non_time_cols = [c for c in group_cols if c != "month_year"]
+
+    current = current.drop(columns=["month_year"], errors="ignore")
+    prior = prior.drop(columns=["month_year"], errors="ignore")
+
+    prior_cols = non_time_cols + [
+        "units_prior",
+        "active_pods_prior",
+        "vpo_prior",
+    ]
+
+    if non_time_cols:
+        result = current.merge(
+            prior[prior_cols],
+            on=non_time_cols,
+            how="left",
+        )
+    else:
+        current["_merge_key"] = 1
+        prior["_merge_key"] = 1
+
+        result = current.merge(
+            prior[["_merge_key"] + prior_cols],
+            on="_merge_key",
+            how="left",
+        ).drop(columns=["_merge_key"])
+        
+    decomps = result.apply(
+        lambda row: decompose_units_growth(
+            units_current=row["units_current"],
+            units_prior=row["units_prior"],
+            active_pods_current=row["active_pods_current"],
+            active_pods_prior=row["active_pods_prior"],
+            vpo_current=row["vpo_current"],
+            vpo_prior=row["vpo_prior"],
+            weeks_per_month=4,
+        ) or {},
+        axis=1,
+    )
+
+    decomp_df = pd.json_normalize(decomps)
+
+    result = pd.concat(
+        [
+            result.reset_index(drop=True),
+            decomp_df.reset_index(drop=True),
+        ],
+        axis=1,
+    )
+
+    return result
 
 def decompose_units_growth(
     units_current: float,
     units_prior: float,
-    stores_current: float,
-    stores_prior: float,
+    active_pods_current: float,
+    active_pods_prior: float,
     vpo_current: float,
     vpo_prior: float,
+    weeks_per_month: int = 4,
 ):
     values = [
         units_current,
         units_prior,
-        stores_current,
-        stores_prior,
+        active_pods_current,
+        active_pods_prior,
         vpo_current,
         vpo_prior,
     ]
@@ -256,13 +395,25 @@ def decompose_units_growth(
     if total_change == 0:
         return None
 
-    distribution_impact = (stores_current - stores_prior) * vpo_prior
-    velocity_impact = (vpo_current - vpo_prior) * stores_prior
-    interaction_impact = total_change - distribution_impact - velocity_impact
+    # Interaction is intentionally folded into distribution.
+    # This says: how many units changed because we had more/fewer
+    # active POD opportunities, valued at current velocity.
+    distribution_impact = (
+        (active_pods_current - active_pods_prior)
+        * vpo_current
+        * weeks_per_month
+    )
+
+    # This says: how many units changed because existing POD opportunities
+    # became more/less productive.
+    velocity_impact = (
+        (vpo_current - vpo_prior)
+        * active_pods_prior
+        * weeks_per_month
+    )
 
     distribution_share = distribution_impact / total_change
     velocity_share = velocity_impact / total_change
-    interaction_share = interaction_impact / total_change
 
     primary_driver = (
         "distribution"
@@ -274,13 +425,10 @@ def decompose_units_growth(
         "total_change": total_change,
         "distribution_impact": distribution_impact,
         "velocity_impact": velocity_impact,
-        "interaction_impact": interaction_impact,
         "distribution_share": distribution_share,
         "velocity_share": velocity_share,
-        "interaction_share": interaction_share,
         "primary_driver": primary_driver,
     }
-
 
 def describe_growth_decomposition(decomp):
     if not decomp:

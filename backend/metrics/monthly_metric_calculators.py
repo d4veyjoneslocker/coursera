@@ -199,6 +199,9 @@ def calculate_monthly_existing_buyers(df_filtered, df_full, group_cols=None, sel
 
     monthly["existing_buyers"] = monthly["total_buyers"] - monthly["new_buyers"]
 
+    spine["month_year"] = pd.PeriodIndex(spine["month_year"], freq="M")
+    monthly["month_year"] = pd.PeriodIndex(monthly["month_year"], freq="M")
+
     result = spine.merge(
         monthly[group_cols + ["existing_buyers"]],
         on=group_cols,

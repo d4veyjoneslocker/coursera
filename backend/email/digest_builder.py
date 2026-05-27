@@ -58,12 +58,12 @@ def build_weekly_digest(features_df):
         "subject": "SKUba Deep Dive — April",
         "preview_text": "The trends, opportunities, and risks shaping the business beneath the surface.",
         "sections": [
-            {
-                "key": "whats_working",
-                "title": "What’s Working",
-                "description": "Momentum worth protecting or doubling down on.",
-                "insights": what_working[:2],
-            },
+            #{
+            #    "key": "whats_working",
+            #    "title": "What’s Working",
+            #    "description": "Momentum worth protecting or doubling down on.",
+            #    "insights": what_working[:2],
+            #},
             {
                 "key": "opportunities",
                 "title": "Opportunities",
