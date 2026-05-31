@@ -236,7 +236,36 @@ def describe_overperforming_channel_momentum(data: dict | None, filters=None) ->
 
     description.append({"type": "text", "value": "This is a channel worth prioritizing for expansion, retailer storytelling, or account focus because the current distribution is working harder than the average door."})
 
-    return {"headline": headline, "summary": summary, "parts": parts, "description": description}
+    key_points = [
+        (
+            f"{channel} represents {recent_store_share_fmt} of recent buying "
+            f"stores but drives {recent_unit_share_fmt} of recent units."
+        ),
+        (
+            f"The channel is producing {rod_index_fmt} its expected unit share "
+            f"based on store footprint."
+        ),
+        (
+            f"Velocity is running {velocity_outperformance_fmt} above the "
+            f"filtered business average, with a recent reorder rate of "
+            f"{reorder_rate_fmt}."
+        ),
+    ]
+
+    if (
+        item.get("unit_share_change_abs") is not None
+        and pd.notna(item["unit_share_change_abs"])
+        and item["unit_share_change_abs"] >= MIN_UNIT_SHARE_GAIN_TO_MENTION
+    ):
+        key_points.append(
+            (
+                f"Its share of recent units increased by "
+                f"{unit_share_change_fmt}, suggesting the channel is becoming "
+                f"more important to the business."
+            )
+        )
+
+    return {"headline": headline, "summary": summary, "parts": parts, "description": description, "key_points": key_points}
 
 def create_overperforming_channel_momentum_store_list(df: pd.DataFrame, analyzed_table: pd.DataFrame) -> pd.DataFrame:
     if analyzed_table is None or analyzed_table.empty:
@@ -251,12 +280,94 @@ def create_overperforming_channel_momentum_store_list(df: pd.DataFrame, analyzed
     if table.empty:
         return pd.DataFrame()
 
-    store_cols = ["coded_customer", "state", "dc"]
-    existing_store_cols = [col for col in store_cols if col in table.columns]
+    store_cols = [
+    "coded_customer",
+    "chain",
+    "state",
+]
 
-    result = table.groupby(existing_store_cols, as_index=False).agg(recent_units=("units", "sum")).sort_values("recent_units", ascending=False)
+    existing_store_cols = [
+        col for col in store_cols
+        if col in table.columns
+    ]
+
+    result = (
+        table.groupby(existing_store_cols, as_index=False)
+        .agg(
+            recent_units=("units", "sum"),
+            active_skus=("sku", "nunique"),
+        )
+    )
+
+    top_skus = (
+        table.groupby(existing_store_cols + ["sku"], as_index=False)
+        .agg(sku_units=("units", "sum"))
+        .sort_values("sku_units", ascending=False)
+        .drop_duplicates(existing_store_cols)
+        .rename(columns={"sku": "top_sku"})
+    )
+
+    result = result.merge(
+        top_skus[
+            existing_store_cols + ["top_sku"]
+        ],
+        on=existing_store_cols,
+        how="left",
+    )
+
+    result = result.sort_values(
+        "recent_units",
+        ascending=False,
+    )
 
     return result
+
+
+def get_overperforming_channel_momentum_drilldown_config(channel: str):
+    return {
+        "label": "View stores in this channel",
+        "href": "/insights/overperforming_channel_momentum",
+        "title": f"Top Stores in {channel}",
+
+        "subtitle": (
+            f"Stores contributing most to recent outperformance in {channel}."
+        ),
+
+        "columns": [
+            {
+                "key": "coded_customer",
+                "label": "Customer",
+                "align": "left",
+            },
+            {
+                "key": "chain",
+                "label": "Chain",
+                "align": "left",
+            },
+            {
+                "key": "state",
+                "label": "State",
+                "align": "left",
+            },
+            {
+                "key": "recent_units",
+                "label": "L3M Units",
+                "align": "right",
+                "format": "number",
+            },
+            {
+                "key": "active_skus",
+                "label": "Active SKUs",
+                "align": "right",
+                "format": "number",
+            },
+            {
+                "key": "top_sku",
+                "label": "Top SKU",
+                "align": "left",
+            },
+        ],
+    }
 
 def build_overperforming_channel_momentum_insight(df: pd.DataFrame, filters=None, limit: int = DEFAULT_LIMIT):
     table = build_overperforming_channel_momentum_table(df)
@@ -275,5 +386,5 @@ def build_overperforming_channel_momentum_insight(df: pd.DataFrame, filters=None
         **description,
         "metrics": item["metrics"],
         "entities": item["entities"],
-        "drilldown": {"label": "View stores in this channel", "href": "/insights/overperforming_channel_momentum"},
+        "drilldown": get_overperforming_channel_momentum_drilldown_config(channel=item["channel"]),
     }

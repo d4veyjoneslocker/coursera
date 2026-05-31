@@ -91,3 +91,88 @@ def export_store_list(org_id: str):
             "Content-Disposition": "attachment; filename=store_list.csv"
         },
     )
+
+@router.get("/store_list/l3m_buying_status")
+def export_l3m_buying_status(org_id: str):
+    df = load_org_tables(org_id)
+
+    df["month_year"] = pd.PeriodIndex(df["month_year"], freq="M")
+
+    today = pd.Timestamp.today()
+    current_month = pd.Period(today, freq="M")
+    last_full_month = current_month - 1
+
+    l3m_months = [
+        last_full_month - 2,
+        last_full_month - 1,
+        last_full_month,
+    ]
+
+    store_info = (
+        df.groupby("coded_customer", as_index=False)
+        .agg({
+            "chain": "first",
+            "store_number": "first",
+            "street_address": "first",
+            "city": "first",
+            "state": "first",
+            "zip": "first",
+        })
+    )
+
+    l3m_buying = (
+        df[
+            (df["month_year"].isin(l3m_months)) &
+            (df["units"] > 0)
+        ]
+        .groupby("coded_customer", as_index=False)
+        .agg(
+            l3m_units=("units", "sum"),
+        )
+    )
+
+    current_month_buying = (
+        df[
+            (df["month_year"] == current_month) &
+            (df["units"] > 0)
+        ]["coded_customer"]
+        .unique()
+    )
+
+    result = store_info.merge(
+        l3m_buying,
+        on="coded_customer",
+        how="left"
+    )
+
+    result["l3m_units"] = result["l3m_units"].fillna(0)
+
+    def classify_store(row):
+        if row["l3m_units"] > 0:
+            return "Buying"
+
+        if row["coded_customer"] in current_month_buying:
+            return "New"
+
+        return "Non-buying"
+
+    result["buying_status_l3m"] = result.apply(classify_store, axis=1)
+
+    result["l3m_window"] = (
+        f"{l3m_months[0]} through {l3m_months[-1]}"
+    )
+
+    output = io.StringIO()
+    result.to_csv(output, index=False)
+    output.seek(0)
+
+    return StreamingResponse(
+        output,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": (
+                "attachment; "
+                "filename=l3m_buying_status_store_list.csv"
+            )
+        },
+    )

@@ -37,7 +37,6 @@ def apply_demo_insight_patterns(df, stores, months, rng):
     latest_completed_3 = completed_months[-3:]
     prior_completed_3 = completed_months[-6:-3]
 
-    detection_months = months[-3:]
 
     def upsert(store_id, sku, month, units):
         nonlocal df
@@ -169,23 +168,28 @@ def apply_demo_insight_patterns(df, stores, months, rng):
     for s in carrying:
         for m in latest_completed_3:
             upsert(s, sku, m, int(rng.normal(42, 5)))
+    
+    void_clear_months = pd.period_range(
+        latest_completed_3[-1] - 5,
+        latest_completed_3[-1],
+        freq="M",
+    )
 
     # Void stores are active brand buyers but missing SKU E
     for s in voids:
-
         df = df[
             ~(
                 (df["coded_customer"] == s)
                 & (df["sku"] == sku)
                 & (
                     df["month_year"].astype(str).isin(
-                        [str(m) for m in detection_months]
+                        [str(m) for m in void_clear_months]
                     )
                 )
             )
         ]
 
-        for m in detection_months:
+        for m in latest_completed_3:
             upsert(s, anchor_sku, m, int(rng.normal(24, 4)))
             upsert(s, "SKU B", m, int(rng.normal(18, 3)))
 
@@ -208,21 +212,53 @@ def apply_demo_insight_patterns(df, stores, months, rng):
             upsert(s, decline_sku, m, int(rng.normal(5, 2)))
 
     # -------------------------------------------------
-    # 7. CHANNEL MOMENTUM
-    # Natural channel broadly improving
+    # 7. FAILURE TO LAUNCH
+    # Recent Target launch fails to reorder
     # -------------------------------------------------
 
-    natural_stores = stores[
-        stores["channel"] == "Natural"
-    ]["coded_customer"].head(180)
+    launch_sku = "SKU D"
 
-    for s in natural_stores:
+    target_launch_stores = stores[
+        stores["chain"] == "Target"
+    ]["coded_customer"].head(45)
+
+    launch_month = completed_months[-3]
+
+    # Strong initial shipment
+    for s in target_launch_stores:
+        upsert(s, launch_sku, launch_month, int(rng.normal(28, 5)))
+
+    # Some stores reorder successfully
+    successful_reorders = target_launch_stores[:14]
+
+    for s in successful_reorders:
+        for m in [launch_month + 1, launch_month + 2]:
+            upsert(s, launch_sku, m, int(rng.normal(12, 3)))
+
+    # Remaining stores never reorder
+    # (leave blank intentionally)
+
+
+    # -------------------------------------------------
+    # 8. CHANNEL MOMENTUM
+    # Specialty channel producing outsized volume
+    # -------------------------------------------------
+
+    specialty_stores = stores[
+        stores["channel"] == "Specialty"
+    ]["coded_customer"].head(95)
+
+    # Keep footprint relatively small in prior period
+    for s in specialty_stores:
         for m in prior_completed_3:
-            upsert(s, "SKU D", m, int(rng.normal(6, 2)))
+            upsert(s, "SKU A", m, int(rng.normal(5, 1)))
 
+    # Make recent period clearly outperform on units + velocity
+    for s in specialty_stores:
         for m in latest_completed_3:
-            upsert(s, "SKU D", m, int(rng.normal(18, 4)))
-
+            upsert(s, "SKU A", m, int(rng.normal(38, 5)))
+            upsert(s, "SKU B", m, int(rng.normal(26, 4)))
+            
     return df
 
 

@@ -444,16 +444,18 @@ def describe_failure_to_launch_new_store_risk(data, filters=None):
         {"type": "chip", "value": at_risk_placements_fmt, "tone": "negative"},
         {"type": "text", "value": f" of {launched_placements_fmt} launch placements that have not reordered"},
         *context_parts,
-        {"type": "text", "value": " after 2 full months."},
+        {"type": "text", "value": "after 2 full months."},
     ]
 
     intro_block = {
         "type": "text",
         "value": (
-            f"In the {launch_month_display} {chain} launch, {launched_stores_fmt} stores "
-            f"received {launched_skus_fmt} SKUs across {launched_placements_fmt} total placements. "
-            f"{at_risk_placements_fmt} placements, or {at_risk_rate_fmt}, have not reordered after "
-            f"the first 2 full reorder opportunities."
+            f"In the {launch_month_display} {chain} launch, "
+            f"{launched_stores_fmt} stores received "
+            f"{launched_placements_fmt} total placements spanning "
+            f"{launched_skus_fmt} SKUs. "
+            f"{at_risk_placements_fmt} placements, or {at_risk_rate_fmt}, "
+            f"have not reordered after the first 2 full reorder opportunities."
         ),
     }
 
@@ -525,11 +527,35 @@ def describe_failure_to_launch_new_store_risk(data, filters=None):
 
     description = [block for block in description if block is not None]
 
+    key_points = [
+        (
+            f"{at_risk_placements_fmt} of {launched_placements_fmt} launch "
+            f"placements from the {launch_month_display} cohort have not "
+            f"reordered after 2 full months."
+        ),
+        (
+            f"The launch included {launched_stores_fmt} stores, "
+            f"{launched_skus_fmt} SKUs, and {launched_placements_fmt} "
+            f"total placements."
+        ),
+    ]
+
+    if include_load_in_block:
+        key_points.append(
+            (
+                f"At-risk placements loaded in with "
+                f"{avg_initial_units_at_risk_fmt} units on average, "
+                f"compared with {avg_initial_units_reordered_fmt} units "
+                f"for placements that did reorder."
+            )
+        )
+
     return {
         "headline": headline,
         "summary": summary,
         "parts": parts,
         "description": description,
+        "key_points": key_points,
     }
 
 def create_failure_to_launch_new_store_risk_store_list(
@@ -581,6 +607,45 @@ def create_failure_to_launch_new_store_risk_store_list(
         ascending=[False, True, True],
     )
 
+def get_failure_to_launch_new_store_risk_drilldown_config(
+    launch_cohort_id: str,
+) -> dict:
+    return {
+        "label": "View stores needing launch follow-up",
+        "href": (
+            f"/insights/failure_to_launch"
+            f"?launch_cohort_id={launch_cohort_id}"
+        ),
+        "title": "Stores Needing Launch Follow-Up",
+        "subtitle": (
+            "Launch placements that received an initial shipment but have not "
+            "reordered within the expected window."
+        ),
+        "columns": [
+            {"key": "chain", "label": "Chain", "align": "left"},
+            {"key": "coded_customer", "label": "Customer", "align": "left"},
+            {"key": "store_number", "label": "Store #", "align": "left"},
+            {"key": "street_address", "label": "Address", "align": "left"},
+            {"key": "city", "label": "City", "align": "left"},
+            {"key": "state", "label": "State", "align": "left"},
+            {"key": "zip", "label": "ZIP", "align": "left"},
+            {"key": "channel", "label": "Channel", "align": "left"},
+            {"key": "sku", "label": "SKU", "align": "left"},
+            {
+                "key": "launch_month",
+                "label": "Launch Month",
+                "align": "left",
+                "format": "month",
+            },
+            {
+                "key": "initial_units",
+                "label": "Initial Units",
+                "align": "right",
+                "format": "number",
+            },
+        ],
+    }
+
 def build_failure_to_launch_new_store_risk_insight(
     df: pd.DataFrame,
     filters=None,
@@ -620,8 +685,7 @@ def build_failure_to_launch_new_store_risk_insight(
         "launch_cohort_id": launch_cohort_id,
         "launch_month": data["launch_month"],
 
-        "drilldown": {
-            "label": "View stores needing launch follow-up",
-            "href": f"/insights/failure_to_launch_new_store_risk?launch_cohort_id={launch_cohort_id}",
-        },
+        "drilldown": get_failure_to_launch_new_store_risk_drilldown_config(
+            launch_cohort_id=launch_cohort_id,
+        ),
     }

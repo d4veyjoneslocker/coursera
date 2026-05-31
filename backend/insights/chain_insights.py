@@ -77,6 +77,12 @@ def build_chain_decline_insight(chain_df, filters=None):
 
 
 def build_chain_growth_insight(chain_df, filters=None):
+
+    filters = filters or {}
+
+    if filters.get("chain"):
+        return None
+    
     df = chain_df.copy()
 
     change_col = "units_l3m_abs"

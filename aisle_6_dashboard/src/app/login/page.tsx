@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
+import Link from "next/link"
 
 export default function LoginPage() {
 
@@ -319,51 +320,67 @@ export default function LoginPage() {
           </div>
         )}
 
-        <p className="mt-6 text-xs leading-6" style={{ color: theme.brown }}>
-          {mode === "login" ? (
-            <>
-              Need an account?{" "}
-              <button
-                type="button"
-                onClick={() => {
-                  setMode("signup")
-                  setStatus("")
-                }}
-                className="font-semibold underline underline-offset-4"
-              >
-                Create one
-              </button>
-            </>
-          ) : mode === "reset" ? (
-            <>
-              Remember your password?{" "}
-              <button
-                type="button"
-                onClick={() => {
-                  setMode("login")
-                  setStatus("")
-                }}
-                className="font-semibold underline underline-offset-4"
-              >
-                Log in
-              </button>
-            </>
-          ) : (
-            <>
-              Already have an account?{" "}
-              <button
-                type="button"
-                onClick={() => {
-                  setMode("login")
-                  setStatus("")
-                }}
-                className="font-semibold underline underline-offset-4"
-              >
-                Log in
-              </button>
-            </>
-          )}
-        </p>
+        <div className="mt-6 space-y-4">
+          <p className="text-xs leading-6" style={{ color: theme.brown }}>
+            {mode === "login" ? (
+              <>
+                Need an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("signup")
+                    setStatus("")
+                  }}
+                  className="font-semibold underline underline-offset-4"
+                >
+                  Create one
+                </button>
+              </>
+            ) : mode === "reset" ? (
+              <>
+                Remember your password?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("login")
+                    setStatus("")
+                  }}
+                  className="font-semibold underline underline-offset-4"
+                >
+                  Log in
+                </button>
+              </>
+            ) : (
+              <>
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("login")
+                    setStatus("")
+                  }}
+                  className="font-semibold underline underline-offset-4"
+                >
+                  Log in
+                </button>
+              </>
+            )}
+          </p>
+
+          <p
+            className="text-center text-[11px] leading-5"
+            style={{ color: theme.brown }}
+          >
+            By continuing, you agree to our{" "}
+            <Link
+              href="/privacy-policy"
+              className="underline underline-offset-4 font-medium"
+            >
+              Privacy Policy
+            </Link>
+            .
+          </p>
+        </div>
       </section>
     </main>
   )

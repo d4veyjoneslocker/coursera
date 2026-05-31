@@ -93,18 +93,18 @@ def _attach_latest_order_context(
     ].copy()
 
     if struggling_store_status.empty:
-        chain_table["latest_month_purchased"] = pd.NaT
+        chain_table["last_month_purchased"] = pd.NaT
         chain_table["latest_order_store_count"] = 0
         return chain_table
 
     latest_months = (
         struggling_store_status.groupby("chain", as_index=False)
-        .agg(latest_month_purchased=("last_month_purchased", "max"))
+        .agg(last_month_purchased=("last_month_purchased", "max"))
     )
 
     latest_counts = struggling_store_status.merge(
         latest_months,
-        on=["chain", "latest_month_purchased"],
+        on=["chain", "last_month_purchased"],
         how="inner",
     )
 
@@ -321,7 +321,7 @@ def normalize_chain_struggling_data(
             "overall_struggling_pct": float(row["overall_struggling_pct"]),
             "vs_avg": float(row["vs_avg"]),
 
-            "latest_month_purchased": row.get("latest_month_purchased"),
+            "last_month_purchased": row.get("last_month_purchased"),
 
             "latest_order_store_count": int(
                 row.get("latest_order_store_count", 0) or 0
@@ -390,7 +390,7 @@ def describe_chain_struggling(data, filters=None):
     struggling_pct = data["struggling_pct"]
     vs_avg = data["vs_avg"]
 
-    latest_month = data.get("latest_month_purchased")
+    latest_month = data.get("last_month_purchased")
     latest_order_store_count = data.get(
         "latest_order_store_count"
     )
@@ -537,6 +537,18 @@ def describe_chain_struggling(data, filters=None):
         "value": root_cause_text,
     }
 
+    key_points = [
+    (
+        f"{struggling_stores_fmt} of {total_stores_fmt} stores in "
+        f"{chain} are currently marked as struggling, representing "
+        f"{struggling_pct_fmt} of the chain's store base."
+    ),
+    (
+        f"This is {vs_avg_fmt} pts above your overall average, "
+        f"suggesting the issue is concentrated within this retailer "
+        f"rather than spread evenly across the business."
+    ),]
+
     # OPTIONAL BLOCK CONDITIONS
 
     include_reorder_block = (
@@ -581,11 +593,24 @@ def describe_chain_struggling(data, filters=None):
         if block is not None
     ]
 
+    if include_latest_order_block:
+        key_points.append(
+            (
+                f"The most recent orders from these stores came in "
+                f"{latest_month_display}, with {latest_order_store_count_fmt} "
+                f"stores last purchasing during that month."
+            )
+        )
+
+    if include_root_cause_block:
+        key_points.append(root_cause_text)
+
     return {
         "headline": headline,
         "summary": summary,
         "parts": parts,
         "description": description,
+        "key_points": key_points,
     }
 
 def create_chain_struggling_store_list(

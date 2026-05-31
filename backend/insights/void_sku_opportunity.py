@@ -285,6 +285,7 @@ def _finalize_void_opportunity_table(latest, explanation, universe_df):
             "units_3m",
             "total_brand_stores",
             "void_stores",
+            "noncarrying_stores",
             "carrying_brand_units_per_store_3m",
             "noncarrying_brand_units_per_store_3m",
             "brand_units_lift_pct",
@@ -662,11 +663,57 @@ def describe_void_opportunity(data):
         if block is not None
     ]
 
+    key_points = [
+        (
+            f"{sku} is currently sold in {buying_stores_fmt} stores at "
+            f"{chain}, while {void_stores_fmt} additional stores buy the "
+            f"brand but do not currently carry the SKU."
+        ),
+        (
+            f"The SKU is currently averaging {vpo_fmt} units per store "
+            f"per week."
+        ),
+        (
+            f"If distributed across those opportunity stores at current "
+            f"productivity levels, this could represent approximately "
+            f"{captured_units_fmt} incremental annualized units."
+        ),
+    ]
+
+    if include_assortment_block:
+        key_points.append(
+            (
+                f"Stores carrying the SKU average "
+                f"{carrying_avg_skus_fmt} SKUs from the brand, compared "
+                f"to {opportunity_avg_skus_fmt} in non-carrying stores."
+            )
+        )
+
+    #if include_single_sku_block:
+    #    key_points.append(
+    #        (
+    #            f"{opportunity_stores_1_sku_fmt} opportunity stores "
+    #            f"currently carry only one SKU from the brand."
+    #        )
+    #    )
+
+    if include_lift_block:
+        key_points.append(
+            (
+                f"Stores currently carrying the SKU sold {lift_pct} more "
+                f"total brand units over the last 3 months than stores "
+                f"not carrying the SKU ({carrying_brand_units_fmt} vs "
+                f"{noncarrying_brand_units_fmt})."
+            )
+        )
+
     return {
         "headline": headline,
         "summary": summary,
         "parts": parts,
         "description": description,
+        "key_points": key_points,
+
     }
 
 

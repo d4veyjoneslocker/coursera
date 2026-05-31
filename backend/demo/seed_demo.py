@@ -17,19 +17,16 @@ def seed_demo():
 
     features_df = add_features(df)
 
-    out_dir = Path(f"backend/data/{DEMO_ORG_ID}/processed")
-    out_dir.mkdir(parents=True, exist_ok=True)
+    temp_path = Path("/tmp/features_df.parquet")
 
-    local_path = out_dir / "features_df.parquet"
-    features_df.to_parquet(local_path, index=False)
+    features_df.to_parquet(temp_path, index=False)
 
     upload_file(
-        local_path=str(local_path),
+        local_path=str(temp_path),
         org_id=DEMO_ORG_ID,
         remote_path="processed/features_df.parquet",
     )
 
-    print(f"✅ Demo features saved locally: {local_path}")
     print("✅ Demo features uploaded to Supabase")
 
 

@@ -8,6 +8,7 @@ from backend.insights.failure_to_launch_new_store_risk import (
     build_failure_to_launch_new_store_risk_insight,
     build_failure_to_launch_new_store_risk_table,
     create_failure_to_launch_new_store_risk_store_list,
+    get_failure_to_launch_new_store_risk_drilldown_config
 )
 from backend.insights.growing_region_momentum import (
     build_growing_region_momentum_insight,
@@ -20,6 +21,7 @@ from backend.insights.overperforming_channel_momentum import (
     build_overperforming_channel_momentum_table,
     analyze_overperforming_channel_momentum,
     create_overperforming_channel_momentum_store_list,
+    get_overperforming_channel_momentum_drilldown_config
 )
 from backend.insights.dropoff_sku_risk import (
     build_dropoff_sku_risk_insight,
@@ -103,7 +105,15 @@ def get_failure_to_launch_new_store_risk_stores(
         launch_cohort_id=launch_cohort_id,
     )
 
-    return store_list.to_dict(orient="records")
+    config = get_failure_to_launch_new_store_risk_drilldown_config(
+        launch_cohort_id=launch_cohort_id,
+    )
+
+    return {
+        **config,
+        "rows": clean_for_json(store_list).to_dict("records"),
+    }
+
 
 @router.get("/growing_region_momentum")
 def get_growing_region_momentum(
@@ -214,16 +224,21 @@ def get_overperforming_channel_momentum_stores(
     df_filtered = filter_table(df, **filters)
 
     table = build_overperforming_channel_momentum_table(df_filtered)
+
     analyzed = analyze_overperforming_channel_momentum(table)
+    channel = analyzed.iloc[0]["channel"]
 
-    result = clean_for_json(
-        create_overperforming_channel_momentum_store_list(
-            df=df_filtered,
-            analyzed_table=analyzed,
-        )
-    ).to_dict("records")
+    store_list = create_overperforming_channel_momentum_store_list(
+        df=df_filtered,
+        analyzed_table=analyzed,
+    )
 
-    return result
+    config = get_overperforming_channel_momentum_drilldown_config(channel=channel)
+
+    return {
+        **config,
+        "rows": clean_for_json(store_list).to_dict("records"),
+    }
 
 @router.get("/dropoff_sku_risk")
 def get_dropoff_sku_risk(
