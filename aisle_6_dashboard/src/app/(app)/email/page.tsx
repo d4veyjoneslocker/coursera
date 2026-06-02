@@ -413,7 +413,7 @@ export default function EmailPreviewPage() {
       <div className="mx-auto max-w-5xl space-y-8">
         <header className="rounded-[32px] border border-black/10 bg-white p-7 shadow-[0_14px_34px_rgba(52,51,50,0.05)]">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#705C4F]">
-            Demo Brand
+            Smearcase
           </p>
 
           <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#343332]">
@@ -424,6 +424,7 @@ export default function EmailPreviewPage() {
             <p className="mt-2 text-sm text-[#705C4F]">{data.preview_text}</p>
           )}
         </header>
+        {/* TEMP DISABLED
         <DeepDiveSnapshotSection
           cards={snapshotCards}
           theme={{
@@ -435,6 +436,7 @@ export default function EmailPreviewPage() {
             secondary_color: org?.secondary_color,
           }}
         />
+        */}
 
         <div className="space-y-6">
           {sections.map((section) => (

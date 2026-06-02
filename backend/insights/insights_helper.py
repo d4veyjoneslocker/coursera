@@ -130,3 +130,6 @@ def get_last_full_month(today=None) -> pd.Period:
     current_month = pd.Period(today, freq="M")
 
     return current_month - 1
+
+def safe_float(val):
+    return float(val) if pd.notna(val) else None

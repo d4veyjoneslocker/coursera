@@ -6,7 +6,7 @@
 
 import pandas as pd
 
-from backend.insights.insights_helper import get_last_full_month, format_float, format_number, build_filter_context, format_pct
+from backend.insights.insights_helper import get_last_full_month, format_float, format_number, build_filter_context, format_pct, safe_float
 
 
 def _build_launch_event_table(
@@ -353,8 +353,8 @@ def normalize_failure_to_launch_new_store_risk_data(
 
             "avg_initial_units": row.get("avg_initial_units"),
             "avg_initial_units_at_risk": row.get("avg_initial_units_at_risk"),
-            "avg_initial_units_reordered": row.get("avg_initial_units_reordered"),
-            "avg_initial_units_gap": row.get("avg_initial_units_gap"),
+            "avg_initial_units_reordered": safe_float(row.get("avg_initial_units_reordered")),
+            "avg_initial_units_gap": safe_float(row.get("avg_initial_units_gap")),
 
             "sku_breakdown": sku_breakdown_data,
 
@@ -368,8 +368,8 @@ def normalize_failure_to_launch_new_store_risk_data(
                 "reorder_rate": float(row["reorder_rate"]),
                 "avg_initial_units": row.get("avg_initial_units"),
                 "avg_initial_units_at_risk": row.get("avg_initial_units_at_risk"),
-                "avg_initial_units_reordered": row.get("avg_initial_units_reordered"),
-                "avg_initial_units_gap": row.get("avg_initial_units_gap"),
+                "avg_initial_units_reordered": safe_float(row.get("avg_initial_units_reordered")),
+                "avg_initial_units_gap": safe_float(row.get("avg_initial_units_gap")),
             },
 
             "entities": {
@@ -425,11 +425,6 @@ def describe_failure_to_launch_new_store_risk(data, filters=None):
 
     avg_initial_units_at_risk_fmt = format_float(avg_initial_units_at_risk)
     avg_initial_units_reordered_fmt = format_float(avg_initial_units_reordered)
-    avg_initial_units_gap_fmt = (
-        f"+{format_float(avg_initial_units_gap)}"
-        if avg_initial_units_gap > 0
-        else format_float(avg_initial_units_gap)
-    )
 
     headline = f"Recent {chain} launch may need follow-up."
 

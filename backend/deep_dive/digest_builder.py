@@ -5,6 +5,7 @@ from backend.insights.void_sku_opportunity import build_void_opportunity_insight
 #from backend.insights.sales_insights import build_top_sales_month_insight, build_top_reorder_rate_month_insight
 from backend.insights.failure_to_launch_new_store_risk import build_failure_to_launch_new_store_risk_insight
 from backend.insights.overperforming_channel_momentum import build_overperforming_channel_momentum_insight
+from backend.insights.build_what_changed import build_what_changed
 
 
 def sort_insights(insights):
@@ -18,7 +19,7 @@ def build_weekly_digest(features_df):
     df = features_df.copy()
     df_all_time = features_df.copy()
 
-    what_changed = build_demo_what_changed()
+    what_changed = build_what_changed(df)
 
     chain_df = chain_insight_table(df)
 
@@ -39,7 +40,7 @@ def build_weekly_digest(features_df):
     ])
 
     return {
-        "subject": "SKUba Deep Dive — June",
+        "subject": "SKUba Deep Dive — May",
         "preview_text": "The trends, opportunities, and risks shaping the business beneath the surface.",
         "sections": [
             {

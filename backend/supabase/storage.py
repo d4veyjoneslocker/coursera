@@ -1,4 +1,5 @@
 import os
+import time
 from pathlib import Path
 from dotenv import load_dotenv
 from supabase import create_client
@@ -18,18 +19,14 @@ def get_supabase_client():
     return create_client(url, key)
 
 
-def upload_file(local_path: str, org_id: str, remote_path: str, upsert: bool = True):
-    """
-    Example:
-    upload_file(
-        local_path="backend/data/org_123/processed/kehe_current.parquet",
-        org_id="org_123",
-        remote_path="processed/clean_df.parquet",
-    )
-
-    Uploads to:
-    org-data/org_123/processed/clean_df.parquet
-    """
+def upload_file(
+    local_path: str,
+    org_id: str,
+    remote_path: str,
+    upsert: bool = True,
+    retries: int = 3,
+    delay_seconds: int = 2,
+):
     supabase = get_supabase_client()
 
     local_path_obj = Path(local_path)
@@ -38,15 +35,31 @@ def upload_file(local_path: str, org_id: str, remote_path: str, upsert: bool = T
 
     storage_path = f"{org_id}/{remote_path}"
 
-    with open(local_path_obj, "rb") as f:
-        return supabase.storage.from_(BUCKET_NAME).upload(
-            path=storage_path,
-            file=f,
-            file_options={
-                "content-type": "application/octet-stream",
-                "upsert": str(upsert).lower(),
-            },
-        )
+    last_error = None
+
+    for attempt in range(1, retries + 1):
+        try:
+            with open(local_path_obj, "rb") as f:
+                return supabase.storage.from_(BUCKET_NAME).upload(
+                    path=storage_path,
+                    file=f,
+                    file_options={
+                        "content-type": "text/csv",
+                        "x-upsert": str(upsert).lower(),
+                    },
+                )
+
+        except Exception as e:
+            last_error = e
+            print(
+                f"⚠️ Upload failed for {storage_path} "
+                f"attempt {attempt}/{retries}: {repr(e)}"
+            )
+
+            if attempt < retries:
+                time.sleep(delay_seconds)
+
+    raise last_error
 
 
 def download_file(org_id: str, remote_path: str, local_path: str):

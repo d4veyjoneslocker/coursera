@@ -3,6 +3,7 @@ import pandas as pd
 from backend.metrics.monthly_metric_calculators import calculate_monthly_units, calculate_monthly_active_pods, calculate_monthly_new_pods, calculate_monthly_buying_stores, calculate_monthly_vpo, calculate_monthly_reorder_rate, calculate_monthly_revenue
 from backend.metrics.metric_growth_rates import add_additive_metric_3m, calculate_buying_stores_3m, calculate_vpo_3m, calculate_reorder_rate_3m, add_prior_month_columns, add_pct_change_columns, add_abs_change_columns
 from backend.metrics.metric_calculators import calculate_units, calculate_revenue, calculate_buying_stores, calculate_vpo, calculate_store_table_vpo
+from backend.metrics.metric_helpers import calculate_avg_skus_per_store
 
 
 def kpi_monthly_table(df, df_all_time, selected_years=None, selected_months=None):
@@ -108,6 +109,40 @@ def chain_table(df):
     result = result.merge(calculate_buying_stores(df, "chain"), on="chain", how="left")
     result = result.merge(calculate_vpo(df, df, "chain"), on="chain", how="left")
 
+    current_month = pd.Timestamp.today().to_period("M")
+    last_full_month = current_month - 1
+
+    buying_l3m = calculate_buying_stores_3m(df, "chain")
+
+    # keep only the latest full month's 3M value
+    buying_l3m["month_year"] = pd.PeriodIndex(buying_l3m["month_year"], freq="M")
+    buying_l3m = buying_l3m[buying_l3m["month_year"] == last_full_month].copy()
+
+    buying_l3m = buying_l3m[[
+        "chain",
+        "buying_stores_3m",
+    ]]
+
+    buying_monthly = calculate_monthly_buying_stores(df, "chain")
+    buying_monthly["month_year"] = pd.PeriodIndex(buying_monthly["month_year"], freq="M")
+
+    buying_l1m = buying_monthly[
+        buying_monthly["month_year"] == last_full_month
+    ].copy()
+
+    buying_l1m = buying_l1m.rename(columns={
+        "buying_stores": "buying_stores_l1m"
+    })
+
+    buying_l1m = buying_l1m[[
+        "chain",
+        "buying_stores_l1m",
+    ]]
+
+    buying = buying_l3m.merge(buying_l1m, on="chain", how="left")
+
+    result = result.merge(buying, on="chain", how="left")
+
     monthly_result = calculate_monthly_units(df, "chain")
     monthly_result = add_additive_metric_3m(monthly_result, "chain", "units")
     monthly_result = add_prior_month_columns(monthly_result, "chain", "units", l1m=True, l3m=True)
@@ -121,6 +156,12 @@ def chain_table(df):
 
     monthly_latest = monthly_latest[["chain", "units_l1m_pct", "units_l3m_pct"]]
 
+    result = result.merge(
+        calculate_avg_skus_per_store(df, "chain"),
+        on="chain",
+        how="left",
+    )
+
     result = result.merge(monthly_latest, on="chain", how="left")
     result = result.sort_values("units", ascending=False)
 
@@ -128,7 +169,10 @@ def chain_table(df):
         "chain",
         "units",
         "revenue",
+        "avg_skus_per_store",
         "buying_stores",
+        "buying_stores_3m",
+        "buying_stores_l1m",
         "vpo",
         "units_l1m_pct",
         "units_l3m_pct",
