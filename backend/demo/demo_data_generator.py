@@ -33,14 +33,17 @@ def apply_demo_insight_patterns(df, stores, months, rng):
 
     current_month = months[-1]
     completed_months = [m for m in months if m < current_month]
+
     latest_completed_3 = completed_months[-3:]
     prior_completed_3 = completed_months[-6:-3]
-    detection_months = months[-3:]
+
 
     def upsert(store_id, sku, month, units):
         nonlocal df
 
         month_str = str(month)
+        units = int(max(1, units))
+
         mask = (
             (df["coded_customer"] == store_id)
             & (df["sku"] == sku)
@@ -48,8 +51,9 @@ def apply_demo_insight_patterns(df, stores, months, rng):
         )
 
         if mask.any():
-            df.loc[mask, "units"] = int(units)
-            df.loc[mask, "revenue"] = round(int(units) * 5.49, 2)
+            df.loc[mask, "units"] = units
+            df.loc[mask, "revenue"] = round(units * 5.49, 2)
+
         else:
             store = stores[stores["coded_customer"] == store_id].iloc[0]
 
@@ -62,8 +66,8 @@ def apply_demo_insight_patterns(df, stores, months, rng):
                 "distributor": store["distributor"],
                 "dc": store["dc"],
                 "sku": sku,
-                "units": int(units),
-                "revenue": round(int(units) * 5.49, 2),
+                "units": units,
+                "revenue": round(units * 5.49, 2),
                 "state": store["state"],
                 "city": store["city"],
                 "zip": store["zip"],
@@ -74,68 +78,187 @@ def apply_demo_insight_patterns(df, stores, months, rng):
 
             df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
 
-    # Velocity gap: SKU C performs much better in Whole Foods than Sprouts
+    # -------------------------------------------------
+    # 1. TOP MONTH
+    # Make recent months clearly strong overall
+    # -------------------------------------------------
+
+    top_month_stores = stores["coded_customer"].head(320)
+
+    for s in top_month_stores:
+        for m in latest_completed_3:
+            upsert(s, "SKU A", m, int(rng.normal(30, 5)))
+            upsert(s, "SKU B", m, int(rng.normal(24, 4)))
+
+    # -------------------------------------------------
+    # 2. CHAIN GROWTH DRIVER
+    # Whole Foods drives recent growth
+    # -------------------------------------------------
+
+    growth_sku = "SKU A"
+
+    wf_growth_stores = stores[
+        stores["chain"] == "Whole Foods"
+    ]["coded_customer"].head(130)
+
+    for s in wf_growth_stores:
+        for m in prior_completed_3:
+            upsert(s, growth_sku, m, int(rng.normal(6, 2)))
+
+        for m in latest_completed_3:
+            upsert(s, growth_sku, m, int(rng.normal(34, 5)))
+
+    # -------------------------------------------------
+    # 3. SKU VELOCITY IMPROVEMENT
+    # SKU B meaningfully improves recently
+    # -------------------------------------------------
+
+    sku = "SKU B"
+
+    velocity_stores = stores[
+        stores["chain"].isin(["Whole Foods", "Sprouts", "Target"])
+    ]["coded_customer"].head(170)
+
+    for s in velocity_stores:
+        for m in prior_completed_3:
+            upsert(s, sku, m, int(rng.normal(6, 2)))
+
+        for m in latest_completed_3:
+            upsert(s, sku, m, int(rng.normal(24, 4)))
+
+    # -------------------------------------------------
+    # 4. VELOCITY GAP
+    # SKU C performs much better in WF than Sprouts
+    # -------------------------------------------------
+
     sku = "SKU C"
-    wf = stores[stores["chain"] == "Whole Foods"]["coded_customer"].head(45)
-    sprouts = stores[stores["chain"] == "Sprouts"]["coded_customer"].head(45)
+
+    wf = stores[
+        stores["chain"] == "Whole Foods"
+    ]["coded_customer"].head(60)
+
+    sprouts = stores[
+        stores["chain"] == "Sprouts"
+    ]["coded_customer"].head(60)
 
     for s in wf:
         for m in latest_completed_3:
-            upsert(s, sku, m, int(rng.normal(30, 5)))
+            upsert(s, sku, m, int(rng.normal(34, 5)))
 
     for s in sprouts:
         for m in latest_completed_3:
-            upsert(s, sku, m, int(max(2, rng.normal(9, 2))))
+            upsert(s, sku, m, int(rng.normal(7, 2)))
 
-    # Void opportunity: SKU E missing from many Whole Foods stores
+    # -------------------------------------------------
+    # 5. VOID OPPORTUNITY
+    # SKU E strong where carried, absent elsewhere
+    # -------------------------------------------------
+
     sku = "SKU E"
-    wf_all = stores[stores["chain"] == "Whole Foods"]["coded_customer"].head(100)
+    anchor_sku = "SKU A"
 
-    carrying = wf_all[:25]
-    voids = wf_all[25:75]
-    new_carry = wf_all[75:85]
+    wf_all = stores[
+        stores["chain"] == "Whole Foods"
+    ]["coded_customer"].head(140)
 
+    carrying = wf_all[:35]
+    voids = wf_all[35:115]
+
+    # Stores carrying SKU E have strong velocity
     for s in carrying:
         for m in latest_completed_3:
-            upsert(s, sku, m, int(rng.normal(38, 6)))
+            upsert(s, sku, m, int(rng.normal(42, 5)))
+    
+    void_clear_months = pd.period_range(
+        latest_completed_3[-1] - 5,
+        latest_completed_3[-1],
+        freq="M",
+    )
 
-    for s in new_carry:
-        upsert(s, sku, current_month, int(rng.normal(7, 2)))
-
-    anchor = "SKU A"
+    # Void stores are active brand buyers but missing SKU E
     for s in voids:
-        # remove SKU E from detection window, but make sure store is active
         df = df[
             ~(
                 (df["coded_customer"] == s)
                 & (df["sku"] == sku)
-                & (df["month_year"].astype(str).isin([str(m) for m in detection_months]))
+                & (
+                    df["month_year"].astype(str).isin(
+                        [str(m) for m in void_clear_months]
+                    )
+                )
             )
         ]
 
-        for m in detection_months:
-            upsert(s, anchor, m, int(rng.normal(13, 3)))
-
-    # SKU velocity improvement: SKU B improves in recent 3 months
-    sku = "SKU B"
-    sample = stores[stores["chain"].isin(["Kroger", "Target", "Whole Foods"])]["coded_customer"].head(140)
-
-    for s in sample:
-        for m in prior_completed_3:
-            upsert(s, sku, m, int(max(2, rng.normal(7, 2))))
         for m in latest_completed_3:
-            upsert(s, sku, m, int(rng.normal(19, 4)))
+            upsert(s, anchor_sku, m, int(rng.normal(24, 4)))
+            upsert(s, "SKU B", m, int(rng.normal(18, 3)))
 
-    # Chain growth: Target grows strongly vs prior 3 months
-    growth_sku = "SKU A"
-    target_stores = stores[stores["chain"] == "Target"]["coded_customer"].head(120)
+    # -------------------------------------------------
+    # 6. CHAIN DECLINE
+    # Kroger materially weakens recently
+    # -------------------------------------------------
 
-    for s in target_stores:
+    decline_sku = "SKU D"
+
+    kroger_stores = stores[
+        stores["chain"] == "Kroger"
+    ]["coded_customer"].head(110)
+
+    for s in kroger_stores:
         for m in prior_completed_3:
-            upsert(s, growth_sku, m, int(max(1, rng.normal(5, 1))))
-        for m in latest_completed_3:
-            upsert(s, growth_sku, m, int(rng.normal(32, 5)))
+            upsert(s, decline_sku, m, int(rng.normal(26, 4)))
 
+        for m in latest_completed_3:
+            upsert(s, decline_sku, m, int(rng.normal(5, 2)))
+
+    # -------------------------------------------------
+    # 7. FAILURE TO LAUNCH
+    # Recent Target launch fails to reorder
+    # -------------------------------------------------
+
+    launch_sku = "SKU D"
+
+    target_launch_stores = stores[
+        stores["chain"] == "Target"
+    ]["coded_customer"].head(45)
+
+    launch_month = completed_months[-3]
+
+    # Strong initial shipment
+    for s in target_launch_stores:
+        upsert(s, launch_sku, launch_month, int(rng.normal(28, 5)))
+
+    # Some stores reorder successfully
+    successful_reorders = target_launch_stores[:14]
+
+    for s in successful_reorders:
+        for m in [launch_month + 1, launch_month + 2]:
+            upsert(s, launch_sku, m, int(rng.normal(12, 3)))
+
+    # Remaining stores never reorder
+    # (leave blank intentionally)
+
+
+    # -------------------------------------------------
+    # 8. CHANNEL MOMENTUM
+    # Specialty channel producing outsized volume
+    # -------------------------------------------------
+
+    specialty_stores = stores[
+        stores["channel"] == "Specialty"
+    ]["coded_customer"].head(95)
+
+    # Keep footprint relatively small in prior period
+    for s in specialty_stores:
+        for m in prior_completed_3:
+            upsert(s, "SKU A", m, int(rng.normal(5, 1)))
+
+    # Make recent period clearly outperform on units + velocity
+    for s in specialty_stores:
+        for m in latest_completed_3:
+            upsert(s, "SKU A", m, int(rng.normal(38, 5)))
+            upsert(s, "SKU B", m, int(rng.normal(26, 4)))
+            
     return df
 
 

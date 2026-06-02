@@ -282,3 +282,27 @@ def calculate_reorder_rate_3m(df_filtered, df_full, group_cols=None, selected_ye
 
     return result[group_cols + ["reorder_rate_3m"]]
 
+def calculate_active_pods_3m_opportunities(
+    df_filtered,
+    df_full,
+    group_cols=None,
+    selected_years=None,
+    selected_months=None,
+    include_current_month=True,
+):
+    group_cols = clean_group_cols(group_cols)
+
+    active_pods = calculate_monthly_active_pods(
+        df_filtered=df_filtered,
+        df_full=df_full,
+        group_cols=group_cols,
+        selected_years=selected_years,
+        selected_months=selected_months,
+        include_current_month=include_current_month,
+    )
+
+    active_pods_3m = add_additive_metric_3m(active_pods, group_cols, "active_pods",)
+
+    active_pods_3m = active_pods_3m.rename(columns={"active_pods_3m": "active_pods_3m_opportunities"})
+
+    return active_pods_3m[group_cols + ["active_pods_3m_opportunities"]]

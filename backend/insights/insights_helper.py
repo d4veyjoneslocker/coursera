@@ -1,3 +1,5 @@
+import pandas as pd
+
 def format_filter_values(values, max_items=3):
     if not values:
         return None
@@ -59,3 +61,75 @@ def build_filter_context(filters, exclude_keys=None):
     context_str = " " + " ".join(context_parts) if context_parts else ""
 
     return context_str, part_objects
+
+def format_pct(
+    value,
+    decimals=0,
+    signed=False,
+    null_value="-",
+):
+    try:
+        if value is None or pd.isna(value):
+            return null_value
+
+        value = float(value)
+
+        if not pd.notna(value) or value in [float("inf"), float("-inf")]:
+            return null_value
+
+        sign = "+" if signed and value > 0 else ""
+
+        return f"{sign}{value:.{decimals}%}"
+
+    except (TypeError, ValueError):
+        return null_value
+
+
+def format_float(
+    value,
+    decimals=1,
+    null_value="-",
+):
+    try:
+        if value is None or pd.isna(value):
+            return null_value
+
+        value = float(value)
+
+        if not pd.notna(value) or value in [float("inf"), float("-inf")]:
+            return null_value
+
+        return f"{value:,.{decimals}f}"
+
+    except (TypeError, ValueError):
+        return null_value
+
+
+def format_number(
+    value,
+    null_value="-",
+):
+    try:
+        if value is None or pd.isna(value):
+            return null_value
+
+        value = float(value)
+
+        if not pd.notna(value) or value in [float("inf"), float("-inf")]:
+            return null_value
+
+        return f"{int(round(value)):,}"
+
+    except (TypeError, ValueError):
+        return null_value
+    
+def get_last_full_month(today=None) -> pd.Period:
+    if today is None:
+        today = pd.Timestamp.today()
+
+    current_month = pd.Period(today, freq="M")
+
+    return current_month - 1
+
+def safe_float(val):
+    return float(val) if pd.notna(val) else None

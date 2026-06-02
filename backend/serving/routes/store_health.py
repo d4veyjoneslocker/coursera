@@ -1,4 +1,5 @@
 import time
+import pandas as pd
 from fastapi import (FastAPI, APIRouter, Depends, Query)
 from backend.filters.filter_table import filter_table
 from backend.filters.filters import get_filters, generate_filter_api
@@ -90,6 +91,9 @@ def reorders(org_id: str = Query(...), filters: dict = Depends(get_filters)):
     df_all_time = filter_table(features_df, **non_time_filters)
 
     result = calculate_monthly_reorder_rate(df, df_all_time)
+
+    current_month = pd.Timestamp.today().to_period("M")
+    result = result[result["month_year"] != current_month]
 
     result = prep_monthly_graph(result,"reorder_rate")
     result = clean_for_json(result)

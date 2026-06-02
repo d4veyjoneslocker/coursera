@@ -8,7 +8,8 @@ type Column = {
   key: string
   label: string
   align?: "left" | "right" | "center"
-  format?: "number" | "currency" | "decimal" | "month" | "status" | "sku_pills"
+  format?: "number" | "currency" | "decimal" | "month" | "status" | "sku_pills" | "percent"
+  width?: string
 }
 
 type InsightTableProps = {
@@ -18,6 +19,7 @@ type InsightTableProps = {
     columns?: Column[]
     rows?: Record<string, any>[]
     result?: Record<string, any>[]
+    table_width?: string
   }
 }
 
@@ -151,7 +153,8 @@ export default function InsightTable({ data }: InsightTableProps) {
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-[20px] border border-black/10 bg-white">
+      <div
+  className={`mx-auto overflow-hidden rounded-[20px] border border-black/10 bg-white ${data.table_width ?? ""}`}>
         <div className="max-h-[420px] overflow-auto">
           <table className="w-full text-sm">
             <thead
@@ -163,6 +166,7 @@ export default function InsightTable({ data }: InsightTableProps) {
                   <th
                     key={col.key}
                     onClick={() => handleSort(col.key)}
+                    style={{ width: col.width }}
                     className={`cursor-pointer ${
                       col.align === "right"
                         ? "text-right"
@@ -192,6 +196,7 @@ export default function InsightTable({ data }: InsightTableProps) {
                     {columns.map((col) => (
                       <td
                         key={col.key}
+                        style={{ width: col.width }}
                         className={`px-4 py-3 ${
                           col.key === "coded_customer"
                             ? "font-medium text-neutral-900"
@@ -263,6 +268,8 @@ function formatCell(
     }
 
     if (format === "number") return Number(value).toLocaleString()
+
+    if (format === "percent") {return `${(Number(value) * 100).toFixed(1)}%`}
 
     if (format === "currency") {
       return `$${Number(value).toLocaleString(undefined, {

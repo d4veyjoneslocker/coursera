@@ -699,6 +699,9 @@ export default function Home() {
             kpis={unitsKpis}
             accentColor={theme.primary_color}
             theme={theme}
+            metricKey="units"
+            orgId={org?.id ?? null}
+            filters={filters}
             info={
               <>
                 <p>Sales performance over time.</p>
@@ -707,7 +710,7 @@ export default function Home() {
                   <li>Monthly aggregation</li>
                 </ul>
               </>
-  }
+            }
           />
 
           <ChartSection
@@ -716,6 +719,9 @@ export default function Home() {
             kpis={buyersKpis}
             accentColor={theme.secondary_color}
             theme={theme}
+            metricKey="buyers"
+            orgId={org?.id ?? null}
+            filters={filters}
           />
 
           <ChartSection
@@ -724,6 +730,9 @@ export default function Home() {
             kpis={velocityKpis}
             accentColor={theme.accent_color}
             theme={theme}
+            metricKey="velocity"
+            orgId={org?.id ?? null}
+            filters={filters}
           />
 
           <ChartSection
@@ -732,6 +741,9 @@ export default function Home() {
             kpis={podKpis}
             accentColor={theme.charcoal}
             theme={theme}
+            metricKey="pods"
+            orgId={org?.id ?? null}
+            filters={filters}
           />
         </div>
 
@@ -841,7 +853,7 @@ export default function Home() {
                   style={{ backgroundColor: theme.primary_color }}
                 >
                   <TableRow className="border-b border-black/10">
-                    <TableHead className="h-12 px-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                    <TableHead className="max-w-[200px] h-12 px-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
                       Chain
                     </TableHead>
                     <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
@@ -851,7 +863,17 @@ export default function Home() {
                       Units
                     </TableHead>
                     <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                      SKUs/Store
+                    </TableHead>
+                    <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
                       Buying Stores
+                    </TableHead>
+                    <TableHead className="px-4 py-4 text-right text-xs font-semibold uppercase tracking-[0.2em] text-white">
+                      Buy Stores 3M
+                    </TableHead>
+
+                    <TableHead className="px-4 py-4 text-right text-xs font-semibold uppercase tracking-[0.2em] text-white">
+                      Buy Stores 1M
                     </TableHead>
                     <TableHead className="h-12 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
                       1M Growth
@@ -869,7 +891,7 @@ export default function Home() {
                         key={index}
                         className="border-b border-black/5 transition-colors hover:bg-neutral-50"
                       >
-                        <TableCell className="px-4 py-3 text-sm font-medium text-neutral-900">
+                        <TableCell className="max-w-[200px] px-4 py-3 text-sm font-medium text-neutral-900">
                           {row.chain ?? "—"}
                         </TableCell>
 
@@ -884,8 +906,26 @@ export default function Home() {
                         </TableCell>
 
                         <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
+                          {row.avg_skus_per_store != null
+                            ? Number(row.avg_skus_per_store).toFixed(1)
+                            : "—"}
+                        </TableCell>
+
+                        <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
                           {row.buying_stores != null
                             ? Number(row.buying_stores).toLocaleString()
+                            : "—"}
+                        </TableCell>
+
+                        <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
+                          {row.buying_stores_3m != null
+                            ? Number(row.buying_stores_3m).toLocaleString()
+                            : "—"}
+                        </TableCell>
+
+                        <TableCell className="px-4 py-3 text-right text-sm tabular-nums text-neutral-700">
+                          {row.buying_stores_l1m != null
+                            ? Number(row.buying_stores_l1m).toLocaleString()
                             : "—"}
                         </TableCell>
 

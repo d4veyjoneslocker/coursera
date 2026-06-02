@@ -17,6 +17,8 @@ from backend.serving.api_helpers import clean_for_json  # or wherever this lives
 from backend.data_pipeline.table_loader import load_org_tables
 from backend.insights.sales_insights import build_top_sales_month_insight, build_top_reorder_rate_month_insight
 from backend.exports.insights_email.email_tables import chain_struggling_store_detail_table
+from backend.insights.failure_to_launch_new_store_risk import build_failure_to_launch_new_store_risk_insight
+from backend.insights.overperforming_channel_momentum import build_overperforming_channel_momentum_insight
 
 
 router = APIRouter(prefix="/insights", tags=["Insights"])
@@ -85,11 +87,18 @@ def get_overview_insights(
 
         void_df = filter_table(features_df, **void_filters)
 
-        # ✅ pass filters
-        sku_voids = build_void_opportunity_insight(void_df, filters=filters)
+        #opportunity_df = chain_sku_velocity_gap_opportunity_table(
+        #    void_df,
+        #    void_df,
+        #)
 
-        if sku_voids:
-            insights.append(sku_voids)
+        #sku_voids = build_void_opportunity_insight(
+        #    opportunity_df,
+        #    filters=filters,
+        #)
+
+        #if sku_voids:
+        #    insights.append(sku_voids)
 
     return insights
 
@@ -228,3 +237,34 @@ def get_distribution_opportunity_stores(
             ],
         "rows": result,
     }
+
+@router.get("/failure-to-launch")
+def get_failure_to_launch_insight(
+    org_id: str = Query(...),
+    filters: dict = Depends(get_filters),
+):
+    features_df = load_org_tables(org_id)
+    df = filter_table(features_df, **filters)
+
+    insight = build_failure_to_launch_new_store_risk_insight(
+        df,
+        filters=filters,
+    )
+
+    return insight or {}
+
+
+@router.get("/channel-momentum")
+def get_channel_momentum_insight(
+    org_id: str = Query(...),
+    filters: dict = Depends(get_filters),
+):
+    features_df = load_org_tables(org_id)
+    df = filter_table(features_df, **filters)
+
+    insight = build_overperforming_channel_momentum_insight(
+        df,
+        filters=filters,
+    )
+
+    return insight or {}

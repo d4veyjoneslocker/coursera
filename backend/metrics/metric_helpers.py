@@ -448,3 +448,18 @@ def get_current_period(include_current_month=False):
         current_period -= 1
 
     return current_period
+
+def calculate_avg_skus_per_store(df, grain):
+    result = (
+        df.groupby([grain, "coded_customer"])["sku"]
+        .nunique()
+        .reset_index(name="sku_count")
+    )
+
+    result = (
+        result.groupby(grain, as_index=False)["sku_count"]
+        .mean()
+        .rename(columns={"sku_count": "avg_skus_per_store"})
+    )
+
+    return result

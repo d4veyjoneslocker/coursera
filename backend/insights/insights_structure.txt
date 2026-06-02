@@ -1,0 +1,7 @@
+Layer	            Responsibility
+build_table	        compute truth
+analyze	            decide relevance
+normalize	        standardize structure
+describe	        explain insight
+create_store_list	drilldown alignment
+build_insight	    orchestration/output

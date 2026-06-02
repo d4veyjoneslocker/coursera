@@ -127,6 +127,36 @@ export default function DashboardHeader({
     }
   }
 
+  const handleStoreListDownload = async () => {
+    if (!API_BASE_URL || !org?.id) return
+
+    setMenuOpen(false)
+
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/exports/store_list?org_id=${org.id}`
+      )
+
+      if (!res.ok) {
+        throw new Error("Store list download failed.")
+      }
+
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+
+      a.href = url
+      a.download = "store_list.csv"
+
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error("Store list download failed:", err)
+    }
+  }
+
   const handleRefreshUnfi = async () => {
     if (!API_BASE_URL) return
 
@@ -242,13 +272,7 @@ export default function DashboardHeader({
                 </>
               )}
 
-              {lastUpdated && (
-                <>
-                  <span className="text-xs text-[#7A746B]">
-                    Updated {lastUpdated}
-                  </span>
-                </>
-              )}
+
 
               <div className="h-4 w-px bg-[#DED4C4]" />
 
@@ -299,6 +323,17 @@ export default function DashboardHeader({
                     }}
                   >
                     Export for AI
+                  </button>
+                  
+                  <button
+                    onClick={handleStoreListDownload}
+                    className="w-full border-t px-4 py-3 text-left text-sm hover:bg-neutral-50"
+                    style={{
+                      color: theme.charcoal,
+                      borderColor: theme.line,
+                    }}
+                  >
+                    Download Store List
                   </button>
 
                   <button

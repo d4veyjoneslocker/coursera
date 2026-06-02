@@ -46,6 +46,11 @@ def transform_kehe_full_pod_vendor(df, org_id):
         df["RetailerName"].str.upper()
     )
 
+    df["chain"] = np.where(
+        df["chain"].str.startswith("FRESH THYME"), "FRESH THYME", 
+        df["chain"]
+    )
+
     # Convert zip code to 5-digit string
     df["zip"] = df["CustomerPostalCode"].astype(str).str[:5]
     # Adjust Sprouts store numbers

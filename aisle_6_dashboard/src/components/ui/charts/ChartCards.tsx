@@ -82,17 +82,26 @@ function SoftLinePointLabel({
 export function BarChartCard({
   data,
   accentColor,
-  valueFormatter = formatNumber,   // 👈 add this
+  valueFormatter = formatNumber,
+  className = "min-h-[300px]",
 }: {
   data: MetricRow[]
   accentColor: string
   valueFormatter?: (value: number) => string
+  className?: string
 }) {
   return (
-    <div className="w-full">
-      <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
-        <BarChart data={data} margin={{ top: 20, right: 20, left: -10, bottom: 0 }}>
+    <div className="h-full w-full">
+      <ChartContainer
+        config={chartConfig}
+        className={`${className} h-full w-full`}
+      >
+        <BarChart
+          data={data}
+          margin={{ top: 20, right: 20, left: -10, bottom: 0 }}
+        >
           <CartesianGrid vertical={false} strokeDasharray="3 3" />
+
           <XAxis
             dataKey="month_year"
             tickFormatter={formatMonth}
@@ -100,6 +109,7 @@ export function BarChartCard({
             axisLine={false}
             tickMargin={10}
           />
+
           <YAxis
             tickFormatter={valueFormatter}
             tickLine={false}
@@ -107,16 +117,22 @@ export function BarChartCard({
             tickMargin={10}
             width={50}
           />
+
           <ChartTooltip
             content={
               <ChartTooltipContent
-                formatter={(value) => valueFormatter(Number(value))}
+                formatter={(value) =>
+                  valueFormatter(Number(value))
+                }
                 labelFormatter={(label) =>
-                  typeof label === "string" ? formatMonth(label) : String(label)
+                  typeof label === "string"
+                    ? formatMonth(label)
+                    : String(label)
                 }
               />
             }
           />
+
           <Bar
             dataKey="value"
             fill={accentColor}
@@ -444,6 +460,111 @@ export function PieChartCard({
           <CustomLegend data={safeData} colorMap={colorMap} />
         </div>
       </div>
+    </div>
+  )
+}
+
+export type YoYMetricRow = {
+  month: string
+  month_num: number
+  current_year: number
+  current_value: number
+  prior_year: number
+  prior_value: number
+}
+
+function lightenHex(hex: string, opacity = "55") {
+  return `${hex}${opacity}`
+}
+
+export function YoYBarChartCard({
+  data,
+  accentColor,
+  valueFormatter = formatNumber,
+  className = "h-full",
+}: {
+  data: YoYMetricRow[]
+  accentColor: string
+  valueFormatter?: (value: number) => string
+  className?: string
+}) {
+  const currentYear = data?.[0]?.current_year
+  const priorYear = data?.[0]?.prior_year
+
+  return (
+    <div className="h-full w-full">
+      <ChartContainer
+        config={chartConfig}
+        className={`${className} h-full w-full`}
+      >
+        <BarChart
+          data={data}
+          margin={{ top: 24, right: 24, left: -10, bottom: 0 }}
+        >
+          <CartesianGrid vertical={false} strokeDasharray="3 3" />
+
+          <XAxis
+            dataKey="month"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={10}
+          />
+
+          <YAxis
+            tickFormatter={valueFormatter}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={10}
+            width={50}
+          />
+
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                formatter={(value, name) => {
+                  const label =
+                    name === "current_value"
+                      ? String(currentYear)
+                      : String(priorYear)
+
+                  return [
+                    valueFormatter(Number(value)),
+                    label,
+                  ]
+                }}
+              />
+            }
+          />
+
+          <Bar
+            dataKey="prior_value"
+            name={String(priorYear)}
+            fill={lightenHex(accentColor, "55")}
+            radius={[6, 6, 0, 0]}
+            label={{
+              position: "top",
+              formatter: valueFormatter as any,
+              fontSize: 13,
+              fontWeight: 600,
+              fill: lightenHex(accentColor, "AA"),
+            }}
+          />
+
+          <Bar
+            dataKey="current_value"
+            name={String(currentYear)}
+            fill={accentColor}
+            radius={[6, 6, 0, 0]}
+            label={{
+              position: "top",
+              formatter: valueFormatter as any,
+              fontSize: 13,
+              fontWeight: 600,
+              fill: accentColor,
+            }}
+          />
+        </BarChart>
+      </ChartContainer>
     </div>
   )
 }
