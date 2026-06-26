@@ -16,17 +16,6 @@ load_dotenv()
 
 app = FastAPI()
 
-@app.middleware("http")
-async def debug_cors(request, call_next):
-    print("ORIGIN:", request.headers.get("origin"))
-    print("METHOD:", request.method)
-    print("PATH:", request.url.path)
-
-    response = await call_next(request)
-
-    print("STATUS:", response.status_code)
-    return response
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
