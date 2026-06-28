@@ -21,6 +21,8 @@ def build_weekly_digest(features_df):
 
     what_changed = build_what_changed(df)
 
+    what_changed = sort_insights(what_changed)
+
     chain_df = chain_insight_table(df)
 
     opportunities = sort_insights([
