@@ -487,7 +487,7 @@ export default function StoresPage() {
             accentColor={theme.secondary_color}
             theme={theme}
             chartType="line"
-            valueFormatter={(v) => `${formatPercent(v)}%`}
+            valueFormatter={(v) => `${formatPercent(v)}`}
           />
         </div>
 
