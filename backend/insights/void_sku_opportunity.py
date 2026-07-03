@@ -313,7 +313,7 @@ def _calculate_channel_avg_skus(universe_df):
 
 def analyze_void_opportunity(
     table: pd.DataFrame,
-    limit: int = 1,
+    limit: int = 2,
 ) -> pd.DataFrame | None:
     """
     Applies insight criteria and selects the strongest
@@ -841,34 +841,47 @@ def build_void_opportunity_insight(df, df_all_time):
 
     data = normalize_void_opportunity_data(analyzed)
 
-    description = describe_void_opportunity(data)
-
-    if data is None or description is None:
+    if data is None:
         return None
 
-    sku = data["sku"]
-    chain = data["chain"]
-    channel = data["channel"]
+    data_list = data if isinstance(data, list) else [data]
 
-    return {
-        "type": "distribution_opportunity",
-        "section": "opportunities",
+    insights = []
 
-        **description,
+    for item in data_list:
+        description = describe_void_opportunity(item)
 
-        "metrics": data["metrics"],
-        "entities": data["entities"],
+        if description is None:
+            continue
 
-        "sku": sku,
-        "chain": chain,
-        "channel": channel,
-        "impact_units": data["captured_units"],
+        sku = item["sku"]
+        chain = item["chain"]
+        channel = item["channel"]
 
-        "drilldown": {
-            "label": "View opportunity stores",
-            "href": (
-                f"/insights/distribution_opportunity"
-                f"?chain={chain}&sku={sku}&channel={channel}"
-            ),
-        },
-    }
+        insights.append({
+            "type": "distribution_opportunity",
+            "section": "opportunities",
+
+            **description,
+
+            "metrics": item["metrics"],
+            "entities": item["entities"],
+
+            "sku": sku,
+            "chain": chain,
+            "channel": channel,
+            "impact_units": item["captured_units"],
+
+            "drilldown": {
+                "label": "View opportunity stores",
+                "href": (
+                    f"/insights/distribution_opportunity"
+                    f"?chain={chain}&sku={sku}&channel={channel}"
+                ),
+            },
+        })
+
+    if not insights:
+        return None
+
+    return insights

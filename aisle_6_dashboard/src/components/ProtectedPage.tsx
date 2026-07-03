@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { OrgProvider, type Org } from "@/components/OrgContext"
 import KeheUploadCard from "@/components/ui/DistributorDataUploadCard"
+import LoadingScreen from "@/components/LoadingScreen"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
@@ -89,7 +90,7 @@ export default function ProtectedPage({
   }, [router])
 
   if (loading) {
-    return <div className="p-6">Loading...</div>
+    return <LoadingScreen />
   }
 
   if (error) {

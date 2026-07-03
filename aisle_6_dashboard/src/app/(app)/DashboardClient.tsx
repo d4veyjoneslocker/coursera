@@ -36,6 +36,7 @@ import DashboardHeader from "@/components/ui/DashboardHeader"
 import KpiCard from "@/components/ui/charts/KpiCard"
 import { InsightsSection } from "@/components/InsightsSection"
 import ChartSection from "@/components/ui/charts/ChartSection"
+import {formatCompact, formatWhole, formatDecimal, formatPercent} from "@/lib/format"
 
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
@@ -126,29 +127,6 @@ function formatMonth(month: string) {
   })
 }
 
-function formatPercent(value: number) {
-  const pct = Math.abs(value * 100)
-
-  if (pct >= 1000) {
-    const short = pct / 1000
-    return short >= 10 ? `${Math.round(short)}K` : `${short.toFixed(1)}K`
-  }
-
-  return Math.round(pct).toString()
-}
-
-function formatNumber(value: unknown) {
-  const num = Number(value)
-
-  if (Number.isNaN(num)) return ""
-
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M"
-  if (num >= 1000) return (num / 1000).toFixed(1) + "K"
-  if (num >= 100) return num.toFixed(0)
-  if (num < 100) return num.toFixed(1)
-
-  return num.toString()
-}
 
 function splitCenterLabel(label: string, maxWordsPerLine = 2) {
   const words = label.toUpperCase().split(" ")
@@ -243,58 +221,7 @@ function formatLastUpdated(value?: string | null) {
   })
 }
 
-function BarChartCard({
-  data,
-  accentColor,
-}: {
-  data: MetricRow[]
-  accentColor: string
-}) {
-  return (
-    <div className="w-full">
-      <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
-        <BarChart data={data} margin={{ top: 20, right: 20, left: -10, bottom: 0 }}>
-          <CartesianGrid vertical={false} strokeDasharray="3 3" />
-          <XAxis
-            dataKey="month_year"
-            tickFormatter={formatMonth}
-            tickLine={false}
-            axisLine={false}
-            tickMargin={10}
-          />
-          <YAxis
-            tickFormatter={formatNumber}
-            tickLine={false}
-            axisLine={false}
-            tickMargin={10}
-            width={50}
-          />
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                labelFormatter={(label) =>
-                  typeof label === "string" ? formatMonth(label) : String(label)
-                }
-              />
-            }
-          />
-          <Bar
-            dataKey="value"
-            fill={accentColor}
-            radius={[6, 6, 0, 0]}
-            label={{
-              position: "top",
-              formatter: formatNumber,
-              fontSize: 14,
-              fontWeight: 600,
-              fill: accentColor,
-            }}
-          />
-        </BarChart>
-      </ChartContainer>
-    </div>
-  )
-}
+
 
 function PieChartCard({
   data,
@@ -314,7 +241,7 @@ function PieChartCard({
   const total = safeData.reduce((sum, row) => sum + row.value, 0)
 
   const displayValue =
-    centerValue !== undefined ? centerValue : formatNumber(total)
+    centerValue !== undefined ? centerValue : formatDecimal(total)
 
   const centerLines = splitCenterLabel(centerLabel ?? "TOTAL")
 
@@ -409,7 +336,7 @@ function PieChartCard({
                   fontWeight={600}
                   dy={22}
                 >
-                  {formatNumber(displayValue)}
+                  {formatDecimal(Number(displayValue))}
                 </text>
               </PieChart>
             </ResponsiveContainer>
@@ -733,6 +660,8 @@ export default function Home() {
             metricKey="velocity"
             orgId={org?.id ?? null}
             filters={filters}
+            valueFormatter={formatDecimal}
+
           />
 
           <ChartSection

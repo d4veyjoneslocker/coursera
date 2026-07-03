@@ -249,7 +249,7 @@ def build_failure_to_launch_new_store_risk_table(
 
 def analyze_failure_to_launch_new_store_risk(
     table: pd.DataFrame,
-    limit: int = 1,
+    limit: int = 2,
     min_at_risk_placements: int = 3,
     min_at_risk_rate: float = 0.25,
 ) -> pd.DataFrame | None:
@@ -649,6 +649,7 @@ def build_failure_to_launch_new_store_risk_insight(
 
     analyzed = analyze_failure_to_launch_new_store_risk(
         table=tables["cohort_summary"],
+        limit=2,
     )
 
     data = normalize_failure_to_launch_new_store_risk_data(
@@ -656,31 +657,44 @@ def build_failure_to_launch_new_store_risk_insight(
         sku_breakdown=tables["sku_breakdown"],
     )
 
-    description = describe_failure_to_launch_new_store_risk(
-        data=data,
-        filters=filters,
-    )
-
-    if data is None or description is None:
+    if data is None:
         return None
 
-    launch_cohort_id = data["launch_cohort_id"]
-    chain = data["chain"]
+    data_list = data if isinstance(data, list) else [data]
 
-    return {
-        "type": "failure_to_launch_new_store_risk",
-        "section": "at_risk",
+    insights = []
 
-        **description,
+    for item in data_list:
+        description = describe_failure_to_launch_new_store_risk(
+            data=item,
+            filters=filters,
+        )
 
-        "metrics": data["metrics"],
-        "entities": data["entities"],
+        if description is None:
+            continue
 
-        "chain": chain,
-        "launch_cohort_id": launch_cohort_id,
-        "launch_month": data["launch_month"],
+        launch_cohort_id = item["launch_cohort_id"]
+        chain = item["chain"]
 
-        "drilldown": get_failure_to_launch_new_store_risk_drilldown_config(
-            launch_cohort_id=launch_cohort_id,
-        ),
-    }
+        insights.append({
+            "type": "failure_to_launch_new_store_risk",
+            "section": "at_risk",
+
+            **description,
+
+            "metrics": item["metrics"],
+            "entities": item["entities"],
+
+            "chain": chain,
+            "launch_cohort_id": launch_cohort_id,
+            "launch_month": item["launch_month"],
+
+            "drilldown": get_failure_to_launch_new_store_risk_drilldown_config(
+                launch_cohort_id=launch_cohort_id,
+            ),
+        })
+
+    if not insights:
+        return None
+
+    return insights

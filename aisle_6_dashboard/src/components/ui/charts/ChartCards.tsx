@@ -22,10 +22,13 @@ import {
 import { MetricRow, PieRow } from "./chartTypes"
 import {
   chartConfig,
+  formatCompact,
   formatMonth,
-  formatNumber,
+  formatPercent,
+  formatWhole,
+  formatDecimal,
   splitCenterLabel,
-} from "./chartUtils"
+} from "@/lib/format"
 import CustomLegend from "@/components/ui/CustomLegend"
 
 type Theme = {
@@ -82,7 +85,7 @@ function SoftLinePointLabel({
 export function BarChartCard({
   data,
   accentColor,
-  valueFormatter = formatNumber,
+  valueFormatter = formatCompact,
   className = "min-h-[300px]",
 }: {
   data: MetricRow[]
@@ -155,7 +158,7 @@ export function LineChartCard({
   data,
   accentColor,
   theme,
-  valueFormatter = formatNumber,
+  valueFormatter = formatCompact,
   showPointLabels = true,
 }: {
   data: MetricRow[]
@@ -334,6 +337,7 @@ export function PieChartCard({
   centerLabel,
   theme,
   tooltipValueType = "percent",
+  centerValueFormatter = formatDecimal,
 }: {
   data: PieRow[]
   colorMap: Record<string, string>
@@ -341,12 +345,13 @@ export function PieChartCard({
   centerLabel?: string
   theme: Theme
   tooltipValueType?: "percent" | "number"
+  centerValueFormatter?: (value: number) => string
 }) {
   const safeData = Array.isArray(data) ? data : []
   const total = safeData.reduce((sum, row) => sum + row.value, 0)
 
   const displayValue =
-    centerValue !== undefined ? centerValue : formatNumber(total)
+    centerValue !== undefined ? Number(centerValue) : total
 
   const centerLines = splitCenterLabel(centerLabel ?? "TOTAL")
 
@@ -355,10 +360,10 @@ export function PieChartCard({
 
   const formatTooltipValue = (value: number) => {
     if (tooltipValueType === "number") {
-      return formatNumber(value)
+      return formatCompact(value)
     }
 
-    return `${Math.round(value * 100)}%`
+    return formatPercent(value)
   }
 
   return (
@@ -449,7 +454,7 @@ export function PieChartCard({
                   fontWeight={600}
                   dy={22}
                 >
-                  {formatNumber(displayValue)}
+                  {centerValueFormatter(displayValue)}
                 </text>
               </PieChart>
             </ResponsiveContainer>
@@ -480,7 +485,7 @@ function lightenHex(hex: string, opacity = "55") {
 export function YoYBarChartCard({
   data,
   accentColor,
-  valueFormatter = formatNumber,
+  valueFormatter = formatCompact,
   className = "h-full",
 }: {
   data: YoYMetricRow[]
