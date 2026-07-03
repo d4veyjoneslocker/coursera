@@ -9,8 +9,16 @@ from backend.insights.build_what_changed import build_what_changed
 
 
 def sort_insights(insights):
+    flattened = []
+
+    for item in insights:
+        if isinstance(item, dict):
+            flattened.append(item)
+        elif isinstance(item, list):
+            flattened.extend(i for i in item if isinstance(i, dict))
+
     return sorted(
-        [i for i in insights if isinstance(i, dict)],
+        flattened,
         key=lambda x: x.get("priority", 999),
     )
 
@@ -20,6 +28,8 @@ def build_weekly_digest(features_df):
     df_all_time = features_df.copy()
 
     what_changed = build_what_changed(df)
+
+    what_changed = sort_insights(what_changed)
 
     chain_df = chain_insight_table(df)
 
@@ -40,7 +50,7 @@ def build_weekly_digest(features_df):
     ])
 
     return {
-        "subject": "SKUba Deep Dive — May",
+        "subject": "SKUba Deep Dive — June",
         "preview_text": "The trends, opportunities, and risks shaping the business beneath the surface.",
         "sections": [
             {
@@ -59,7 +69,7 @@ def build_weekly_digest(features_df):
                 "key": "at_risk",
                 "title": "At Risk",
                 "description": "Watchouts that may deserve follow-up.",
-                "insights": at_risk[:3],
+                "insights": at_risk[:4],
             },
         ],
     }
@@ -100,3 +110,17 @@ def build_demo_what_changed():
             },
         },
     ]
+
+def flatten_insights(items):
+    flattened = []
+
+    for item in items:
+        if item is None:
+            continue
+
+        if isinstance(item, list):
+            flattened.extend(item)
+        else:
+            flattened.append(item)
+
+    return flattened

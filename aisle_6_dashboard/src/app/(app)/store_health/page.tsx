@@ -8,11 +8,11 @@ import { Card, CardContent } from "@/components/ui/card"
 
 import ChartSection from "@/components/ui/charts/ChartSection"
 import { PieChartCard } from "@/components/ui/charts/ChartCards"
-import { formatPercent } from "@/components/ui/charts/chartUtils"
 import type { MetricRow, PieRow } from "@/components/ui/charts/chartTypes"
 import FilterBar from "@/components/ui/filters/FilterBar"
 import DashboardHeader from "@/components/ui/DashboardHeader"
 import { InsightsSection } from "@/components/InsightsSection"
+import { formatWhole, formatPercent } from "@/lib/format"
 
 const DEFAULT_THEME = {
   primary_color: "#9A93B0",
@@ -524,10 +524,11 @@ export default function StoresPage() {
                   <PieChartCard
                     data={pieData}
                     colorMap={PIE_COLORS}
-                    centerValue={statusCenterValue}
                     centerLabel="TOTAL STORES"
                     theme={theme}
                     tooltipValueType="number"
+                    centerValue={Number(statusCenterValue)}
+                    centerValueFormatter={formatWhole}
                   />
                 </div>
               </div>

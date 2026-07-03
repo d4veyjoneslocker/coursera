@@ -24,18 +24,72 @@ def build_what_changed(df: pd.DataFrame, max_items: int = 4):
         detect_top_chain_change,
         detect_new_store_expansion,
         detect_sku_new_states,
-        #detect_chain_assortment_depth_gain,
+        detect_best_buying_store_month,
+        # detect_chain_assortment_depth_gain,
     ]:
         change = detector(table, latest_month, prior_month)
         if change:
             changes.append(change)
 
-    changes = sorted(
-        changes,
-        key=lambda x: x.get("priority", 999),
+    changes = sorted(changes, key=lambda x: x.get("priority", 999))
+    return changes[:max_items]
+
+
+def detect_best_buying_store_month(df, latest_month, prior_month):
+    monthly = (
+        df[df["units"] > 0]
+        .groupby("month_year", as_index=False)
+        .agg(
+            active_stores=("coded_customer", "nunique"),
+            units=("units", "sum"),
+        )
+        .sort_values("active_stores", ascending=False)
+        .reset_index(drop=True)
     )
 
-    return changes[:max_items]
+    if monthly.empty:
+        return None
+
+    top = monthly.iloc[0]
+
+    if top["month_year"] != latest_month:
+        return None
+
+    if len(monthly) < 2:
+        return None
+
+    second = monthly.iloc[1]
+
+    if second["active_stores"] <= 0:
+        return None
+
+    pct_above = (
+        (top["active_stores"] - second["active_stores"])
+        / second["active_stores"]
+        * 100
+    )
+
+    return {
+        "type": "state_change",
+        "priority": 5,
+        "parts": [
+            {
+                "type": "chain_chip",
+                "value": latest_month.strftime("%B %Y").upper(),
+            },
+            {
+                "type": "text",
+                "value": (
+                    f" was your #1 all-time month for buying stores, "
+                    f"coming in {pct_above:.0f}% above the next-best month."
+                ),
+            },
+        ],
+        "metric_chip": {
+            "value": f"{_format_number(top['units'])} units",
+            "trend": "up",
+        },
+    }
 
 
 def detect_top_sku_change(df, latest_month, prior_month):
@@ -117,27 +171,14 @@ def detect_top_chain_change(df, latest_month, prior_month):
 
 
 def detect_new_store_expansion(df, latest_month, prior_month):
-    current = df[
-        (df["month_year"] == latest_month)
-        & (df["units"] > 0)
-    ].copy()
-
-    historical = df[
-        (df["month_year"] < latest_month)
-        & (df["units"] > 0)
-    ].copy()
+    current = df[(df["month_year"] == latest_month) & (df["units"] > 0)].copy()
+    historical = df[(df["month_year"] < latest_month) & (df["units"] > 0)].copy()
 
     if current.empty:
         return None
 
-    current_pairs = current[
-        ["sku", "coded_customer"]
-    ].drop_duplicates()
-
-    historical_pairs = historical[
-        ["sku", "coded_customer"]
-    ].drop_duplicates()
-
+    current_pairs = current[["sku", "coded_customer"]].drop_duplicates()
+    historical_pairs = historical[["sku", "coded_customer"]].drop_duplicates()
     historical_pairs["seen_before"] = True
 
     result = current_pairs.merge(
@@ -158,10 +199,7 @@ def detect_new_store_expansion(df, latest_month, prior_month):
     if result.empty:
         return None
 
-    top = result.sort_values(
-        "new_stores",
-        ascending=False,
-    ).iloc[0]
+    top = result.sort_values("new_stores", ascending=False).iloc[0]
 
     return {
         "type": "state_change",
@@ -180,6 +218,7 @@ def detect_new_store_expansion(df, latest_month, prior_month):
             "href": f"/insights/new_store_distribution?sku={top['sku']}",
         },
     }
+
 
 def detect_sku_new_states(df, latest_month, prior_month):
     if "state" not in df.columns:
@@ -220,11 +259,7 @@ def detect_sku_new_states(df, latest_month, prior_month):
     if not rows:
         return None
 
-    top = sorted(
-        rows,
-        key=lambda x: x["new_state_count"],
-        reverse=True,
-    )[0]
+    top = sorted(rows, key=lambda x: x["new_state_count"], reverse=True)[0]
 
     return {
         "type": "state_change",
@@ -280,7 +315,7 @@ def detect_chain_assortment_depth_gain(df, latest_month, prior_month):
 
     return {
         "type": "state_change",
-        "priority": 5,
+        "priority": 6,
         "parts": [
             {"type": "chain_chip", "value": top["chain"]},
             {
@@ -297,10 +332,7 @@ def detect_chain_assortment_depth_gain(df, latest_month, prior_month):
 
 
 def _rank_by_units(df, month, grain):
-    month_df = df[
-        (df["month_year"] == month)
-        & (df["units"] > 0)
-    ].copy()
+    month_df = df[(df["month_year"] == month) & (df["units"] > 0)].copy()
 
     if month_df.empty or grain not in month_df.columns:
         return pd.DataFrame()
@@ -313,15 +345,11 @@ def _rank_by_units(df, month, grain):
     )
 
     result["rank"] = result.index + 1
-
     return result
 
 
 def _active_stores_by(df, month, grain):
-    month_df = df[
-        (df["month_year"] == month)
-        & (df["units"] > 0)
-    ].copy()
+    month_df = df[(df["month_year"] == month) & (df["units"] > 0)].copy()
 
     if month_df.empty or grain not in month_df.columns:
         return pd.DataFrame()
@@ -333,10 +361,7 @@ def _active_stores_by(df, month, grain):
 
 
 def _avg_skus_per_store(df, month, grain):
-    month_df = df[
-        (df["month_year"] == month)
-        & (df["units"] > 0)
-    ].copy()
+    month_df = df[(df["month_year"] == month) & (df["units"] > 0)].copy()
 
     if month_df.empty or grain not in month_df.columns:
         return pd.DataFrame()

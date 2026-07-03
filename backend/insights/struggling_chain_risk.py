@@ -242,7 +242,7 @@ def build_chain_struggling_table(
 
 def analyze_chain_struggling(
     table: pd.DataFrame,
-    limit: int = 1,
+    limit: int = 2,
 ) -> pd.DataFrame | None:
     """
     Applies insight criteria and selects the strongest
@@ -718,30 +718,43 @@ def build_chain_struggling_insight(
 
     data = normalize_chain_struggling_data(analyzed)
 
-    description = describe_chain_struggling(
-        data=data,
-        filters=filters,
-    )
-
-    if data is None or description is None:
+    if data is None:
         return None
 
-    chain = data["chain"]
+    data_list = data if isinstance(data, list) else [data]
 
-    return {
-        "type": "chain_struggling",
-        "section": "at_risk",
+    insights = []
 
-        **description,
+    for item in data_list:
+        description = describe_chain_struggling(
+            data=item,
+            filters=filters,
+        )
 
-        "metrics": data["metrics"],
-        "entities": data["entities"],
+        if description is None:
+            continue
 
-        "chain": chain,
-        "struggling_pct": data["struggling_pct"],
+        chain = item["chain"]
 
-        "drilldown": {
-            "label": "View struggling stores",
-            "href": f"/insights/struggling_stores?chain={chain}",
-        },
-    }
+        insights.append({
+            "type": "chain_struggling",
+            "section": "at_risk",
+
+            **description,
+
+            "metrics": item["metrics"],
+            "entities": item["entities"],
+
+            "chain": chain,
+            "struggling_pct": item["struggling_pct"],
+
+            "drilldown": {
+                "label": "View struggling stores",
+                "href": f"/insights/struggling_stores?chain={chain}",
+            },
+        })
+
+    if not insights:
+        return None
+
+    return insights

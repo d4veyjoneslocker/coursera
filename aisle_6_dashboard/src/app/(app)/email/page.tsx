@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Lightbulb, Target, AlertTriangle, TrendingUp } from "lucide-react"
 import { useOrg } from "@/components/OrgContext"
 import DeepDiveSnapshotSection, {DeepDiveSnapshotItem} from "@/components/deep-dive/DeepDiveSnapshotSection"
+import LoadingScreen from "@/components/LoadingScreen";
 
 type InsightPart =
   | {
@@ -403,7 +404,7 @@ export default function EmailPreviewPage() {
 
   if (!org?.id) return <div className="p-8">Missing org id.</div>
   if (error) return <div className="p-8 text-red-600">Error: {error}</div>
-  if (!data) return <div className="p-8">Loading digest...</div>
+  if (!data) return <LoadingScreen />;
 
 
   const sections = Array.isArray(data.sections) ? data.sections : []
@@ -413,7 +414,7 @@ export default function EmailPreviewPage() {
       <div className="mx-auto max-w-5xl space-y-8">
         <header className="rounded-[32px] border border-black/10 bg-white p-7 shadow-[0_14px_34px_rgba(52,51,50,0.05)]">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#705C4F]">
-            Smearcase
+            {org?.name}
           </p>
 
           <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#343332]">
