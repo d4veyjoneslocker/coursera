@@ -65,10 +65,10 @@ def transform_unfi_natural_vendor_sales(df, org_id):
 
     df["chain"] = np.select(
         [
-         df["ChainName"].str.startswith("ALB/SWY"),
-         df["ChainName"].str.startswith("ALBERTSONS"),
-         df["ChainName"].str.startswith("SAFEWAY"),
-         df["ChainName"].str.startswith("SWY/CARRS"), 
+         df["chain"].str.startswith("ALB/SWY"),
+         df["chain"].str.startswith("ALBERTSONS"),
+         df["chain"].str.startswith("SAFEWAY"),
+         df["chain"].str.startswith("SWY/CARRS"), 
         ],
         [
          "ALBERTSONS/SAFEWAY",
@@ -76,7 +76,7 @@ def transform_unfi_natural_vendor_sales(df, org_id):
          "ALBERTSONS/SAFEWAY",
          "ALBERTSONS/SAFEWAY",
         ],
-        df["ChainName"].str.upper()
+        df["chain"].str.upper()
     )
 
     # convert zip
