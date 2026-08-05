@@ -1,11 +1,62 @@
-from backend.metrics.metric_tables import chain_insight_table, sku_insight_table, top_sales_month_insight_table, chain_sku_velocity_gap_opportunity_table
-from backend.insights.chain_insights import build_chain_growth_insight, build_chain_decline_insight
-from backend.insights.struggling_chain_risk import build_chain_struggling_insight
-from backend.insights.void_sku_opportunity import build_void_opportunity_insight
-#from backend.insights.sales_insights import build_top_sales_month_insight, build_top_reorder_rate_month_insight
-from backend.insights.failure_to_launch_new_store_risk import build_failure_to_launch_new_store_risk_insight
-from backend.insights.overperforming_channel_momentum import build_overperforming_channel_momentum_insight
+import math
+from typing import Any
+
+import numpy as np
+
+from backend.metrics.metric_tables import (
+    chain_insight_table,
+    sku_insight_table,
+    top_sales_month_insight_table,
+    chain_sku_velocity_gap_opportunity_table,
+)
+from backend.insights.chain_insights import (
+    build_chain_growth_insight,
+    build_chain_decline_insight,
+)
+from backend.insights.struggling_chain_risk import (
+    build_chain_struggling_insight,
+)
+from backend.insights.void_sku_opportunity import (
+    build_void_opportunity_insight,
+)
+# from backend.insights.sales_insights import (
+#     build_top_sales_month_insight,
+#     build_top_reorder_rate_month_insight,
+# )
+from backend.insights.failure_to_launch_new_store_risk import (
+    build_failure_to_launch_new_store_risk_insight,
+)
+from backend.insights.overperforming_channel_momentum import (
+    build_overperforming_channel_momentum_insight,
+)
 from backend.insights.build_what_changed import build_what_changed
+
+
+def make_json_safe(value: Any) -> Any:
+    """
+    Recursively convert values into JSON-safe Python types.
+
+    Converts:
+    - NaN and positive/negative infinity to None
+    - NumPy scalar values to native Python values
+    - Nested dictionaries, lists, and tuples recursively
+    """
+    if isinstance(value, dict):
+        return {
+            key: make_json_safe(item)
+            for key, item in value.items()
+        }
+
+    if isinstance(value, (list, tuple)):
+        return [make_json_safe(item) for item in value]
+
+    if isinstance(value, np.generic):
+        value = value.item()
+
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+
+    return value
 
 
 def sort_insights(insights):
@@ -15,11 +66,15 @@ def sort_insights(insights):
         if isinstance(item, dict):
             flattened.append(item)
         elif isinstance(item, list):
-            flattened.extend(i for i in item if isinstance(i, dict))
+            flattened.extend(
+                insight
+                for insight in item
+                if isinstance(insight, dict)
+            )
 
     return sorted(
         flattened,
-        key=lambda x: x.get("priority", 999),
+        key=lambda insight: insight.get("priority", 999),
     )
 
 
@@ -28,30 +83,36 @@ def build_weekly_digest(features_df):
     df_all_time = features_df.copy()
 
     what_changed = build_what_changed(df)
-
     what_changed = sort_insights(what_changed)
 
     chain_df = chain_insight_table(df)
 
-    opportunities = sort_insights([
-        build_void_opportunity_insight(df, df_all_time),
-        build_overperforming_channel_momentum_insight(df),
-    ])
+    opportunities = sort_insights(
+        [
+            build_void_opportunity_insight(df, df_all_time),
+            build_overperforming_channel_momentum_insight(df),
+        ]
+    )
 
-    at_risk = sort_insights([
-        build_chain_struggling_insight(
-            df=df,
-            df_all_time=df_all_time,
-        ),
-        build_failure_to_launch_new_store_risk_insight(
-            df=df,
-        ),
-        build_chain_decline_insight(chain_df),
-    ])
+    at_risk = sort_insights(
+        [
+            build_chain_struggling_insight(
+                df=df,
+                df_all_time=df_all_time,
+            ),
+            build_failure_to_launch_new_store_risk_insight(
+                df=df,
+            ),
+            build_chain_decline_insight(chain_df),
+        ]
+    )
 
-    return {
+    digest = {
         "subject": "SKUba Deep Dive — June",
-        "preview_text": "The trends, opportunities, and risks shaping the business beneath the surface.",
+        "preview_text": (
+            "The trends, opportunities, and risks shaping the business "
+            "beneath the surface."
+        ),
         "sections": [
             {
                 "key": "what_changed",
@@ -74,13 +135,25 @@ def build_weekly_digest(features_df):
         ],
     }
 
+    return make_json_safe(digest)
+
+
 def build_demo_what_changed():
     return [
         {
             "type": "state_change",
             "parts": [
-                {"type": "sku_chip", "value": "SKU A"},
-                {"type": "text", "value": " became the #1 SKU by monthly units for the first time."},
+                {
+                    "type": "sku_chip",
+                    "value": "SKU A",
+                },
+                {
+                    "type": "text",
+                    "value": (
+                        " became the #1 SKU by monthly units "
+                        "for the first time."
+                    ),
+                },
             ],
             "drilldown": {
                 "label": "View SKU rankings",
@@ -90,8 +163,14 @@ def build_demo_what_changed():
         {
             "type": "state_change",
             "parts": [
-                {"type": "chain_chip", "value": "Whole Foods"},
-                {"type": "text", "value": " added 17 new stores carrying SKU B this month."},
+                {
+                    "type": "chain_chip",
+                    "value": "Whole Foods",
+                },
+                {
+                    "type": "text",
+                    "value": " added 17 new stores carrying SKU B this month.",
+                },
             ],
             "drilldown": {
                 "label": "View new stores",
@@ -101,8 +180,14 @@ def build_demo_what_changed():
         {
             "type": "state_change",
             "parts": [
-                {"type": "state_chip", "value": "Florida"},
-                {"type": "text", "value": " became your highest-velocity state."},
+                {
+                    "type": "state_chip",
+                    "value": "Florida",
+                },
+                {
+                    "type": "text",
+                    "value": " became your highest-velocity state.",
+                },
             ],
             "drilldown": {
                 "label": "View state rankings",
@@ -110,6 +195,7 @@ def build_demo_what_changed():
             },
         },
     ]
+
 
 def flatten_insights(items):
     flattened = []
