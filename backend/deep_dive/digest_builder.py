@@ -108,7 +108,7 @@ def build_weekly_digest(features_df):
     )
 
     digest = {
-        "subject": "SKUba Deep Dive — June",
+        "subject": "SKUba Deep Dive — July",
         "preview_text": (
             "The trends, opportunities, and risks shaping the business "
             "beneath the surface."
