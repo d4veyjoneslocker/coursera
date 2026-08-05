@@ -21,10 +21,14 @@ export function formatWhole(value: number): string {
 }
 
 export function formatDecimal(
-  value: number,
+  value: number | null | undefined,
   decimals = 1
 ): string {
-  return value.toFixed(decimals)
+  if (value == null || !Number.isFinite(value)) {
+    return "—";
+  }
+
+  return value.toFixed(decimals);
 }
 
 export function formatPercent(
