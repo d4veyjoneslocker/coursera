@@ -570,7 +570,7 @@ export default function Home() {
     <main className="min-h-screen p-8" style={{ backgroundColor: theme.bg }}>
       <div className="mx-auto max-w-7xl space-y-8">
         <DashboardHeader
-          activePage="overview"
+          activePage="dashboard"
           dataThrough={dataThrough}
           isStale={isStale}
           onDataRefresh={async () => {

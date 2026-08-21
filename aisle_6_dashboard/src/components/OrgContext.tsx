@@ -10,7 +10,12 @@ export type Org = {
   secondary_color: string | null
   accent_color: string | null
   background_color: string | null
-  logo_url: string | null
+  
+  logo_url: string | null /* REMOVE AFTER FULL MIGRATION TO NEW LOGO DISPLAY */
+  logo_mark_url: string | null
+  logo_wordmark_url: string | null
+  logo_display: "mark" | "wordmark" | "both" | null
+
   last_refreshed_at: string | null
   refresh_cadence: string | null
 }

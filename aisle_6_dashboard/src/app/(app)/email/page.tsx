@@ -5,6 +5,7 @@ import { Lightbulb, Target, AlertTriangle, TrendingUp } from "lucide-react"
 import { useOrg } from "@/components/OrgContext"
 import DeepDiveSnapshotSection, {DeepDiveSnapshotItem} from "@/components/deep-dive/DeepDiveSnapshotSection"
 import LoadingScreen from "@/components/LoadingScreen";
+import DashboardHeader from "@/components/ui/DashboardHeader"
 
 type InsightPart =
   | {
@@ -410,8 +411,16 @@ export default function EmailPreviewPage() {
   const sections = Array.isArray(data.sections) ? data.sections : []
 
   return (
-    <main className="min-h-screen bg-[#F6F2EA] px-6 py-10">
-      <div className="mx-auto max-w-5xl space-y-8">
+      <main className="min-h-screen p-8 bg-[#F6F2EA]">
+        <div className="mx-auto max-w-7xl space-y-8">
+          <DashboardHeader
+            activePage="insights"
+            dataThrough="August 2026"
+            isStale={false}
+          />
+
+      <div className="px-6 py-10">
+        <div className="mx-auto max-w-5xl space-y-8">
         <header className="rounded-[32px] border border-black/10 bg-white p-7 shadow-[0_14px_34px_rgba(52,51,50,0.05)]">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#705C4F]">
             {org?.name}
@@ -529,6 +538,7 @@ export default function EmailPreviewPage() {
           ))}
         </div>
       </div>
-    </main>
-  )
-}
+    </div>
+    </div>
+  </main>
+)}
