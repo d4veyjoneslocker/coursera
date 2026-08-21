@@ -7,6 +7,8 @@ import DeepDiveSnapshotSection, {DeepDiveSnapshotItem} from "@/components/deep-d
 import LoadingScreen from "@/components/LoadingScreen";
 import DistributionOpportunityDeepDive from "@/components/deep-dive/DistributionOpportunity";
 import OverperformingChannelMomentum from "@/components/deep-dive/OverperformingChannelMomentum"
+import ChainStruggling from "@/components/deep-dive/ChainStruggling"
+import FailureToLaunch from "@/components/deep-dive/FailureToLaunch"
 
 type InsightPart =
   | {
@@ -54,6 +56,7 @@ type Insight = {
   chain?: string
   channel?: string
   impact_units?: number
+  launch_month_string?: string
 
   drilldown?: {
     label: string
@@ -581,6 +584,109 @@ export default function EmailPreviewPage() {
 
                                     unitShareChangeAbs={
                                       Number(insight.metrics?.unit_share_change_abs ?? 0)
+                                    }
+
+                                    drilldown={insight.drilldown}
+                                    theme={theme}
+                                  />
+                                )
+                              }
+
+                              if (insight.type === "chain_struggling") {
+                                return (
+                                  <ChainStruggling
+                                    key={`${section.key}-${insight.type}-${index}`}
+
+                                    chain={insight.entities?.chain ?? ""}
+
+                                    strugglingStores={
+                                      Number(insight.metrics?.struggling_stores ?? 0)
+                                    }
+
+                                    totalStores={
+                                      Number(insight.metrics?.total_stores ?? 0)
+                                    }
+
+                                    strugglingPct={
+                                      Number(insight.metrics?.struggling_pct ?? 0)
+                                    }
+
+                                    overallStrugglingPct={
+                                      Number(insight.metrics?.overall_struggling_pct ?? 0)
+                                    }
+
+                                    vsAverage={
+                                      Number(insight.metrics?.vs_avg ?? 0)
+                                    }
+
+                                    reorderRateCurrent={
+                                      insight.metrics?.reorder_rate_3m_current
+                                    }
+
+                                    reorderRatePrior={
+                                      insight.metrics?.reorder_rate_3m_prior_6m
+                                    }
+
+                                    reorderRateChange={
+                                      insight.metrics?.reorder_rate_3m_change_6m
+                                    }
+
+                                    drilldown={insight.drilldown}
+                                    theme={theme}
+                                  />
+                                )
+                              }
+
+                              if (insight.type === "failure_to_launch_new_store_risk") {
+                                return (
+                                  <FailureToLaunch
+                                    key={`${section.key}-${insight.type}-${index}`}
+
+                                    chain={insight.entities?.chain ?? ""}
+                                    launchMonth={insight.launch_month_string ?? ""}
+
+                                    launchedStores={
+                                      Number(insight.metrics?.launched_stores ?? 0)
+                                    }
+
+                                    launchedSkus={
+                                      Number(insight.metrics?.launched_skus ?? 0)
+                                    }
+
+                                    launchedPlacements={
+                                      Number(insight.metrics?.launched_placements ?? 0)
+                                    }
+
+                                    atRiskPlacements={
+                                      Number(insight.metrics?.at_risk_placements ?? 0)
+                                    }
+
+                                    reorderedPlacements={
+                                      Number(insight.metrics?.reordered_placements ?? 0)
+                                    }
+
+                                    atRiskRate={
+                                      Number(insight.metrics?.at_risk_rate ?? 0)
+                                    }
+
+                                    reorderRate={
+                                      Number(insight.metrics?.reorder_rate ?? 0)
+                                    }
+
+                                    avgInitialUnitsAtRisk={
+                                      insight.metrics?.avg_initial_units_at_risk
+                                    }
+
+                                    avgInitialUnitsReordered={
+                                      insight.metrics?.avg_initial_units_reordered
+                                    }
+
+                                    avgInitialUnitsGap={
+                                      insight.metrics?.avg_initial_units_gap
+                                    }
+
+                                    skuBreakdown={
+                                      insight.metrics?.sku_breakdown ?? []
                                     }
 
                                     drilldown={insight.drilldown}
