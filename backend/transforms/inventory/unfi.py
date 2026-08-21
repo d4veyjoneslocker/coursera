@@ -1,5 +1,5 @@
 import pandas as pd
-
+from backend.data_pipeline.pipeline_helpers import apply_sku_map
 
 def transform_unfi_inventory(
     df: pd.DataFrame,
@@ -25,7 +25,7 @@ def transform_unfi_inventory(
 
         "Region": "region",
 
-        "WeekEndDat": "report_date",
+        "WeekEndDate": "report_date",
     }
 
     df = df.rename(columns=rename_map)
@@ -136,19 +136,9 @@ def transform_unfi_inventory(
     )
 
     # -----------------------------
-    # Inventory pipeline
-    # on hand + on purchase order
+    # Apply SKU map
     # -----------------------------
-    out["inventory_pipeline_cases"] = (
-        out["quantity_on_hand_cases"]
-        + out["quantity_on_purchase_order_cases"]
-    )
 
-    out["inventory_pipeline_units"] = (
-        out["quantity_on_hand_units"]
-        + out["quantity_on_purchase_order_units"]
-    )
-
-
+    out = apply_sku_map(out, org_id)
 
     return out

@@ -1,4 +1,5 @@
 import pandas as pd
+from backend.data_pipeline.pipeline_helpers import apply_sku_map
 
 
 def transform_kehe_inventory(
@@ -134,5 +135,11 @@ def transform_kehe_inventory(
         out["quantity_on_sales_order_units"]
         / out["vendor_case_pack"]
     )
+
+    # -----------------------------
+    # Normalize SKUs and UPCs
+    # -----------------------------
+
+    out = apply_sku_map(out, org_id)
 
     return out

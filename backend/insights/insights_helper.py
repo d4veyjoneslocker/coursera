@@ -1,4 +1,16 @@
 import pandas as pd
+from backend.metrics.metric_helpers import get_current_period
+from backend.metrics.monthly_metric_calculators import (
+    calculate_monthly_revenue,
+    calculate_monthly_units,
+)
+from backend.metrics.metric_growth_rates import (
+    add_additive_metric_3m,
+    calculate_buying_stores_3m,
+    calculate_vpo_3m,
+    add_prior_month_columns,
+    add_pct_change_columns,
+)
 
 def format_filter_values(values, max_items=3):
     if not values:
@@ -133,3 +145,130 @@ def get_last_full_month(today=None) -> pd.Period:
 
 def safe_float(val):
     return float(val) if pd.notna(val) else None
+
+def _build_3m_metrics(
+    df_filtered: pd.DataFrame,
+    df_full: pd.DataFrame,
+    grain: list[str],
+) -> pd.DataFrame:
+    """
+    Uses SKUba's existing metric functions to build
+    L3M performance and growth at any requested grain.
+    """
+
+    if df_filtered is None or df_filtered.empty:
+        return pd.DataFrame()
+
+    result = calculate_monthly_revenue(
+        df_filtered,
+        grain,
+    )
+
+    result = result.merge(
+        calculate_monthly_units(
+            df_filtered,
+            grain,
+        ),
+        on=grain + ["month_year"],
+        how="left",
+    )
+
+    result = add_additive_metric_3m(
+        result,
+        grain,
+        "revenue",
+    )
+
+    result = add_additive_metric_3m(
+        result,
+        grain,
+        "units",
+    )
+
+    result = result.merge(
+        calculate_buying_stores_3m(
+            df_filtered,
+            grain,
+        ),
+        on=grain + ["month_year"],
+        how="left",
+    )
+
+    result = result.merge(
+        calculate_vpo_3m(
+            df_filtered,
+            df_full,
+            grain,
+        ),
+        on=grain + ["month_year"],
+        how="left",
+    )
+
+    result = add_prior_month_columns(
+        result,
+        grain,
+        "revenue",
+        l3m=True,
+    )
+
+    result = add_prior_month_columns(
+        result,
+        grain,
+        "units",
+        l3m=True,
+    )
+
+    result = add_prior_month_columns(
+        result,
+        grain,
+        "buying_stores",
+        l3m=True,
+    )
+
+    result = add_prior_month_columns(
+        result,
+        grain,
+        "vpo",
+        l3m=True,
+    )
+
+    result = add_pct_change_columns(
+        result,
+        "revenue",
+        l3m=True,
+    )
+
+    result = add_pct_change_columns(
+        result,
+        "units",
+        l3m=True,
+    )
+
+    result = add_pct_change_columns(
+        result,
+        "buying_stores",
+        l3m=True,
+    )
+
+    result = add_pct_change_columns(
+        result,
+        "vpo",
+        l3m=True,
+    )
+
+    current_month = get_current_period(
+        include_current_month=True
+    )
+
+    result = result[
+        result["month_year"] != current_month
+    ].copy()
+
+    if result.empty:
+        return result
+
+    latest_month = result["month_year"].max()
+
+    return result[
+        result["month_year"] == latest_month
+    ].copy()
