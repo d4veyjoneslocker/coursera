@@ -236,3 +236,57 @@ def add_features(df):
     #validate_first_pod_flag(df)
 
     return df
+
+
+
+
+# FUNCTION TO TEST DECOMP TREE
+
+def calculate_store_sku_lifecycle(df, current_start, prior_start):
+    df = df.copy()
+
+    if df.empty:
+        return pd.DataFrame(columns=[
+            "pod_helper",
+            "coded_customer",
+            "sku",
+            "sku_lifecycle",
+        ])
+
+    table = (
+        df[[
+            "pod_helper",
+            "coded_customer",
+            "sku",
+            "sku_first_month_purchased",
+        ]]
+        .drop_duplicates()
+        .copy()
+    )
+
+    first = table["sku_first_month_purchased"]
+
+    conditions = [
+        first >= current_start,
+        first >= prior_start,
+    ]
+
+    choices = [
+        "New",
+        "Ramping",
+    ]
+
+    table["sku_lifecycle"] = np.select(
+        conditions,
+        choices,
+        default="Mature",
+    )
+
+    return table[
+        [
+            "pod_helper",
+            "coded_customer",
+            "sku",
+            "sku_lifecycle",
+        ]
+    ]
