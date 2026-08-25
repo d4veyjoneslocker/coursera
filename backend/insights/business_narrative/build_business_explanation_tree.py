@@ -8,6 +8,8 @@ from backend.insights.contribution_diagnostics import (
     aggregate_units_contributions,
 )
 
+from backend.insights.business_narrative.business_narrative_helpers import compute_peer_comparison
+
 from backend.metrics.metric_growth_rates import calculate_vpo_3m
 
 
@@ -29,9 +31,17 @@ class ExplanationNode:
     relationship: str | None = None
     split_dimension: str | None = None
     split_score: float | None = None
+    depth: int = 0
 
     context: list[dict] = field(default_factory=list)
-    children: list["ExplanationNode"] = field(default_factory=list)
+
+    peer_comparison: dict | None = None
+
+    stores_current: int | None = None
+    stores_prior: int | None = None
+
+    pods_current: int | None = None
+    pods_prior: int | None = None
 
     rate_current: float | None = None
     rate_prior: float | None = None
@@ -41,26 +51,41 @@ class ExplanationNode:
     avg_reorders: float | None = None          # avg reorders per reordering placement
     months_since_launch: float | None = None   # median across ramping placements
 
-    depth: int = 0
+    children: list["ExplanationNode"] = field(default_factory=list)
+
 
     def to_dict(self) -> dict:
         return {
-            "node_type": self.node_type,
-            "scope": self.scope,
-            "driver_type": self.driver_type,
-            "impact": self.impact,
-            "relationship": self.relationship,
-            "split_dimension": self.split_dimension,
-            "split_score": self.split_score,
-            "context": self.context,
-            "depth": self.depth,
-            "rate_current": self.rate_current,
-            "rate_prior": self.rate_prior,
-            "rate_change": self.rate_change,
-            "reorder_breadth": self.reorder_breadth,
-            "avg_reorders": self.avg_reorders,
-            "months_since_launch": self.months_since_launch,
-            "children": [child.to_dict() for child in self.children],
+                "node_type": self.node_type,
+                "scope": self.scope,
+                "driver_type": self.driver_type,
+                "impact": self.impact,
+
+                "relationship": self.relationship,
+                "split_dimension": self.split_dimension,
+                "split_score": self.split_score,
+                "depth": self.depth,
+
+                "context": self.context,
+                "peer_comparison": self.peer_comparison,
+
+                "stores_current": self.stores_current,
+                "stores_prior": self.stores_prior,
+                "pods_current": self.pods_current,
+                "pods_prior": self.pods_prior,
+
+                "rate_current": self.rate_current,
+                "rate_prior": self.rate_prior,
+                "rate_change": self.rate_change,
+
+                "reorder_breadth": self.reorder_breadth,
+                "avg_reorders": self.avg_reorders,
+                "months_since_launch": self.months_since_launch,
+
+                "children": [
+                    child.to_dict()
+                    for child in self.children
+                ],
         }
 
 
@@ -101,22 +126,32 @@ def compute_node_velocity(
     current_end,
     prior_end,
 ):
-    """
-    Computes actual L3M VPO for a node's scope.
+    scoped_df = filter_raw_to_scope(
+        df,
+        scope,
+    )
 
-    Uses the existing calculate_vpo_3m() metric.
-    This is descriptive metadata and does not affect
-    the additive contribution math.
-    """
+    mature_df = scoped_df[
+        scoped_df["sku_lifecycle"] == "Mature"
+    ].copy()
 
-    scoped_df = filter_raw_to_scope(df, scope)
+    if mature_df.empty:
+        return None, None, None
 
-    if scoped_df.empty:
+    mature_pods = mature_df[
+        "pod_helper"
+    ].dropna().unique()
+
+    mature_history_df = df[
+        df["pod_helper"].isin(mature_pods)
+    ].copy()
+
+    if mature_history_df.empty:
         return None, None, None
 
     velocity = calculate_vpo_3m(
-        scoped_df,
-        scoped_df,
+        mature_df,
+        mature_history_df,
         [],
     )
 
@@ -128,15 +163,17 @@ def compute_node_velocity(
         velocity["month_year"] == prior_end
     ]
 
-    if current_row.empty:
-        rate_current = None
-    else:
-        rate_current = current_row.iloc[0]["vpo_3m"]
+    rate_current = (
+        None
+        if current_row.empty
+        else current_row.iloc[0]["vpo_3m"]
+    )
 
-    if prior_row.empty:
-        rate_prior = None
-    else:
-        rate_prior = prior_row.iloc[0]["vpo_3m"]
+    rate_prior = (
+        None
+        if prior_row.empty
+        else prior_row.iloc[0]["vpo_3m"]
+    )
 
     if (
         rate_current is None
@@ -147,9 +184,15 @@ def compute_node_velocity(
     ):
         rate_change = None
     else:
-        rate_change = (rate_current - rate_prior) / rate_prior
+        rate_change = (
+            rate_current - rate_prior
+        ) / rate_prior
 
-    return rate_current, rate_prior, rate_change
+    return (
+        rate_current,
+        rate_prior,
+        rate_change,
+    )
 
 def _apply_ramping_metrics(node: ExplanationNode, df: pd.DataFrame, current_end) -> None:
     """
@@ -484,17 +527,54 @@ def build_children(
     min_child_impact: float = 100,
 ) -> list[ExplanationNode]:
 
-    selected = select_children(
-        candidates=candidates,
-        top_n_support=top_n_support,
-        top_n_counterforce=top_n_counterforce,
-        min_child_impact=min_child_impact,
-    )
+    # Fixed 3-month comparison windows
+    current_start = current_end - 2
+    prior_start = prior_end - 2
 
-    children = []
+    lifecycle_map = {
+        "new": "New",
+        "ramping": "Ramping",
+        "mature": "Mature",
+    }
 
-    for child in selected:
-        child_scope = {**parent.scope, dimension: child["value"]}
+    lifecycle = lifecycle_map.get(parent.driver_type)
+
+    # -----------------------------------------------------
+    # Build ALL candidate nodes first.
+    #
+    # Peer comparisons must use the full sibling universe,
+    # before top-N selection collapses the remainder.
+    # -----------------------------------------------------
+
+    sibling_nodes = []
+
+    for child in candidates:
+        child_scope = {
+            **parent.scope,
+            dimension: child["value"],
+        }
+
+        # Rows belonging to this specific node.
+        scoped = filter_raw_to_scope(
+            df,
+            child_scope,
+        )
+
+        # Keep counts lifecycle-specific to this branch.
+        if lifecycle is not None:
+            scoped = scoped[
+                scoped["sku_lifecycle"] == lifecycle
+            ]
+
+        current_rows = scoped[
+            (scoped["month_year"] >= current_start)
+            & (scoped["month_year"] <= current_end)
+        ]
+
+        prior_rows = scoped[
+            (scoped["month_year"] >= prior_start)
+            & (scoped["month_year"] <= prior_end)
+        ]
 
         node = ExplanationNode(
             node_type="entity",
@@ -502,24 +582,92 @@ def build_children(
             driver_type=parent.driver_type,
             impact=child["impact"],
             relationship=child["relationship"],
-            context=get_relevant_context(child_scope, context_records),
+            context=get_relevant_context(
+                child_scope,
+                context_records,
+            ),
             depth=parent.depth + 1,
+
+            stores_current=int(
+                current_rows["coded_customer"].nunique()
+            ),
+            stores_prior=int(
+                prior_rows["coded_customer"].nunique()
+            ),
+            pods_current=int(
+                current_rows["pod_helper"].nunique()
+            ),
+            pods_prior=int(
+                prior_rows["pod_helper"].nunique()
+            ),
         )
-        compute_node_metrics(node, df, current_end, prior_end)
-        children.append(node)
+
+        compute_node_metrics(
+            node,
+            df,
+            current_end,
+            prior_end,
+        )
+
+        sibling_nodes.append(node)
+
+    # -----------------------------------------------------
+    # Peer comparison
+    #
+    # IMPORTANT: this happens BEFORE selection/residual.
+    # sibling_nodes contains the full candidate sibling set.
+    # -----------------------------------------------------
+
+    for node in sibling_nodes:
+        node.peer_comparison = compute_peer_comparison(
+            node,
+            sibling_nodes,
+        )
+
+    # -----------------------------------------------------
+    # Select the children that actually survive into tree.
+    # -----------------------------------------------------
+
+    selected = select_children(
+        candidates=candidates,
+        top_n_support=top_n_support,
+        top_n_counterforce=top_n_counterforce,
+        min_child_impact=min_child_impact,
+    )
+
+    selected_values = {
+        child["value"]
+        for child in selected
+    }
+
+    children = [
+        node
+        for node in sibling_nodes
+        if node.scope.get(dimension) in selected_values
+    ]
+
     # -----------------------------------------------------
     # Residual
     #
     # Always reconcile mathematically.
     #
-    # This includes:
+    # Includes:
     # - unselected small children
     # - children beyond top-N
     # - null-dimension groups
+    #
+    # Residual is NOT part of peer comparison.
     # -----------------------------------------------------
 
-    selected_impact = sum(child.impact for child in children)
-    residual_impact = parent.impact - selected_impact
+    selected_impact = sum(
+        child.impact
+        for child in children
+    )
+
+    residual_impact = (
+        parent.impact
+        - selected_impact
+    )
 
     if abs(residual_impact) > 1e-6:
         children.append(
@@ -537,16 +685,19 @@ def build_children(
     # Reconciliation seatbelt
     # -----------------------------------------------------
 
-    total = sum(child.impact for child in children)
+    total = sum(
+        child.impact
+        for child in children
+    )
 
     if abs(total - parent.impact) >= 1e-6:
         raise ValueError(
             f"Children don't sum to parent at scope={parent.scope}, "
-            f"driver={parent.driver_type}: {total} vs {parent.impact}"
+            f"driver={parent.driver_type}: "
+            f"{total} vs {parent.impact}"
         )
 
     return children
-
 
 # ---------------------------------------------------------
 # Expansion gates
@@ -788,7 +939,7 @@ def build_business_explanation_tree(
     top_n_support: int = 3,
     top_n_counterforce: int = 2,
     max_depth: int = 4,
-) -> dict:
+) -> ExplanationNode | None:
     """
     Builds a recursive additive explanation tree.
 
@@ -885,4 +1036,4 @@ def build_business_explanation_tree(
             max_depth=max_depth,
         )
 
-    return root.to_dict()
+    return root
