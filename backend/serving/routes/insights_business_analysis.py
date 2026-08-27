@@ -1,11 +1,18 @@
 import pandas as pd
 import numpy as np
+from dataclasses import asdict
 
 from fastapi import APIRouter, HTTPException, Depends, Query
 
-from backend.insights.build_business_analysis import build_business_analysis, build_business_signals, build_business_stories, organize_business_stories
+from backend.context.build_business_context import detect_retailer_launches
 from backend.data_pipeline.table_loader import load_org_tables
 from backend.serving.api_helpers import clean_for_json
+from backend.insights.insights_helper import get_last_full_month
+
+from backend.insights.business_narrative.build_business_explanation_tree import build_business_explanation_tree
+from backend.insights.business_narrative.select_tree_branches import build_shown_nodes
+from backend.metrics.features import calculate_store_sku_lifecycle
+from backend.insights.business_narrative.narrate_business_explanation import narrate_shown_node
 
 from backend.filters.filter_table import filter_table
 from backend.filters.filters import get_filters, generate_filter_api
@@ -72,29 +79,18 @@ def clean_object_for_json(value):
 
     return value
 
-@router.get("/")
-def get_business_analysis(
+
+@router.get("/tree")
+def get_business_explanation_tree(
     org_id: str,
     filters: dict = Depends(get_filters),
-    top_n_retailers: int = 10,
-    top_n_states: int = 5,
 ):
     try:
-        features_df = load_org_tables(
-            org_id=org_id,
-        )
+        features_df = load_org_tables(org_id=org_id)
 
         df = filter_table(
             features_df,
             **filters,
-        )
-
-        print("FILTERS RECEIVED:", filters)
-        print("ROWS BEFORE:", len(features_df))
-        print("ROWS AFTER:", len(df))
-        print(
-            "STATES AFTER FILTER:",
-            df["state"].dropna().unique().tolist()
         )
 
         if df is None or df.empty:
@@ -103,44 +99,106 @@ def get_business_analysis(
                 detail="No data found for the selected filters.",
             )
 
-        analysis = build_business_analysis(
-            df=df,
-            top_n_retailers=top_n_retailers,
-            top_n_states=top_n_states,
+        current_end = get_last_full_month()
+        current_start = current_end - 2
+
+        prior_end = current_start - 1
+        prior_start = prior_end - 2
+
+        # Build lifecycle from full history, not user-filtered history
+        features_as_of = features_df[
+            features_df["month_year"] <= current_end
+        ].copy()
+
+        lifecycle_table = calculate_store_sku_lifecycle(
+            features_as_of,
+            current_start=current_start,
+            prior_start=prior_start,
         )
 
-        signals = build_business_signals(analysis)
-        stories = build_business_stories(
-            df=df,
-            analysis=analysis,
-            signals=signals,
+        # Analysis dataframe can still respect user filters
+        df_as_of = df[
+            df["month_year"] <= current_end
+        ].copy()
+
+        df_as_of = df_as_of.merge(
+            lifecycle_table[
+                ["pod_helper", "sku_lifecycle"]
+            ].drop_duplicates(),
+            on="pod_helper",
+            how="left",
         )
-        organized_stories = organize_business_stories(stories)
-        
+
+        context = detect_retailer_launches(df_as_of)
+
+        tree = build_business_explanation_tree(
+            df=df_as_of,
+            current_start=current_start,
+            current_end=current_end,
+            prior_start=prior_start,
+            prior_end=prior_end,
+            context_records=context,
+        )
+
+        mature = next(
 
 
-        result = {}
+        child for child in tree.children
+            if child.driver_type == "mature"
+        )
 
-        for key, value in analysis.items():
-            if isinstance(value, pd.DataFrame):
-                df_out = clean_for_json(
-                    value.copy()
-                )
+        print(
+            "BEFORE SHOWN:",
+            mature.rate_current,
+            mature.rate_prior,
+            mature.rate_change,
+        )
 
-                result[key] = df_out.to_dict(
-                    orient="records"
-                )
-            else:
-                result[key] = value
+        for child in mature.children:
+            print(
+                child.scope,
+                child.rate_current,
+                child.rate_prior,
+                child.rate_change,
+            )
 
-        signals = clean_object_for_json(signals)
-        stories = clean_object_for_json(stories)
-        organized_stories = clean_object_for_json(organized_stories)
+
+        all_nodes = []
+
+        def collect_nodes(node):
+            all_nodes.append(node)
+
+            for child in node.children:
+                collect_nodes(child)
+
+        collect_nodes(tree)
+
+        shown_nodes = build_shown_nodes(tree)
+
+        narrative_tree = []
+
+        for shown_node in shown_nodes:
+            narrative_node = narrate_shown_node(
+                shown_node=shown_node,
+            )
+
+            narrative_tree.append(narrative_node)
+
+
+        explanation_tree = clean_object_for_json(tree.to_dict())
+        narrative_tree = clean_object_for_json([asdict(node) for node in narrative_tree])
+
 
         return {
-            "analysis": result,
-            "signals": signals,
-            "stories": organized_stories,
+            "current_period": {
+                "start": str(current_start),
+                "end": str(current_end),
+            },
+            "prior_period": {
+                "start": str(prior_start),
+                "end": str(prior_end),
+            },
+            "narrative_tree": narrative_tree,
         }
 
     except HTTPException:
@@ -149,5 +207,5 @@ def get_business_analysis(
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Business analysis failed: {str(e)}",
+            detail=f"Business explanation tree failed: {str(e)}",
         )

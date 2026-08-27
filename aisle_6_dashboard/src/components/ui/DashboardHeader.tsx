@@ -263,11 +263,16 @@ export default function DashboardHeader({
               {pages.map((page) => {
                 const isActive = activePage === page.value
                 const Icon = page.icon
+                const href =
+                  page.value === "insights" &&
+                  org.id === "839a67d6-7afa-4607-8524-8621184bfabc"
+                    ? "/email_preview"
+                    : page.href
 
                 return (
                   <Link
                     key={page.value}
-                    href={page.href}
+                    href={href}
                     className={`
                       relative flex h-[46px] items-center gap-2.5
                       rounded-[17px] px-5

@@ -84,31 +84,79 @@ export default function FailureToLaunch({
   drilldown,
   theme,
 }: FailureToLaunchProps) {
-  const { org } = useOrg()
+  const { org, skuColors } = useOrg()
 
-  const brandColor = org?.primary_color ?? theme.brown
+  const brandColor =
+    org?.primary_color ?? theme.brown
 
-  const reorderedPct = Number(reorderRate ?? 0) * 100
-  const atRiskPct = Number(atRiskRate ?? 0) * 100
+  const atRiskPct =
+    Number(atRiskRate ?? 0) * 100
 
-  const topSku = skuBreakdown?.[0]
+  const reorderedPct =
+    Number(reorderRate ?? 0) * 100
+
+  const placementsPerStore =
+    launchedStores > 0
+      ? launchedPlacements / launchedStores
+      : 0
 
   const hasLoadInComparison =
     avgInitialUnitsAtRisk != null &&
     avgInitialUnitsReordered != null
 
-  const hasTopSku =
-    Boolean(topSku?.sku) &&
-    topSku?.at_risk_stores != null &&
-    topSku?.launched_stores != null
+  const initialUnitsGap =
+    hasLoadInComparison
+      ? Number(avgInitialUnitsAtRisk) -
+        Number(avgInitialUnitsReordered)
+      : null
+
+  const lighterLoadInPct =
+    hasLoadInComparison &&
+    Number(avgInitialUnitsReordered) > 0
+      ? ((Number(avgInitialUnitsReordered) -
+          Number(avgInitialUnitsAtRisk)) /
+          Number(avgInitialUnitsReordered)) *
+        100
+      : null
+
+  const rankedSkus = [...skuBreakdown]
+    .filter(
+      (item) =>
+        item.sku &&
+        item.launched_stores != null &&
+        Number(item.launched_stores) > 0
+    )
+    .sort((a, b) => {
+      const aRate =
+        Number(a.at_risk_stores ?? 0) /
+        Number(a.launched_stores ?? 1)
+
+      const bRate =
+        Number(b.at_risk_stores ?? 0) /
+        Number(b.launched_stores ?? 1)
+
+      return bRate - aRate
+    })
+
+  const topSku = rankedSkus[0]
 
   const topSkuAtRiskPct =
-    hasTopSku && Number(topSku?.launched_stores) > 0
-      ? (
-          Number(topSku?.at_risk_stores) /
-          Number(topSku?.launched_stores)
-        ) * 100
+    topSku &&
+    Number(topSku.launched_stores ?? 0) > 0
+      ? (Number(topSku.at_risk_stores ?? 0) /
+          Number(topSku.launched_stores)) *
+        100
       : 0
+
+  const getSkuColor = (sku?: string) => {
+    if (!sku) return brandColor
+
+    return (
+      skuColors?.[sku] ??
+      skuColors?.[sku.trim().toUpperCase()] ??
+      brandColor
+    )
+  }
 
   return (
     <div
@@ -118,9 +166,12 @@ export default function FailureToLaunch({
         borderColor: theme.line,
       }}
     >
+      {/* ================================================= */}
       {/* HEADER */}
+      {/* ================================================= */}
+
       <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <p
             className="text-[13px] font-semibold uppercase tracking-[0.14em]"
             style={{ color: theme.brown }}
@@ -128,7 +179,9 @@ export default function FailureToLaunch({
             Launch Monitoring
           </p>
 
-          <span style={{ color: theme.line }}>·</span>
+          <span style={{ color: theme.line }}>
+            ·
+          </span>
 
           <span
             className="text-[14px] font-semibold uppercase tracking-[0.04em]"
@@ -137,7 +190,9 @@ export default function FailureToLaunch({
             {chain}
           </span>
 
-          <span style={{ color: theme.line }}>·</span>
+          <span style={{ color: theme.line }}>
+            ·
+          </span>
 
           <span
             className="text-[14px] font-semibold uppercase tracking-[0.04em]"
@@ -154,326 +209,602 @@ export default function FailureToLaunch({
         />
       </div>
 
-      {/* LAUNCH OUTCOME */}
-      <div
-        className="mt-7 rounded-[18px] border px-6 py-6"
-        style={{
-          borderColor: theme.line,
-          backgroundColor: `${theme.charcoal}03`,
-        }}
-      >
-        <p
-          className="text-[11px] font-medium uppercase tracking-[0.16em]"
-          style={{ color: theme.brown }}
-        >
-          Launch Outcome
-        </p>
+      {/* ================================================= */}
+      {/* PRIMARY STORY */}
+      {/* ================================================= */}
 
-        <p
-          className="mt-3 text-[14px]"
-          style={{ color: theme.brown }}
-        >
-          <strong style={{ color: theme.charcoal }}>
-            {launchedPlacements} placements
-          </strong>{" "}
-          launched across{" "}
-          <strong style={{ color: theme.charcoal }}>
-            {launchedStores} stores
-          </strong>{" "}
-          and{" "}
-          <strong style={{ color: theme.charcoal }}>
-            {launchedSkus} SKUs
-          </strong>
-          .
-        </p>
-
-        {/* OUTCOME NUMBERS */}
-        <div className="mt-7 grid grid-cols-2 gap-8">
-          {/* REORDERED */}
-          <div>
-            <p
-              className="text-[42px] font-semibold leading-none tracking-[-0.05em]"
-              style={{ color: theme.charcoal }}
-            >
-              {reorderedPlacements}
-            </p>
-
-            <p
-              className="mt-2 text-[11px] font-medium uppercase tracking-[0.14em]"
-              style={{ color: theme.brown }}
-            >
-              Reordered
-            </p>
-
-            <p
-              className="mt-1 text-[13px]"
-              style={{ color: theme.brown }}
-            >
-              {reorderedPct.toFixed(0)}% of placements
-            </p>
-          </div>
-
-          {/* NEED FOLLOW-UP */}
-          <div>
-            <p
-              className="text-[42px] font-semibold leading-none tracking-[-0.05em]"
-              style={{ color: brandColor }}
-            >
-              {atRiskPlacements}
-            </p>
-
-            <p
-              className="mt-2 text-[11px] font-medium uppercase tracking-[0.14em]"
-              style={{ color: theme.brown }}
-            >
-              Need Follow-Up
-            </p>
-
-            <p
-              className="mt-1 text-[13px]"
-              style={{ color: theme.brown }}
-            >
-              {atRiskPct.toFixed(0)}% of placements
-            </p>
-          </div>
-        </div>
-
-        {/* SEGMENTED OUTCOME BAR */}
-        <div
-          className="mt-7 flex h-4 w-full overflow-hidden rounded-full"
-          style={{ backgroundColor: theme.line }}
-        >
-          <div
-            className="h-full"
-            style={{
-              width: `${Math.min(
-                Math.max(reorderedPct, 0),
-                100
-              )}%`,
-              backgroundColor: `${brandColor}55`,
-            }}
-          />
-
-          <div
-            className="h-full"
-            style={{
-              width: `${Math.min(
-                Math.max(atRiskPct, 0),
-                100
-              )}%`,
-              backgroundColor: brandColor,
-            }}
-          />
-        </div>
-
-        <div className="mt-3 flex items-center justify-between gap-4">
-          <span
-            className="text-[11px]"
-            style={{ color: theme.brown }}
-          >
-            {reorderedPlacements} reordered
-          </span>
-
-          <span
-            className="text-[11px] font-medium"
-            style={{ color: brandColor }}
-          >
-            {atRiskPlacements} need follow-up
-          </span>
-        </div>
-
-        <p
-          className="mt-5 text-[12px] leading-5"
-          style={{
-            color: theme.brown,
-            opacity: 0.8,
-          }}
-        >
-          Placements needing follow-up received an initial
-          shipment but have not reordered after two full
-          reorder opportunities.
-        </p>
-      </div>
-
-      {/* WHAT'S BEHIND IT */}
-      {(hasLoadInComparison || hasTopSku) && (
-        <div
-          className="mt-4 rounded-[18px] border px-6 py-6"
-          style={{
-            borderColor: theme.line,
-            backgroundColor: `${theme.charcoal}03`,
-          }}
-        >
+      <div className="mt-7 grid grid-cols-1 gap-8 lg:grid-cols-[0.88fr_1.12fr]">
+        {/* LEFT */}
+        <div>
           <p
             className="text-[11px] font-medium uppercase tracking-[0.16em]"
             style={{ color: theme.brown }}
           >
-            What&apos;s Behind It
+            Launches Not Reordering
           </p>
 
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-            {/* INITIAL LOAD-IN */}
-            {hasLoadInComparison && (
-              <div
-                className="rounded-[16px] border px-5 py-5"
-                style={{
-                  borderColor: theme.line,
-                  backgroundColor: theme.surface,
-                }}
+          <div className="mt-3 flex items-end gap-3">
+            <p
+              className="text-[52px] font-semibold leading-none tracking-[-0.06em]"
+              style={{ color: brandColor }}
+            >
+              {atRiskPct.toFixed(0)}%
+            </p>
+
+            <p
+              className="pb-1 text-[14px]"
+              style={{ color: theme.brown }}
+            >
+              of placements
+            </p>
+          </div>
+
+          <p
+            className="mt-5 max-w-md text-[16px] leading-7"
+            style={{ color: theme.charcoal }}
+          >
+            <strong>
+              {atRiskPlacements} of{" "}
+              {launchedPlacements} placements
+            </strong>{" "}
+            received an initial shipment but have not
+            reordered after two full reorder opportunities.
+          </p>
+
+          <div
+            className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]"
+            style={{ color: theme.brown }}
+          >
+            <span>
+              <strong
+                style={{ color: theme.charcoal }}
               >
+                {launchedStores}
+              </strong>{" "}
+              stores launched
+            </span>
+
+            <span>
+              <strong
+                style={{ color: theme.charcoal }}
+              >
+                {launchedSkus}
+              </strong>{" "}
+              SKUs
+            </span>
+          </div>
+        </div>
+
+        {/* RIGHT: OUTCOME */}
+        <div
+          className="rounded-[18px] border px-5 py-5"
+          style={{
+            backgroundColor: theme.surface,
+            borderColor: theme.line,
+          }}
+        >
+          <div className="flex items-start justify-between gap-6">
+            <div>
+              <p
+                className="text-[11px] font-medium uppercase tracking-[0.16em]"
+                style={{ color: theme.brown }}
+              >
+                Launch Outcome
+              </p>
+
+              <p
+                className="mt-2 text-[13px]"
+                style={{ color: theme.brown }}
+              >
+                {launchedPlacements} placements in the{" "}
+                {formatMonth(launchMonth)} cohort
+              </p>
+            </div>
+
+            <div className="text-right">
+              <p
+                className="text-[21px] font-semibold"
+                style={{ color: theme.charcoal }}
+              >
+                {reorderedPlacements}
+              </p>
+
+              <p
+                className="text-[10px] uppercase tracking-[0.12em]"
+                style={{ color: theme.brown }}
+              >
+                reordered
+              </p>
+            </div>
+          </div>
+
+          {/* SPLIT OUTCOME */}
+          <div
+            className="mt-7 grid gap-1.5"
+            style={{
+              gridTemplateColumns: `${Math.max(
+                reorderedPct,
+                1
+              )}fr ${Math.max(atRiskPct, 1)}fr`,
+            }}
+          >
+            <div
+              className="flex h-20 items-end rounded-l-[14px] px-4 py-3"
+              style={{
+                backgroundColor: "#E4E0DA",
+              }}
+            >
+              <div>
                 <p
-                  className="text-[13px] font-medium"
+                  className="text-[22px] font-semibold"
                   style={{ color: theme.charcoal }}
                 >
-                  Initial load-in
+                  {reorderedPct.toFixed(0)}%
                 </p>
 
-                <div className="mt-5 flex items-end gap-8">
-                  {/* AT RISK */}
-                  <div>
-                    <p
-                      className="text-[10px] uppercase tracking-[0.12em]"
-                      style={{ color: theme.brown }}
+                <p
+                  className="mt-1 text-[11px]"
+                  style={{ color: theme.brown }}
+                >
+                  Reordered
+                </p>
+              </div>
+            </div>
+
+            <div
+              className="flex h-20 items-end rounded-r-[14px] px-4 py-3"
+              style={{
+                backgroundColor: brandColor,
+              }}
+            >
+              <div>
+                <p className="text-[22px] font-semibold text-white">
+                  {atRiskPct.toFixed(0)}%
+                </p>
+
+                <p className="mt-1 text-[11px] text-white/80">
+                  Need follow-up
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <p
+            className="mt-5 text-[12px] leading-5"
+            style={{ color: theme.brown }}
+          >
+            A placement is flagged after it has had two
+            full opportunities to reorder and still has no
+            repeat order.
+          </p>
+        </div>
+      </div>
+
+      {/* ================================================= */}
+      {/* LOAD-IN EVIDENCE */}
+      {/* ================================================= */}
+
+      {hasLoadInComparison && (
+        <div
+          className="mt-7 border-t pt-6"
+          style={{ borderColor: theme.line }}
+        >
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_300px]">
+            {/* LEFT */}
+            <div>
+              <div className="flex flex-wrap items-end justify-between gap-5">
+                <div>
+                  <p
+                    className="text-[11px] font-medium uppercase tracking-[0.16em]"
+                    style={{ color: theme.brown }}
+                  >
+                    Initial Load-In
+                  </p>
+
+                  <p
+                    className="mt-2 text-[13px]"
+                    style={{ color: theme.brown }}
+                  >
+                    At-risk placements started with less
+                    inventory
+                  </p>
+                </div>
+
+                {lighterLoadInPct != null && (
+                  <div className="text-right">
+                    <span
+                      className="text-[24px] font-semibold"
+                      style={{ color: brandColor }}
                     >
-                      At-risk placements
-                    </p>
+                      {lighterLoadInPct > 0
+                        ? `${lighterLoadInPct.toFixed(
+                            0
+                          )}% lighter`
+                        : `${Math.abs(
+                            lighterLoadInPct
+                          ).toFixed(0)}% heavier`}
+                    </span>
 
                     <p
-                      className="mt-1 text-[30px] font-semibold tracking-[-0.04em]"
+                      className="mt-1 text-[11px]"
+                      style={{ color: theme.brown }}
+                    >
+                      initial shipment
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* PAIRED NUMBERS */}
+              <div className="mt-6 grid grid-cols-2 gap-4">
+                <div
+                  className="border-l-[3px] pl-4"
+                  style={{
+                    borderColor: "#D5D0C9",
+                  }}
+                >
+                  <p
+                    className="text-[10px] font-medium uppercase tracking-[0.13em]"
+                    style={{ color: theme.brown }}
+                  >
+                    Reordered
+                  </p>
+
+                  <div className="mt-2 flex items-baseline gap-2">
+                    <span
+                      className="text-[34px] font-semibold tracking-[-0.045em]"
+                      style={{
+                        color: theme.charcoal,
+                      }}
+                    >
+                      {Number(
+                        avgInitialUnitsReordered
+                      ).toFixed(1)}
+                    </span>
+
+                    <span
+                      className="text-[11px]"
+                      style={{ color: theme.brown }}
+                    >
+                      avg units
+                    </span>
+                  </div>
+                </div>
+
+                <div
+                  className="border-l-[3px] pl-4"
+                  style={{
+                    borderColor: brandColor,
+                  }}
+                >
+                  <p
+                    className="text-[10px] font-medium uppercase tracking-[0.13em]"
+                    style={{ color: theme.brown }}
+                  >
+                    Need follow-up
+                  </p>
+
+                  <div className="mt-2 flex items-baseline gap-2">
+                    <span
+                      className="text-[34px] font-semibold tracking-[-0.045em]"
                       style={{ color: brandColor }}
                     >
                       {Number(
                         avgInitialUnitsAtRisk
                       ).toFixed(1)}
-                    </p>
+                    </span>
 
-                    <p
-                      className="mt-1 text-[11px]"
+                    <span
+                      className="text-[11px]"
                       style={{ color: theme.brown }}
                     >
                       avg units
-                    </p>
-                  </div>
-
-                  {/* REORDERED */}
-                  <div>
-                    <p
-                      className="text-[10px] uppercase tracking-[0.12em]"
-                      style={{ color: theme.brown }}
-                    >
-                      Reordered placements
-                    </p>
-
-                    <p
-                      className="mt-1 text-[30px] font-semibold tracking-[-0.04em]"
-                      style={{ color: theme.charcoal }}
-                    >
-                      {Number(
-                        avgInitialUnitsReordered
-                      ).toFixed(1)}
-                    </p>
-
-                    <p
-                      className="mt-1 text-[11px]"
-                      style={{ color: theme.brown }}
-                    >
-                      avg units
-                    </p>
+                    </span>
                   </div>
                 </div>
+              </div>
 
-                {avgInitialUnitsGap != null && (
+              {initialUnitsGap != null && (
+                <div
+                  className="mt-6 max-w-2xl border-l pl-4"
+                  style={{
+                    borderColor: theme.line,
+                  }}
+                >
                   <p
-                    className="mt-5 text-[13px] leading-6"
+                    className="text-[12px] leading-6"
                     style={{ color: theme.brown }}
                   >
-                    At-risk placements started with{" "}
+                    At-risk placements received{" "}
                     <strong
-                      style={{ color: theme.charcoal }}
+                      style={{
+                        color: theme.charcoal,
+                      }}
                     >
                       {Math.abs(
-                        Number(avgInitialUnitsGap)
+                        initialUnitsGap
                       ).toFixed(1)}{" "}
-                      {Number(avgInitialUnitsGap) < 0
+                      {initialUnitsGap < 0
                         ? "fewer"
                         : "more"}{" "}
                       units
                     </strong>{" "}
-                    on average.
+                    on their initial shipment. This is a
+                    correlation, not necessarily the cause
+                    of the missed reorder.
                   </p>
-                )}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
 
-            {/* BIGGEST SKU WATCHOUT */}
-            {hasTopSku && (
-              <div
-                className="rounded-[16px] border px-5 py-5"
-                style={{
-                  borderColor: theme.line,
-                  backgroundColor: theme.surface,
-                }}
+            {/* COHORT CONTEXT */}
+            <div
+              className="rounded-[16px] border px-5 py-5"
+              style={{
+                backgroundColor: "#FCFAF6",
+                borderColor: theme.line,
+              }}
+            >
+              <p
+                className="text-[10px] font-medium uppercase tracking-[0.16em]"
+                style={{ color: theme.brown }}
               >
-                <p
-                  className="text-[13px] font-medium"
-                  style={{ color: theme.charcoal }}
-                >
-                  Biggest SKU watchout
-                </p>
+                Cohort At A Glance
+              </p>
 
-                <p
-                  className="mt-5 text-[24px] font-semibold uppercase tracking-[-0.03em]"
-                  style={{ color: brandColor }}
-                >
-                  {topSku?.sku}
-                </p>
-
-                <p
-                  className="mt-2 text-[14px] leading-6"
-                  style={{ color: theme.brown }}
-                >
-                  <strong
-                    style={{ color: theme.charcoal }}
+              <div className="mt-5 grid grid-cols-2 gap-x-5 gap-y-5">
+                <div>
+                  <p
+                    className="text-[24px] font-semibold tracking-[-0.04em]"
+                    style={{
+                      color: theme.charcoal,
+                    }}
                   >
-                    {topSku?.at_risk_stores} of{" "}
-                    {topSku?.launched_stores} stores
-                  </strong>{" "}
-                  have not reordered.
-                </p>
+                    {launchedStores}
+                  </p>
 
-                <p
-                  className="mt-2 text-[13px] font-medium"
-                  style={{ color: brandColor }}
-                >
-                  {topSkuAtRiskPct.toFixed(0)}% need follow-up
-                </p>
+                  <p
+                    className="mt-1 text-[11px]"
+                    style={{ color: theme.brown }}
+                  >
+                    stores
+                  </p>
+                </div>
 
-                {topSku?.avg_initial_units_at_risk != null &&
-                  topSku?.avg_initial_units_reordered != null && (
-                    <p
-                      className="mt-4 text-[12px] leading-5"
-                      style={{ color: theme.brown }}
-                    >
-                      At-risk stores loaded in with{" "}
-                      {Number(
-                        topSku.avg_initial_units_at_risk
-                      ).toFixed(1)}{" "}
-                      units on average vs{" "}
-                      {Number(
-                        topSku.avg_initial_units_reordered
-                      ).toFixed(1)}{" "}
-                      for stores that reordered.
-                    </p>
-                  )}
+                <div>
+                  <p
+                    className="text-[24px] font-semibold tracking-[-0.04em]"
+                    style={{
+                      color: theme.charcoal,
+                    }}
+                  >
+                    {launchedSkus}
+                  </p>
+
+                  <p
+                    className="mt-1 text-[11px]"
+                    style={{ color: theme.brown }}
+                  >
+                    SKUs
+                  </p>
+                </div>
+
+                <div>
+                  <p
+                    className="text-[24px] font-semibold tracking-[-0.04em]"
+                    style={{
+                      color: theme.charcoal,
+                    }}
+                  >
+                    {launchedPlacements}
+                  </p>
+
+                  <p
+                    className="mt-1 text-[11px]"
+                    style={{ color: theme.brown }}
+                  >
+                    placements
+                  </p>
+                </div>
+
+                <div>
+                  <p
+                    className="text-[24px] font-semibold tracking-[-0.04em]"
+                    style={{
+                      color: theme.charcoal,
+                    }}
+                  >
+                    {placementsPerStore.toFixed(1)}
+                  </p>
+
+                  <p
+                    className="mt-1 text-[11px]"
+                    style={{ color: theme.brown }}
+                  >
+                    per store
+                  </p>
+                </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}
 
+      {/* ================================================= */}
+      {/* SKU CONCENTRATION */}
+      {/* ================================================= */}
+
+      {topSku && (
+        <div
+          className="mt-7 border-t pt-6"
+          style={{ borderColor: theme.line }}
+        >
+          <div className="flex flex-wrap items-end justify-between gap-5">
+            <div>
+              <p
+                className="text-[11px] font-medium uppercase tracking-[0.16em]"
+                style={{ color: theme.brown }}
+              >
+                Where The Risk Is Concentrated
+              </p>
+
+              <p
+                className="mt-2 text-[13px]"
+                style={{ color: theme.brown }}
+              >
+                {topSku.sku} is the clearest SKU
+                watchout in this cohort
+              </p>
+            </div>
+
+            <div className="text-right">
+              <span
+                className="text-[24px] font-semibold"
+                style={{
+                  color: getSkuColor(topSku.sku),
+                }}
+              >
+                {topSkuAtRiskPct.toFixed(0)}%
+              </span>
+
+              <p
+                className="mt-1 text-[11px]"
+                style={{ color: theme.brown }}
+              >
+                of {topSku.sku} stores need follow-up
+              </p>
+            </div>
+          </div>
+
+          {/* RANKED SKU ROWS */}
+          <div className="mt-6 divide-y" style={{ borderColor: theme.line }}>
+            {rankedSkus.map((item, index) => {
+              const launched =
+                Number(item.launched_stores ?? 0)
+
+              const atRisk =
+                Number(item.at_risk_stores ?? 0)
+
+              const reordered =
+                item.reordered_stores != null
+                  ? Number(item.reordered_stores)
+                  : Math.max(launched - atRisk, 0)
+
+              const rate =
+                launched > 0
+                  ? (atRisk / launched) * 100
+                  : 0
+
+              const skuColor =
+                getSkuColor(item.sku)
+
+              return (
+                <div
+                  key={`${item.sku}-${index}`}
+                  className="grid grid-cols-[1fr_auto_auto] items-center gap-5 py-4"
+                  style={{
+                    borderColor: theme.line,
+                  }}
+                >
+                  <div>
+                    <p
+                      className={`text-[14px] uppercase tracking-[-0.01em] ${
+                        index === 0
+                          ? "font-semibold"
+                          : "font-medium"
+                      }`}
+                      style={{
+                        color:
+                          index === 0
+                            ? skuColor
+                            : theme.charcoal,
+                      }}
+                    >
+                      {item.sku}
+                    </p>
+
+                    <p
+                      className="mt-1 text-[11px]"
+                      style={{ color: theme.brown }}
+                    >
+                      {atRisk} of {launched} launched
+                      stores
+                    </p>
+                  </div>
+
+                  <div className="text-right">
+                    <p
+                      className="text-[13px] font-semibold"
+                      style={{
+                        color: theme.charcoal,
+                      }}
+                    >
+                      {atRisk} at risk
+                    </p>
+
+                    <p
+                      className="mt-1 text-[10px]"
+                      style={{ color: theme.brown }}
+                    >
+                      {reordered} reordered
+                    </p>
+                  </div>
+
+                  <div
+                    className="w-[54px] rounded-full px-2.5 py-1.5 text-center text-[12px] font-semibold"
+                    style={{
+                      backgroundColor:
+                        index === 0
+                          ? `${skuColor}18`
+                          : "#F3F0EB",
+                      color:
+                        index === 0
+                          ? skuColor
+                          : theme.brown,
+                    }}
+                  >
+                    {rate.toFixed(0)}%
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {topSku.avg_initial_units_at_risk != null &&
+            topSku.avg_initial_units_reordered != null && (
+              <p
+                className="mt-5 text-[12px] leading-5"
+                style={{ color: theme.brown }}
+              >
+                {topSku.sku} is the highest-risk SKU
+                shown. Its at-risk stores loaded in with{" "}
+                <strong
+                  style={{ color: theme.charcoal }}
+                >
+                  {Number(
+                    topSku.avg_initial_units_at_risk
+                  ).toFixed(1)}
+                </strong>{" "}
+                units on average vs{" "}
+                <strong
+                  style={{ color: theme.charcoal }}
+                >
+                  {Number(
+                    topSku.avg_initial_units_reordered
+                  ).toFixed(1)}
+                </strong>{" "}
+                for stores that reordered.
+              </p>
+            )}
+        </div>
+      )}
+
+      {/* ================================================= */}
       {/* CTA */}
+      {/* ================================================= */}
+
       {drilldown && (
-        <div className="mt-5">
+        <div className="mt-7">
           <a
             href={drilldown.href}
             className="inline-flex rounded-full border px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
