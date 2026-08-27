@@ -93,7 +93,6 @@ export default function ChainStruggling({
     latestOrderStoreCount > 0
 
   const hasDiagnostics =
-    hasReorderData ||
     hasRecentOrdering ||
     Boolean(rootCauseText)
 
@@ -103,11 +102,11 @@ export default function ChainStruggling({
    * For very large chains, fall back to a proportional
    * 50-square visualization so the UI stays usable.
    */
-  const useActualStores = totalStores <= 50
+  const useActualStores = totalStores <= 18
 
   const visualTotal = useActualStores
     ? totalStores
-    : 50
+    : 18
 
   const visualStruggling = useActualStores
     ? strugglingStores
@@ -311,100 +310,165 @@ export default function ChainStruggling({
       </div>
 
       {/* ================================================= */}
-      {/* BENCHMARK */}
+      {/* BENCHMARK + REORDER RATE */}
       {/* ================================================= */}
 
       <div
         className="mt-7 border-t pt-6"
         style={{ borderColor: theme.line }}
       >
-        <div className="flex items-end justify-between gap-5">
+        <div
+          className={`grid grid-cols-1 gap-8 ${
+            hasReorderData ? "lg:grid-cols-[1fr_280px]" : ""
+          }`}
+        >
+          {/* LEFT: STRUGGLING STORE RATE */}
           <div>
-            <p
-              className="text-[11px] font-medium uppercase tracking-[0.16em]"
-              style={{ color: theme.brown }}
-            >
-              Struggling Store Rate
-            </p>
+            <div className="flex items-end justify-between gap-5">
+              <div>
+                <p
+                  className="text-[11px] font-medium uppercase tracking-[0.16em]"
+                  style={{ color: theme.brown }}
+                >
+                  Struggling Store Rate
+                </p>
 
-            <p
-              className="mt-2 text-[13px]"
+                <p
+                  className="mt-2 text-[13px]"
+                  style={{ color: theme.brown }}
+                >
+                  {chain} vs your overall business
+                </p>
+              </div>
+
+              <div className="flex items-baseline gap-2">
+                <span
+                  className="text-[20px] font-semibold"
+                  style={{ color: brandColor }}
+                >
+                  {strugglingPercent.toFixed(0)}%
+                </span>
+
+                <span
+                  className="text-[12px]"
+                  style={{ color: theme.brown }}
+                >
+                  vs
+                </span>
+
+                <span
+                  className="text-[20px] font-semibold"
+                  style={{ color: theme.charcoal }}
+                >
+                  {overallPercent.toFixed(0)}%
+                </span>
+              </div>
+            </div>
+
+            {/* BENCHMARK TRACK */}
+            <div
+              className="relative mt-4 h-3 rounded-full"
+              style={{
+                backgroundColor: theme.line,
+              }}
+            >
+              <div
+                className="absolute bottom-0 left-0 top-0 rounded-full"
+                style={{
+                  width: `${Math.min(
+                    Math.max(strugglingPercent, 0),
+                    100
+                  )}%`,
+                  backgroundColor: brandColor,
+                }}
+              />
+
+              <div
+                className="absolute -bottom-1 -top-1 w-[2px]"
+                style={{
+                  left: `${Math.min(
+                    Math.max(overallPercent, 0),
+                    100
+                  )}%`,
+                  backgroundColor: secondaryColor,
+                }}
+              />
+            </div>
+
+            <div
+              className="relative mt-2 h-5"
               style={{ color: theme.brown }}
             >
-              {chain} vs your overall business
-            </p>
+              <span
+                className="absolute whitespace-nowrap text-[10px]"
+                style={{
+                  left: `${Math.min(
+                    Math.max(overallPercent, 0),
+                    100
+                  )}%`,
+                  transform: "translateX(-50%)",
+                }}
+              >
+                ↑ avg
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-baseline gap-2">
-            <span
-              className="text-[20px] font-semibold"
-              style={{ color: brandColor }}
+          {/* RIGHT: REORDER RATE */}
+          {hasReorderData && (
+            <div
+              className="lg:border-l lg:pl-7"
+              style={{ borderColor: theme.line }}
             >
-              {strugglingPercent.toFixed(0)}%
-            </span>
+              <p
+                className="text-[11px] font-medium uppercase tracking-[0.16em]"
+                style={{ color: theme.brown }}
+              >
+                Reorder Rate
+              </p>
 
-            <span
-              className="text-[12px]"
-              style={{ color: theme.brown }}
-            >
-              vs
-            </span>
+              <p
+                className="mt-2 text-[13px]"
+                style={{ color: theme.brown }}
+              >
+                6 months ago → now
+              </p>
 
-            <span
-              className="text-[20px] font-semibold"
-              style={{ color: theme.charcoal }}
-            >
-              {overallPercent.toFixed(0)}%
-            </span>
-          </div>
-        </div>
+              <div className="mt-4 flex items-center gap-4">
+                <span
+                  className="text-[24px] font-semibold"
+                  style={{ color: theme.charcoal }}
+                >
+                  {reorderPriorPct.toFixed(0)}%
+                </span>
 
-        {/* BENCHMARK TRACK */}
-        <div
-          className="relative mt-4 h-3 rounded-full"
-          style={{
-            backgroundColor: theme.line,
-          }}
-        >
-          <div
-            className="absolute bottom-0 left-0 top-0 rounded-full"
-            style={{
-              width: `${Math.min(
-                Math.max(strugglingPercent, 0),
-                100
-              )}%`,
-              backgroundColor: brandColor,
-            }}
-          />
+                <span
+                  className="text-[18px]"
+                  style={{ color: secondaryColor }}
+                >
+                  →
+                </span>
 
-          <div
-            className="absolute -bottom-1 -top-1 w-[2px]"
-            style={{
-              left: `${Math.min(
-                Math.max(overallPercent, 0),
-                100
-              )}%`,
-              backgroundColor: secondaryColor,
-            }}
-          />
-        </div>
+                <span
+                  className="text-[24px] font-semibold"
+                  style={{ color: brandColor }}
+                >
+                  {reorderCurrentPct.toFixed(0)}%
+                </span>
+              </div>
 
-        <div
-          className="relative mt-2 h-5"
-          style={{ color: theme.brown }}
-        >
-          <span
-            className="absolute whitespace-nowrap text-[10px]"
-            style={{
-              left: `${Math.min(
-                Math.max(overallPercent, 0),
-                100
-              )}%`,
-              transform: "translateX(-50%)",
-            }}
-          >
-            ↑ avg
-          </span>
+              <p
+                className="mt-2 text-[12px]"
+                style={{ color: theme.brown }}
+              >
+                {reorderChangePts > 0
+                  ? `+${reorderChangePts.toFixed(0)} pts`
+                  : reorderChangePts < 0
+                  ? `${reorderChangePts.toFixed(0)} pts`
+                  : "No change"}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

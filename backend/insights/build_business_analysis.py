@@ -1441,3 +1441,481 @@ def organize_business_stories(
         )
 
     return organized
+
+def build_business_synthesis(
+    organized_stories: dict,
+    top_n_drivers: int = 3,
+    top_n_divergences: int = 2,
+) -> dict:
+    """
+    Reads already-diagnosed business stories and synthesizes them into:
+
+    1. Overall distribution / velocity pattern
+    2. Biggest distribution drivers
+    3. Biggest velocity drivers
+    4. Meaningful upside divergences
+    5. Meaningful downside divergences
+
+    This function does not recalculate business metrics.
+    """
+
+    result = {
+        "overall": None,
+        "distribution_drivers": {
+            "retailer": [],
+            "sku": [],
+            "state": [],
+        },
+        "velocity_drivers": {
+            "retailer": [],
+            "sku": [],
+            "state": [],
+        },
+        "upside_divergences": [],
+        "downside_divergences": [],
+    }
+
+    if not organized_stories:
+        return result
+
+    # -----------------------------------------------------
+    # Helpers
+    # -----------------------------------------------------
+
+    def get_driver(story: dict) -> dict:
+        return story.get("diagnostics", {}).get("units_growth_driver", {})
+
+    def get_direction(value):
+        if value is None:
+            return 0
+        if value > 0:
+            return 1
+        if value < 0:
+            return -1
+        return 0
+
+    def get_pattern(story: dict):
+        driver = get_driver(story)
+
+        distribution_impact = driver.get("distribution_impact")
+        velocity_impact = driver.get("velocity_impact")
+
+        if distribution_impact is None and velocity_impact is None:
+            return None
+
+        return (
+            get_direction(distribution_impact),
+            get_direction(velocity_impact),
+        )
+
+    def simplify_story(story: dict) -> dict:
+        driver = get_driver(story)
+
+        return {
+            "scope_type": story.get("scope_type"),
+            "scope": story.get("scope", {}),
+            "story_type": story.get("story_type"),
+            "direction": story.get("direction"),
+            "pattern": get_pattern(story),
+            "distribution_impact": driver.get("distribution_impact"),
+            "velocity_impact": driver.get("velocity_impact"),
+            "total_change": driver.get("total_change"),
+            "strength": story.get("strength", 0),
+        }
+
+    # -----------------------------------------------------
+    # 1. Overall pattern
+    # -----------------------------------------------------
+
+    overall_stories = organized_stories.get("overall", [])
+
+    if not overall_stories:
+        return result
+
+    overall_story = overall_stories[0]
+    overall_driver = get_driver(overall_story)
+    overall_pattern = get_pattern(overall_story)
+
+    if overall_pattern is None:
+        return result
+
+    overall_distribution_direction = overall_pattern[0]
+    overall_velocity_direction = overall_pattern[1]
+
+    result["overall"] = {
+        "story_type": overall_story.get("story_type"),
+        "direction": overall_story.get("direction"),
+        "pattern": overall_pattern,
+        "total_change": overall_driver.get("total_change"),
+        "distribution_impact": overall_driver.get("distribution_impact"),
+        "velocity_impact": overall_driver.get("velocity_impact"),
+        "distribution_share": overall_driver.get("distribution_share"),
+        "velocity_share": overall_driver.get("velocity_share"),
+        "primary_driver": overall_driver.get("primary_driver"),
+        "strength": overall_story.get("strength", 0),
+    }
+
+    # -----------------------------------------------------
+    # 2. Child stories
+    # -----------------------------------------------------
+
+    scope_map = {
+        "retailer": organized_stories.get("retailer", []),
+        "sku": organized_stories.get("sku", []),
+        "state": organized_stories.get("state", []),
+    }
+
+    # -----------------------------------------------------
+    # 3. Distribution drivers
+    # -----------------------------------------------------
+
+    for scope_type, stories in scope_map.items():
+        candidates = []
+
+        for story in stories:
+            pattern = get_pattern(story)
+
+            if pattern is None:
+                continue
+
+            if pattern[0] != overall_distribution_direction:
+                continue
+
+            distribution_impact = get_driver(story).get("distribution_impact")
+
+            if distribution_impact is None:
+                continue
+
+            candidates.append(story)
+
+        candidates = sorted(
+            candidates,
+            key=lambda story: abs(
+                get_driver(story).get("distribution_impact") or 0
+            ),
+            reverse=True,
+        )
+
+        result["distribution_drivers"][scope_type] = [
+            simplify_story(story)
+            for story in candidates[:top_n_drivers]
+        ]
+
+    # -----------------------------------------------------
+    # 4. Velocity drivers
+    # -----------------------------------------------------
+
+    for scope_type, stories in scope_map.items():
+        candidates = []
+
+        for story in stories:
+            pattern = get_pattern(story)
+
+            if pattern is None:
+                continue
+
+            if pattern[1] != overall_velocity_direction:
+                continue
+
+            velocity_impact = get_driver(story).get("velocity_impact")
+
+            if velocity_impact is None:
+                continue
+
+            candidates.append(story)
+
+        candidates = sorted(
+            candidates,
+            key=lambda story: abs(
+                get_driver(story).get("velocity_impact") or 0
+            ),
+            reverse=True,
+        )
+
+        result["velocity_drivers"][scope_type] = [
+            simplify_story(story)
+            for story in candidates[:top_n_drivers]
+        ]
+
+    # -----------------------------------------------------
+    # 5. Divergences
+    # -----------------------------------------------------
+
+    upside_divergences = []
+    downside_divergences = []
+
+    for scope_type, stories in scope_map.items():
+        for story in stories:
+            child_pattern = get_pattern(story)
+
+            if child_pattern is None:
+                continue
+
+            child_distribution_direction = child_pattern[0]
+            child_velocity_direction = child_pattern[1]
+
+            # Same as overall = not a divergence
+            if (
+                child_distribution_direction == overall_distribution_direction
+                and child_velocity_direction == overall_velocity_direction
+            ):
+                continue
+
+            distribution_difference = (
+                child_distribution_direction - overall_distribution_direction
+            )
+            velocity_difference = (
+                child_velocity_direction - overall_velocity_direction
+            )
+
+            # Better or equal on both dimensions,
+            # and strictly better on at least one.
+            if (
+                distribution_difference >= 0
+                and velocity_difference >= 0
+                and (distribution_difference > 0 or velocity_difference > 0)
+            ):
+                upside_divergences.append(story)
+
+            # Worse or equal on both dimensions,
+            # and strictly worse on at least one.
+            elif (
+                distribution_difference <= 0
+                and velocity_difference <= 0
+                and (distribution_difference < 0 or velocity_difference < 0)
+            ):
+                downside_divergences.append(story)
+
+    # -----------------------------------------------------
+    # 6. Rank divergences
+    # -----------------------------------------------------
+
+    upside_divergences = sorted(
+        upside_divergences,
+        key=lambda story: story.get("strength", 0),
+        reverse=True,
+    )
+
+    downside_divergences = sorted(
+        downside_divergences,
+        key=lambda story: story.get("strength", 0),
+        reverse=True,
+    )
+
+    result["upside_divergences"] = [
+        simplify_story(story)
+        for story in upside_divergences[:top_n_divergences]
+    ]
+
+    result["downside_divergences"] = [
+        simplify_story(story)
+        for story in downside_divergences[:top_n_divergences]
+    ]
+
+    return result
+
+def build_business_narrative(synthesis: dict) -> dict:
+    """
+    Converts structured business synthesis into user-facing narrative.
+
+    This function does NOT determine drivers, divergences, or context relevance.
+    It only describes what the synthesis layer has already determined.
+    """
+
+    overall = synthesis.get("overall")
+
+    if not overall:
+        return {}
+
+    # -----------------------------------------------------
+    # Helpers
+    # -----------------------------------------------------
+
+    def format_units(value):
+        if value is None:
+            return None
+
+        sign = "+" if value > 0 else ""
+        value = abs(value)
+
+        if value >= 1000:
+            formatted = f"{value / 1000:.1f}K"
+        else:
+            formatted = f"{value:,.0f}"
+
+        return f"{sign}{formatted}" if sign else f"-{formatted}"
+
+    def get_scope_label(item):
+        scope = item.get("scope", {})
+        return scope.get("chain") or scope.get("sku") or scope.get("state") or "Overall Business"
+
+    def describe_overall(story_type):
+        labels = {
+            "distribution_and_velocity_growth":
+                "The business is growing through both expanding distribution and stronger velocity.",
+
+            "distribution_led_growth_with_velocity":
+                "The business is growing primarily through distribution expansion, with velocity also contributing.",
+
+            "velocity_led_growth_with_distribution":
+                "The business is growing primarily through stronger velocity, with distribution also contributing.",
+
+            "distribution_growth_offset_by_velocity_pressure":
+                "The business is growing through distribution expansion despite softer velocity.",
+
+            "velocity_growth_offset_by_distribution":
+                "Stronger velocity is driving growth despite distribution pressure.",
+
+            "distribution_led_growth":
+                "The business is growing primarily through distribution expansion.",
+
+            "velocity_led_growth":
+                "The business is growing primarily through stronger velocity.",
+
+            "distribution_and_velocity_decline":
+                "The business is declining as both distribution and velocity weaken.",
+
+            "distribution_led_decline_with_velocity_pressure":
+                "The business is declining primarily from distribution losses, with weaker velocity adding pressure.",
+
+            "velocity_led_decline_with_distribution_loss":
+                "The business is declining primarily from weaker velocity, with distribution losses adding pressure.",
+
+            "distribution_decline_offset_by_velocity_growth":
+                "Distribution losses are driving the decline despite improving velocity.",
+
+            "velocity_decline_offset_by_distribution_growth":
+                "Velocity pressure is driving the decline despite expanding distribution.",
+
+            "distribution_led_decline":
+                "The business is declining primarily because of distribution losses.",
+
+            "velocity_led_decline":
+                "The business is declining primarily because of weaker velocity.",
+        }
+
+        return labels.get(story_type, "The business is showing a meaningful change in performance.")
+
+    def build_driver_items(drivers, impact_key):
+        items = []
+
+        for scope_type in ["retailer", "sku", "state"]:
+            for driver in drivers.get(scope_type, []):
+                item = {
+                    "scope_type": scope_type,
+                    "label": get_scope_label(driver),
+                    "impact": driver.get(impact_key),
+                    "impact_display": format_units(driver.get(impact_key)),
+                }
+
+                # Context may be attached by synthesis later.
+                if driver.get("context"):
+                    item["context"] = driver["context"]
+
+                items.append(item)
+
+        return items
+
+    def build_divergence_items(divergences):
+        items = []
+
+        for divergence in divergences:
+            item = {
+                "scope_type": divergence.get("scope_type"),
+                "label": get_scope_label(divergence),
+                "story_type": divergence.get("story_type"),
+                "distribution_impact": divergence.get("distribution_impact"),
+                "velocity_impact": divergence.get("velocity_impact"),
+                "total_change": divergence.get("total_change"),
+            }
+
+            if divergence.get("context"):
+                item["context"] = divergence["context"]
+
+            items.append(item)
+
+        return items
+
+    # -----------------------------------------------------
+    # Primary story
+    # -----------------------------------------------------
+
+    headline = describe_overall(overall.get("story_type"))
+
+    total_change = overall.get("total_change")
+    distribution_impact = overall.get("distribution_impact")
+    velocity_impact = overall.get("velocity_impact")
+
+    total_display = format_units(total_change)
+    distribution_display = format_units(distribution_impact)
+    velocity_display = format_units(velocity_impact)
+
+    summary = (
+        f"Units changed by {total_display}, with distribution contributing "
+        f"{distribution_display} units and velocity contributing {velocity_display} units."
+    )
+
+    # -----------------------------------------------------
+    # Supporting sections
+    # -----------------------------------------------------
+
+    distribution_drivers = build_driver_items(
+        synthesis.get("distribution_drivers", {}),
+        "distribution_impact",
+    )
+
+    velocity_drivers = build_driver_items(
+        synthesis.get("velocity_drivers", {}),
+        "velocity_impact",
+    )
+
+    upside_divergences = build_divergence_items(
+        synthesis.get("upside_divergences", [])
+    )
+
+    downside_divergences = build_divergence_items(
+        synthesis.get("downside_divergences", [])
+    )
+
+    # -----------------------------------------------------
+    # Narrative
+    # -----------------------------------------------------
+
+    return {
+        "headline": headline,
+        "summary": summary,
+
+        "evidence": {
+            "total_change": total_change,
+            "total_change_display": total_display,
+            "distribution_impact": distribution_impact,
+            "distribution_impact_display": distribution_display,
+            "velocity_impact": velocity_impact,
+            "velocity_impact_display": velocity_display,
+        },
+
+        "sections": [
+            {
+                "type": "distribution_drivers",
+                "title": "What's driving distribution",
+                "items": distribution_drivers,
+            },
+            {
+                "type": "velocity_drivers",
+                "title": "What's driving velocity",
+                "items": velocity_drivers,
+            },
+            {
+                "type": "upside_divergences",
+                "title": "Where the pattern is stronger",
+                "items": upside_divergences,
+            },
+            {
+                "type": "downside_divergences",
+                "title": "Where the pattern is weaker",
+                "items": downside_divergences,
+            },
+        ],
+
+        "context": synthesis.get("context", []),
+    }

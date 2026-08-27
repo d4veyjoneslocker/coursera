@@ -9,7 +9,6 @@ from backend.insights.contribution_diagnostics import (
 )
 
 from backend.insights.business_narrative.business_narrative_helpers import compute_peer_comparison
-
 from backend.metrics.metric_growth_rates import calculate_vpo_3m
 
 
