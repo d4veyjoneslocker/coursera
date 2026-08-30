@@ -11,7 +11,7 @@ from backend.serving.routes.insights import router as insights_router
 from backend.serving.routes.email import router as email_router
 from backend.serving.routes.insights_new import router as insights_new
 from backend.data_pipeline.table_loader import clear_table_cache
-from backend.serving.routes.insights_business_analysis import router as business_analysis
+from backend.serving.routes.business_analysis import router as business_analysis
 
 load_dotenv()
 

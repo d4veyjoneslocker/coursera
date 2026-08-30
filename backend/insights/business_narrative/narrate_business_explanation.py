@@ -16,9 +16,10 @@ composition can't capture on its own.
 
 classify_node(node) -> dict  (the struct the template layer consumes)
 """
-
+import pandas as pd
 from dataclasses import dataclass, field
 from backend.insights.business_narrative.select_tree_branches import make_surface_decision
+from backend.insights.business_narrative.enrich_nodes import enrich_node
 
 
 @dataclass
@@ -29,13 +30,22 @@ class NarrativeNode:
     impact: float | None
 
     surfaced_by: str
-
+    metrics: dict
     classification: dict
 
     headline: str
     detail: str | None
 
     children: list["NarrativeNode"] = field(default_factory=list)
+
+
+@dataclass
+class NarrativeInputs:
+    df: pd.DataFrame
+    current_start: object
+    current_end: object
+    prior_start: object
+    prior_end: object
 
 
 # ---------------------------------------------------------------------------
@@ -86,9 +96,9 @@ def valence_of(impact, relationship):
 # Dimension 3 — health (stage-specific diagnostic)
 # ---------------------------------------------------------------------------
 
-def health_of(node):
+def health_of(node, metrics):
     if node.driver_type == "mature":
-        rate_change = getattr(node, "rate_change", None)
+        rate_change = metrics.get("rate_change")
 
         if rate_change is None:
             return None
@@ -105,7 +115,7 @@ def health_of(node):
         return "stable"
 
     if node.driver_type == "ramping":
-        reorder_breadth = getattr(node, "reorder_breadth", None)
+        reorder_breadth = metrics.get("reorder_breadth")
 
         if reorder_breadth is None:
             return None
@@ -155,7 +165,7 @@ def emphasis_of(node, surfaced_by):
 # Overrides — special stories composition can't capture alone
 # ---------------------------------------------------------------------------
 
-def apply_overrides(node, classification):
+def apply_overrides(node, metrics, classification):
     # A negative ramping contribution combined with broad reorder activity
     # is more consistent with post-launch settling / normalization than
     # broad launch failure.
@@ -175,14 +185,17 @@ def apply_overrides(node, classification):
 # Entry point
 # ---------------------------------------------------------------------------
 
-def classify_node(node, surfaced_by):
+def classify_node(node, metrics, surfaced_by):
     classification = {
         "frame": frame_of(node.driver_type),
         "valence": valence_of(
             getattr(node, "impact", None),
             getattr(node, "relationship", None),
         ),
-        "health": health_of(node),
+        "health": health_of(
+            node=node,
+            metrics=metrics,
+        ),
         "emphasis": emphasis_of(
             node=node,
             surfaced_by=surfaced_by,
@@ -191,8 +204,9 @@ def classify_node(node, surfaced_by):
     }
 
     return apply_overrides(
-        node,
-        classification,
+        node=node,
+        metrics=metrics,
+        classification=classification,
     )
 
 """
@@ -226,7 +240,7 @@ FRAME_LABELS = {
 }
 
 
-def narrate_node(node, classification) -> dict:
+def narrate_node(node, metrics, classification) -> dict:
     frame = classification.get("frame")
     valence = classification.get("valence")
     health = classification.get("health")
@@ -240,6 +254,7 @@ def narrate_node(node, classification) -> dict:
 
     headline = _build_headline(
         node=node,
+        metrics=metrics,
         subject=subject,
         frame=frame,
         valence=valence,
@@ -250,6 +265,7 @@ def narrate_node(node, classification) -> dict:
 
     detail = _build_detail(
         node=node,
+        metrics=metrics,
         frame=frame,
         valence=valence,
         health=health,
@@ -289,6 +305,7 @@ def _subject_for_node(node, frame) -> str:
 
 def _build_headline(
     node,
+    metrics,
     subject,
     frame,
     valence,
@@ -304,9 +321,48 @@ def _build_headline(
     if node.node_type == "driver":
 
         if frame == "new_distribution":
-            return "New placements are driving incremental volume"
+            placements = metrics.get("placements_added")
+            stores = metrics.get("stores_with_new_placements")
+
+            if placements is not None and stores is not None:
+                return (
+                    f"New distribution added {placements:,} placements "
+                    f"across {stores:,} stores"
+                )
+
+            if placements is not None:
+                return f"New distribution added {placements:,} placements"
+
+            return "New distribution expanded the business"
 
         if frame == "recent_launch":
+            reorder_breadth = metrics.get("reorder_breadth")
+
+            if reorder_breadth is not None:
+                if health == "settling":
+                    return (
+                        f"{reorder_breadth:.1%} of recent-launch placements "
+                        "reordered despite lower volume"
+                    )
+
+                if health == "weak_reorder":
+                    return (
+                        f"Only {reorder_breadth:.1%} of recent-launch "
+                        "placements reordered"
+                    )
+
+                if health == "strong_reorder":
+                    return (
+                        f"{reorder_breadth:.1%} of recent-launch placements "
+                        "reordered"
+                    )
+
+                if health == "mixed_reorder":
+                    return (
+                        f"{reorder_breadth:.1%} of recent-launch placements "
+                        "reordered"
+                    )
+
             if health == "settling":
                 return "Recent launches appear to be settling"
 
@@ -322,6 +378,18 @@ def _build_headline(
             return "Recent launches are still developing"
 
         if frame == "established":
+            rate_change = metrics.get("rate_change")
+
+            if rate_change is not None:
+                if health == "strengthening":
+                    return f"Established velocity increased {rate_change:.1%}"
+
+                if health in {"weakening", "softening"}:
+                    return f"Established velocity declined {abs(rate_change):.1%}"
+
+                if health == "stable":
+                    return "Established velocity was relatively stable"
+
             if health == "strengthening":
                 return "Established placements are strengthening"
 
@@ -342,13 +410,35 @@ def _build_headline(
     # -----------------------------------------------------
 
     if frame == "new_distribution":
+        distribution_type = metrics.get("distribution_type")
+        stores = metrics.get("stores_with_new_placements")
+        placements = metrics.get("placements_added")
+
+        if distribution_type == "new_chain":
+            if stores is not None:
+                return f"{subject} launched across {stores:,} stores"
+            return f"{subject} launched as a new chain"
+
+        if distribution_type == "new_stores_in_chain":
+            if stores is not None:
+                return f"{subject} expanded into {stores:,} new stores"
+            return f"{subject} expanded into new stores"
+
+        if distribution_type == "new_placements_in_existing_stores":
+            if placements is not None:
+                return f"{subject} added {placements:,} placements in existing stores"
+            return f"{subject} expanded within existing stores"
+
+        if distribution_type == "mixed_expansion":
+            return f"{subject} expanded through new stores and deeper assortment"
+
         if valence in {"contributing", "bright_spot"}:
-            return f"{subject} is contributing incremental volume"
+            return f"{subject} is adding new distribution"
 
         if valence in {"declining", "drag"}:
             return f"{subject} is offsetting new-placement growth"
 
-        return f"{subject} is contributing through new distribution"
+        return f"{subject} is expanding distribution"
 
 
     # -----------------------------------------------------
@@ -356,6 +446,24 @@ def _build_headline(
     # -----------------------------------------------------
 
     if frame == "recent_launch":
+        reorder_breadth = metrics.get("reorder_breadth")
+
+        if reorder_breadth is not None:
+            if health == "settling":
+                return (
+                    f"{reorder_breadth:.1%} of {subject} placements "
+                    "reordered despite lower volume"
+                )
+
+            if health == "weak_reorder":
+                return f"Only {reorder_breadth:.1%} of {subject} placements reordered"
+
+            if health == "strong_reorder":
+                return f"{reorder_breadth:.1%} of {subject} placements reordered"
+
+            if health == "mixed_reorder":
+                return f"{reorder_breadth:.1%} of {subject} placements reordered"
+
         if health == "settling":
             return f"{subject} appears to be settling after launch"
 
@@ -382,6 +490,18 @@ def _build_headline(
     # -----------------------------------------------------
 
     if frame == "established":
+        rate_change = metrics.get("rate_change")
+
+        if rate_change is not None:
+            if health == "strengthening":
+                return f"{subject} velocity increased {rate_change:.1%}"
+
+            if health in {"weakening", "softening"}:
+                return f"{subject} velocity declined {abs(rate_change):.1%}"
+
+            if health == "stable":
+                return f"{subject} velocity was relatively stable"
+
         if valence == "bright_spot" and health == "strengthening":
             return f"{subject} is a bright spot in the established business"
 
@@ -405,8 +525,6 @@ def _build_headline(
 
         return f"{subject} is contributing within the established business"
 
-    return subject
-
 
 # ---------------------------------------------------------------------------
 # Detail
@@ -414,6 +532,7 @@ def _build_headline(
 
 def _build_detail(
     node,
+    metrics,
     frame,
     valence,
     health,
@@ -431,41 +550,40 @@ def _build_detail(
     if emphasis == "flagged":
 
         if frame == "recent_launch" and health == "weak_reorder":
-            reorder_breadth = getattr(
-                node,
-                "reorder_breadth",
-                None,
-            )
+            placements_in_cohort = metrics.get("placements_in_cohort")
+            placements_reordered = metrics.get("placements_reordered")
+            stores_in_cohort = metrics.get("stores_in_cohort")
+            reorder_breadth = metrics.get("reorder_breadth")
 
-            if reorder_breadth is not None:
+            if (
+                placements_in_cohort is not None
+                and placements_reordered is not None
+                and stores_in_cohort is not None
+            ):
+                placement_word = "placement" if placements_in_cohort == 1 else "placements"
                 return (
-                    f"Despite its smaller unit impact, only "
-                    f"{reorder_breadth:.1%} of placements reordered."
+                    f"Just {placements_reordered:,} of {placements_in_cohort:,} "
+                    f"{placement_word} reordered across {stores_in_cohort:,} stores."
                 )
 
-            return (
-                "Despite its smaller unit impact, reorder activity "
-                "is unusually weak versus comparable placements."
-            )
+            if reorder_breadth is not None:
+                return f"Only {reorder_breadth:.1%} of placements reordered."
 
+            return (
+                "Reorder activity is unusually weak versus comparable "
+                "placements."
+            )
 
         if (
             frame == "established"
             and health in {"weakening", "softening"}
         ):
-            rate_change = getattr(
-                node,
-                "rate_change",
-                None,
+            return _mature_detail(
+                metrics=metrics,
+                health=health,
+                emphasis=None,
+                signal_flag=True,
             )
-
-            if rate_change is not None:
-                base = (
-                    f"Despite its smaller unit impact, VPO declined "
-                    f"{abs(rate_change):.1%} versus the prior period."
-                )
-
-                return base
 
 
     # -----------------------------------------------------
@@ -476,37 +594,52 @@ def _build_detail(
         frame == "recent_launch"
         and note == "possible_load_in_normalization"
     ):
-        reorder_breadth = getattr(
-            node,
-            "reorder_breadth",
-            None,
-        )
+        placements_in_cohort = metrics.get("placements_in_cohort")
+        placements_reordered = metrics.get("placements_reordered")
+        stores_in_cohort = metrics.get("stores_in_cohort")
+        avg_reorders = metrics.get("avg_reorders")
+        reorder_breadth = metrics.get("reorder_breadth")
 
-        avg_reorders = getattr(
-            node,
-            "avg_reorders",
-            None,
-        )
-
-        parts = []
-
-        if reorder_breadth is not None:
-            parts.append(
-                f"{reorder_breadth:.1%} of placements reordered"
+        if (
+            placements_in_cohort is not None
+            and placements_reordered is not None
+        ):
+            first_sentence = (
+                f"{placements_reordered:,} of {placements_in_cohort:,} "
+                "placements reordered"
             )
 
-        if avg_reorders is not None:
-            parts.append(
-                f"those that reordered averaged "
-                f"{avg_reorders:.1f} reorders"
-            )
+            if stores_in_cohort is not None:
+                first_sentence += f" across {stores_in_cohort:,} stores"
 
-        if parts:
-            evidence = ", and ".join(parts)
+            if avg_reorders is not None:
+                first_sentence += (
+                    f", averaging {avg_reorders:.1f} reorders among "
+                    "those that reordered"
+                )
 
             return (
-                f"Volume declined, but {evidence} — more consistent "
-                "with post-launch normalization than broad launch failure."
+                first_sentence
+                + ". That pattern is more consistent with post-launch "
+                "normalization than broad launch weakness."
+            )
+
+        if reorder_breadth is not None:
+            first_sentence = f"{reorder_breadth:.1%} of placements reordered"
+
+            if stores_in_cohort is not None:
+                first_sentence += f" across {stores_in_cohort:,} stores"
+
+            if avg_reorders is not None:
+                first_sentence += (
+                    f", averaging {avg_reorders:.1f} reorders among "
+                    "those that reordered"
+                )
+
+            return (
+                first_sentence
+                + ". That pattern is more consistent with post-launch "
+                "normalization than broad launch weakness."
             )
 
         return (
@@ -516,59 +649,46 @@ def _build_detail(
 
 
     # -----------------------------------------------------
+    # RAMPING
+    # -----------------------------------------------------
+
+    if frame == "recent_launch":
+        placements_in_cohort = metrics.get("placements_in_cohort")
+        placements_reordered = metrics.get("placements_reordered")
+        stores_in_cohort = metrics.get("stores_in_cohort")
+        avg_reorders = metrics.get("avg_reorders")
+
+        if (
+            placements_in_cohort is not None
+            and placements_reordered is not None
+        ):
+            base = (
+                f"{placements_reordered:,} of {placements_in_cohort:,} "
+                "placements reordered"
+            )
+
+            if stores_in_cohort is not None:
+                base += f" across {stores_in_cohort:,} stores"
+
+            if avg_reorders is not None:
+                base += (
+                    f", averaging {avg_reorders:.1f} reorders among "
+                    "those that reordered"
+                )
+
+            return _apply_emphasis(base=base + ".", emphasis=emphasis)
+
+
+    # -----------------------------------------------------
     # MATURE
     # -----------------------------------------------------
 
     if frame == "established":
-        rate_change = getattr(
-            node,
-            "rate_change",
-            None,
+        return _mature_detail(
+            metrics=metrics,
+            health=health,
+            emphasis=emphasis,
         )
-
-        if rate_change is not None and health == "strengthening":
-            base = (
-                f"VPO increased {rate_change:.1%} "
-                "versus the prior period."
-            )
-
-            return _apply_emphasis(
-                base=base,
-                emphasis=emphasis,
-            )
-
-
-        if rate_change is not None and health == "weakening":
-            base = (
-                f"VPO declined {abs(rate_change):.1%} "
-                "versus the prior period."
-            )
-
-            return _apply_emphasis(
-                base=base,
-                emphasis=emphasis,
-            )
-
-
-        if rate_change is not None and health == "softening":
-            base = (
-                f"VPO declined {abs(rate_change):.1%} versus the prior "
-                "period — a mild slip worth monitoring."
-            )
-
-            return _apply_emphasis(
-                base=base,
-                emphasis=emphasis,
-            )
-
-
-        if rate_change is not None and health == "stable":
-            base = "VPO was roughly flat versus the prior period."
-
-            return _apply_emphasis(
-                base=base,
-                emphasis=emphasis,
-            )
 
 
     # -----------------------------------------------------
@@ -576,10 +696,88 @@ def _build_detail(
     # -----------------------------------------------------
 
     if frame == "new_distribution" and impact is not None:
-        base = (
-            "This contribution comes from placements that did not "
-            "exist in the prior comparison window."
-        )
+        stores = metrics.get("stores_with_new_placements")
+        placements = metrics.get("placements_added")
+        skus = metrics.get("skus_added")
+        avg_skus_per_store = metrics.get("avg_skus_per_store")
+        distribution_type = metrics.get("distribution_type")
+
+        # Root NEW driver: headline carries scale; detail adds assortment context.
+        if node.node_type == "driver":
+            if skus is not None and avg_skus_per_store is not None:
+                sku_word = "SKU" if skus == 1 else "SKUs"
+                return (
+                    f"Expansion spanned {skus:,} {sku_word}, averaging "
+                    f"{avg_skus_per_store:.1f} new SKUs per store."
+                )
+
+            if skus is not None:
+                sku_word = "SKU" if skus == 1 else "SKUs"
+                return f"Expansion spanned {skus:,} {sku_word}."
+
+            if placements is not None and stores is not None:
+                return (
+                    f"{placements:,} placements were added across "
+                    f"{stores:,} stores."
+                )
+
+            return (
+                "This contribution comes from placements that did not "
+                "exist in the prior comparison window."
+            )
+
+        if distribution_type == "new_chain":
+            if placements is not None and skus is not None:
+                base = (
+                    f"The launch added {placements:,} placements "
+                    f"across {skus:,} SKUs."
+                )
+            elif placements is not None:
+                base = f"The launch added {placements:,} placements."
+            else:
+                base = "This is new chain distribution."
+
+        elif distribution_type == "new_stores_in_chain":
+            if placements is not None:
+                base = (
+                    f"Those new stores added {placements:,} placements "
+                    "to the business."
+                )
+            else:
+                base = "Growth came from distribution into new stores."
+
+        elif distribution_type == "new_placements_in_existing_stores":
+            if stores is not None:
+                base = (
+                    f"The expansion deepened distribution across "
+                    f"{stores:,} existing stores."
+                )
+            else:
+                base = "Growth came from deeper distribution in existing stores."
+
+        elif distribution_type == "mixed_expansion":
+            if placements is not None and stores is not None:
+                base = (
+                    f"{placements:,} placements were added across {stores:,} stores "
+                    "through a mix of new stores and expansion within existing stores."
+                )
+            else:
+                base = (
+                    "Growth came from a mix of new stores and expansion "
+                    "within existing stores."
+                )
+
+        elif placements is not None and stores is not None:
+            base = (
+                f"{placements:,} placements were added across "
+                f"{stores:,} stores."
+            )
+
+        else:
+            base = (
+                "This contribution comes from placements that did not "
+                "exist in the prior comparison window."
+            )
 
         return _apply_emphasis(
             base=base,
@@ -587,6 +785,125 @@ def _build_detail(
         )
 
     return None
+
+
+def _mature_detail(
+    metrics,
+    health,
+    emphasis,
+    signal_flag=False,
+) -> str | None:
+    rate_current = metrics.get("rate_current")
+    rate_prior = metrics.get("rate_prior")
+    rate_change = metrics.get("rate_change")
+    business_rate_current = metrics.get("business_rate_current")
+    vs_business_rate = metrics.get("vs_business_rate")
+
+    stores_in_cohort = metrics.get("stores_in_cohort")
+    placements_in_cohort = metrics.get("placements_in_cohort")
+
+    # -----------------------------------------------------
+    # Period-over-period movement
+    # -----------------------------------------------------
+
+    if rate_prior is not None and rate_current is not None:
+        if rate_current > rate_prior:
+            base = (
+                f"Velocity increased from {rate_prior:.2f} "
+                f"to {rate_current:.2f}"
+            )
+
+        elif rate_current < rate_prior:
+            base = (
+                f"Velocity declined from {rate_prior:.2f} "
+                f"to {rate_current:.2f}"
+            )
+
+        else:
+            base = f"Velocity was flat at {rate_current:.2f}"
+
+    elif rate_change is not None:
+        if rate_change > 0:
+            base = f"Velocity increased {rate_change:.1%}"
+
+        elif rate_change < 0:
+            base = f"Velocity declined {abs(rate_change):.1%}"
+
+        else:
+            base = "Velocity was roughly flat versus the prior period"
+
+    else:
+        if health == "stable":
+            return "Velocity was roughly flat versus the prior period."
+
+        return None
+
+    # -----------------------------------------------------
+    # Cohort scale
+    # -----------------------------------------------------
+
+    if (
+        placements_in_cohort is not None
+        and stores_in_cohort is not None
+    ):
+        base += (
+            f" across {placements_in_cohort:,} placements "
+            f"in {stores_in_cohort:,} stores"
+        )
+
+    elif placements_in_cohort is not None:
+        base += f" across {placements_in_cohort:,} placements"
+
+    elif stores_in_cohort is not None:
+        base += f" across {stores_in_cohort:,} stores"
+
+    base += "."
+
+    # -----------------------------------------------------
+    # Velocity vs. overall Mature business
+    # -----------------------------------------------------
+    # Skip the Mature root itself, where the node's velocity
+    # is the benchmark and vs_business_rate == 0.
+
+    if (
+        rate_current is not None
+        and business_rate_current is not None
+        and vs_business_rate is not None
+        and abs(vs_business_rate) > 1e-6
+    ):
+        if vs_business_rate < 0:
+            base += (
+                f" At {rate_current:.2f}, it remains "
+                f"{abs(vs_business_rate):.1%} below the overall "
+                f"Mature velocity of {business_rate_current:.2f}."
+            )
+
+        else:
+            velocity_multiple = (
+                rate_current / business_rate_current
+            )
+
+            base += (
+                f" At {rate_current:.2f}, it is "
+                f"{velocity_multiple:.1f}× the overall "
+                f"Mature velocity of {business_rate_current:.2f}."
+            )
+
+    # -----------------------------------------------------
+    # Signal / emphasis
+    # -----------------------------------------------------
+
+    if signal_flag:
+        return (
+            base.rstrip(".")
+            + ". Despite its smaller unit impact, this stands out "
+            "as an unusual signal."
+        )
+
+    return _apply_emphasis(
+        base=base,
+        emphasis=emphasis,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -601,24 +918,45 @@ def _apply_emphasis(
     if emphasis == "concentrated":
         return base.rstrip(".") + ". This stands out relative to peers."
 
-    if emphasis == "broad":
-        return (
-            base.rstrip(".")
-            + ". This pattern appears across multiple peers."
-        )
-
+    # "broad" is useful as structured classification metadata, but does not
+    # add enough user-facing information to warrant repetitive narration.
     return base
 
-def narrate_shown_node(shown_node):
+def narrate_shown_node(
+    shown_node,
+    inputs,
+    business_rate_current=None,
+):
     node = shown_node.node
+
+    # The top-level Mature driver is the overall Mature business.
+    # Use its VPO as the benchmark for this entire Mature branch.
+    if (
+        node.driver_type == "mature"
+        and not node.scope
+        and business_rate_current is None
+    ):
+        business_rate_current = getattr(
+            node,
+            "rate_current",
+            None,
+        )
+
+    metrics = enrich_node(
+        node=node,
+        inputs=inputs,
+        business_rate_current=business_rate_current,
+    )
 
     classification = classify_node(
         node=node,
+        metrics=metrics,
         surfaced_by=shown_node.surfaced_by,
     )
 
     narrative = narrate_node(
         node=node,
+        metrics=metrics,
         classification=classification,
     )
 
@@ -628,6 +966,7 @@ def narrate_shown_node(shown_node):
         scope=node.scope,
         impact=node.impact,
         surfaced_by=shown_node.surfaced_by,
+        metrics=metrics,
         classification=classification,
         headline=narrative["headline"],
         detail=narrative["detail"],
@@ -635,7 +974,11 @@ def narrate_shown_node(shown_node):
 
     for child in shown_node.children:
         narrative_node.children.append(
-            narrate_shown_node(child)
+            narrate_shown_node(
+                shown_node=child,
+                inputs=inputs,
+                business_rate_current=business_rate_current,
+            )
         )
 
     return narrative_node
