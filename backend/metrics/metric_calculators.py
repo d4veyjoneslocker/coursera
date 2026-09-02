@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from backend.metrics.metric_helpers import build_spine, build_full_universe_spine, clean_group_cols
+from backend.metrics.metric_spine_builders import build_spine, build_full_universe_spine
+from backend.metrics.metric_helpers import clean_group_cols
 from backend.metrics.monthly_metric_calculators import calculate_monthly_active_pods, calculate_monthly_units
 
 def calculate_revenue(df, group_cols=None):

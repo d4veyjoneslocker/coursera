@@ -119,6 +119,18 @@ def filter_raw_to_scope(
 
     return result.copy()
 
+# NOTE:
+# Mature is currently an absorbing lifecycle state: once a POD becomes Mature,
+# it cannot become non-Mature. For that reason, velocity intentionally uses
+# ALL PODs that have ever reached Mature, including PODs with no orders in the
+# current 3M window. Dropping those inactive/no-order PODs would artificially
+# inflate Mature VPO.
+#
+# FUTURE: If an "Inactive" (or other post-Mature) lifecycle state is introduced
+# and those PODs should no longer count toward Mature velocity, this logic must
+# change from "ever Mature" to the POD's lifecycle state as of the measurement
+# period. It should look at the LAST state, so if the last state is mature, it
+# counts. If it's inactive, it doesn't. 
 def compute_node_velocity(
     df: pd.DataFrame,
     scope: dict,

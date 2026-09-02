@@ -7,8 +7,6 @@ import Link from "next/link"
 
 export default function LoginPage() {
 
-  console.log("LOGIN PAGE RENDERED")
-
   const router = useRouter()
 
   const [mode, setMode] = useState<"login" | "signup" | "reset">("login")

@@ -1,29 +1,15 @@
 import pandas as pd
 import numpy as np
-from backend.metrics.metric_helpers import build_spine, clean_group_cols, build_comparison_spine
+from backend.metrics.metric_spine_builders import build_spine, build_comparison_spine
+from backend.metrics.metric_helpers import clean_group_cols
 from backend.metrics.monthly_metric_calculators import(
     calculate_monthly_active_pods,
     calculate_monthly_existing_buyers,
     calculate_monthly_repeat_buyers,
     calculate_monthly_units
 )
+from backend.metrics.metric_helpers import pct_change, abs_change
 
-def pct_change(current, prior):
-    current = pd.to_numeric(current, errors="coerce")
-    prior = pd.to_numeric(prior, errors="coerce")
-
-    return np.where(
-        (prior.isna()) | (prior == 0),
-        np.nan,
-        current / prior - 1
-    )
-
-def abs_change(current, prior):
-    return np.where(
-        pd.notna(prior),
-        current - prior,
-        np.nan
-    )
 
 def add_pct_change_columns(df, metric, l1m=None, l3m=None, py=None):
 

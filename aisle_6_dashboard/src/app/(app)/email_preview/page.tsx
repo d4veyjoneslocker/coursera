@@ -19,7 +19,8 @@ import DistributionOpportunityDeepDive from "@/components/deep-dive/Distribution
 import OverperformingChannelMomentum from "@/components/deep-dive/OverperformingChannelMomentum"
 import ChainStruggling from "@/components/deep-dive/ChainStruggling"
 import FailureToLaunch from "@/components/deep-dive/FailureToLaunch"
-import BusinessNarrativeSummary from "@/components/deep-dive/DemoNarrative"
+import DemoNarrative from "@/components/deep-dive/DemoNarrative"
+import BusinessNarrativeSummary from "@/components/deep-dive/BusinessNarrative"
 
 type InsightPart =
   | {
@@ -82,6 +83,8 @@ type Digest = {
   preview_text?: string
   sections?: Section[]
 }
+
+const DEMO_ORG_ID = "839a67d6-7afa-4607-8524-8621184bfabc"
 
 const theme = {
   surface: "#FCFAF6",
@@ -510,7 +513,11 @@ export default function EmailPreviewPage() {
                           {otherInsights.length > 0 &&
                             (section.key ===
                             "what_changed" ? (
-                              <BusinessNarrativeSummary />
+                              org.id === DEMO_ORG_ID ? (
+                                <DemoNarrative />
+                              ) : (
+                                <BusinessNarrativeSummary orgId={org.id} />
+                              )
                             ) : (
                               <div className="grid grid-cols-1 gap-3">
                                 {otherInsights.map(

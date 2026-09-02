@@ -1,5 +1,5 @@
 import pandas as pd
-from backend.metrics.metric_aggregations import total, peak, average, latest_month, safe_float, safe_int
+from backend.metrics.metric_helpers import total, peak, average, latest_month, safe_float, safe_int
 from backend.metrics.metric_calculators import calculate_units, calculate_buying_stores, calculate_active_pods, calculate_vpo, calculate_average_skus_per_store
 
 # Pie Chart KPIS

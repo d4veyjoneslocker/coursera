@@ -9,7 +9,7 @@ from backend.metrics.metric_tables import store_performance, kpi_monthly_table, 
 from backend.metrics.metric_calculators import calculate_units
 from backend.metrics.kpis.store_health_kpis import buying_kpis, reorder_kpis, count_channels
 from backend.serving.api_helpers import clean_for_json, prep_monthly_graph, remove_time_filters, filter_table
-from backend.metrics.metric_helpers import build_spine
+from backend.metrics.metric_spine_builders import build_spine
 
 
 

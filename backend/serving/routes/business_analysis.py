@@ -6,13 +6,20 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 
 from backend.context.build_business_context import detect_retailer_launches
 from backend.data_pipeline.table_loader import load_org_tables
-from backend.serving.api_helpers import clean_for_json
 from backend.insights.insights_helper import get_last_full_month
 
-from backend.insights.business_narrative.build_business_explanation_tree import build_business_explanation_tree
-from backend.insights.business_narrative.select_tree_branches import build_shown_nodes
+from backend.insights.business_narrative.build_business_explanation_tree import (
+    build_business_explanation_tree,
+)
+from backend.insights.business_narrative.select_tree_branches import (
+    build_shown_nodes,
+)
+from backend.insights.business_narrative.narrate_business_explanation import (
+    narrate_shown_node,
+    NarrativeInputs,
+)
+
 from backend.metrics.features import calculate_store_sku_lifecycle
-from backend.insights.business_narrative.narrate_business_explanation import narrate_shown_node
 
 from backend.filters.filter_table import filter_table
 from backend.filters.filters import get_filters, generate_filter_api
@@ -22,6 +29,7 @@ router = APIRouter(
     prefix="/business-analysis",
     tags=["Business Analysis"],
 )
+
 
 @router.get("/filters")
 def get_filter_options(
@@ -51,14 +59,31 @@ def get_filter_options(
 
     filters.pop(column_name, None)
 
-    df = filter_table(features_df, **filters)
-    options = generate_filter_api(df, column_name)
+    df = filter_table(
+        features_df,
+        **filters,
+    )
+
+    options = generate_filter_api(
+        df,
+        column_name,
+    )
 
     if column_name == "month_year":
-        current_month = pd.Timestamp.today().to_period("M").strftime("%Y-%m")
-        options = [opt for opt in options if opt != current_month]
+        current_month = (
+            pd.Timestamp.today()
+            .to_period("M")
+            .strftime("%Y-%m")
+        )
+
+        options = [
+            opt
+            for opt in options
+            if opt != current_month
+        ]
 
     return options
+
 
 def clean_object_for_json(value):
     if isinstance(value, dict):
@@ -86,7 +111,13 @@ def get_business_explanation_tree(
     filters: dict = Depends(get_filters),
 ):
     try:
-        features_df = load_org_tables(org_id=org_id)
+        # ---------------------------------------------------------
+        # Load + filter data
+        # ---------------------------------------------------------
+
+        features_df = load_org_tables(
+            org_id=org_id,
+        )
 
         df = filter_table(
             features_df,
@@ -99,13 +130,23 @@ def get_business_explanation_tree(
                 detail="No data found for the selected filters.",
             )
 
+        # ---------------------------------------------------------
+        # Comparison periods
+        # ---------------------------------------------------------
+
         current_end = get_last_full_month()
         current_start = current_end - 2
 
         prior_end = current_start - 1
         prior_start = prior_end - 2
 
-        # Build lifecycle from full history, not user-filtered history
+        # ---------------------------------------------------------
+        # Lifecycle
+        #
+        # Build lifecycle from full history rather than
+        # user-filtered history.
+        # ---------------------------------------------------------
+
         features_as_of = features_df[
             features_df["month_year"] <= current_end
         ].copy()
@@ -116,20 +157,38 @@ def get_business_explanation_tree(
             prior_start=prior_start,
         )
 
-        # Analysis dataframe can still respect user filters
+        # ---------------------------------------------------------
+        # Analysis dataframe
+        #
+        # This still respects the user's filters.
+        # ---------------------------------------------------------
+
         df_as_of = df[
             df["month_year"] <= current_end
         ].copy()
 
         df_as_of = df_as_of.merge(
             lifecycle_table[
-                ["pod_helper", "sku_lifecycle"]
+                [
+                    "pod_helper",
+                    "sku_lifecycle",
+                ]
             ].drop_duplicates(),
             on="pod_helper",
             how="left",
         )
 
-        context = detect_retailer_launches(df_as_of)
+        # ---------------------------------------------------------
+        # Business context
+        # ---------------------------------------------------------
+
+        context = detect_retailer_launches(
+            df_as_of,
+        )
+
+        # ---------------------------------------------------------
+        # Explanation tree
+        # ---------------------------------------------------------
 
         tree = build_business_explanation_tree(
             df=df_as_of,
@@ -140,54 +199,59 @@ def get_business_explanation_tree(
             context_records=context,
         )
 
-        mature = next(
+        # ---------------------------------------------------------
+        # Surfacing
+        # ---------------------------------------------------------
 
-
-        child for child in tree.children
-            if child.driver_type == "mature"
+        shown_nodes = build_shown_nodes(
+            tree,
         )
 
-        print(
-            "BEFORE SHOWN:",
-            mature.rate_current,
-            mature.rate_prior,
-            mature.rate_change,
+        # ---------------------------------------------------------
+        # Shared narrative inputs
+        #
+        # Created once and shared by the entire recursive
+        # enrichment/classification/narration process.
+        # ---------------------------------------------------------
+
+        inputs = NarrativeInputs(
+            df=df_as_of,
+            current_start=current_start,
+            current_end=current_end,
+            prior_start=prior_start,
+            prior_end=prior_end,
         )
 
-        for child in mature.children:
-            print(
-                child.scope,
-                child.rate_current,
-                child.rate_prior,
-                child.rate_change,
-            )
-
-
-        all_nodes = []
-
-        def collect_nodes(node):
-            all_nodes.append(node)
-
-            for child in node.children:
-                collect_nodes(child)
-
-        collect_nodes(tree)
-
-        shown_nodes = build_shown_nodes(tree)
+        # ---------------------------------------------------------
+        # Enrichment → classification → narration
+        # ---------------------------------------------------------
 
         narrative_tree = []
 
         for shown_node in shown_nodes:
             narrative_node = narrate_shown_node(
                 shown_node=shown_node,
+                inputs=inputs,
             )
 
-            narrative_tree.append(narrative_node)
+            narrative_tree.append(
+                narrative_node
+            )
 
+        # ---------------------------------------------------------
+        # JSON serialization
+        # ---------------------------------------------------------
 
-        explanation_tree = clean_object_for_json(tree.to_dict())
-        narrative_tree = clean_object_for_json([asdict(node) for node in narrative_tree])
+        narrative_tree = clean_object_for_json(
+            [
+                asdict(node)
+                for node in narrative_tree
+            ]
+        )
 
+        # ---------------------------------------------------------
+        # Response
+        # ---------------------------------------------------------
 
         return {
             "current_period": {
@@ -207,5 +271,8 @@ def get_business_explanation_tree(
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Business explanation tree failed: {str(e)}",
+            detail=(
+                "Business explanation tree failed: "
+                f"{str(e)}"
+            ),
         )
