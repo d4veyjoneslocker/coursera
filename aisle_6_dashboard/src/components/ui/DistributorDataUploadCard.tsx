@@ -27,23 +27,24 @@ export default function KeheUploadCard({
   onUploadSuccess,
 }: KeheUploadCardProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const {org} = useOrg() // 🔥 get org here
+  const { org } = useOrg()
 
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const [successMessage, setSuccessMessage] = useState("")
   const [errorMessage, setErrorMessage] = useState("")
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0] ?? null
-    setFile(selectedFile)
+    const selectedFiles = Array.from(e.target.files ?? [])
+
+    setFiles(selectedFiles)
     setSuccessMessage("")
     setErrorMessage("")
   }
 
   const handleUpload = async () => {
-    if (!file) {
-      setErrorMessage("Please choose a CSV file to upload.")
+    if (files.length === 0) {
+      setErrorMessage("Please choose at least one CSV file to upload.")
       return
     }
 
@@ -53,10 +54,13 @@ export default function KeheUploadCard({
 
     try {
       const formData = new FormData()
-      formData.append("file", file)
+
+      files.forEach((file) => {
+        formData.append("files", file)
+      })
 
       const res = await fetch(
-        `${apiBaseUrl}/upload/kehe?org_id=${org.id}`, // 🔥 fixed
+        `${apiBaseUrl}/upload/kehe?org_id=${org.id}`,
         {
           method: "POST",
           body: formData,
@@ -69,8 +73,11 @@ export default function KeheUploadCard({
         throw new Error(data.detail || "Upload failed.")
       }
 
-      setSuccessMessage(data.message || "Data uploaded successfully.")
-      setFile(null)
+      setSuccessMessage(
+        data.message || `${files.length} file${files.length === 1 ? "" : "s"} uploaded successfully.`
+      )
+
+      setFiles([])
 
       if (inputRef.current) {
         inputRef.current.value = ""
@@ -79,12 +86,22 @@ export default function KeheUploadCard({
       onUploadSuccess?.()
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Something went wrong during upload."
+        err instanceof Error
+          ? err.message
+          : "Something went wrong during upload."
+
       setErrorMessage(message)
     } finally {
       setIsUploading(false)
     }
   }
+
+  const fileLabel =
+    files.length === 0
+      ? "Choose CSV files"
+      : files.length === 1
+        ? files[0].name
+        : `${files.length} CSV files selected`
 
   return (
     <div
@@ -107,14 +124,14 @@ export default function KeheUploadCard({
             className="text-lg font-semibold"
             style={{ color: theme.charcoal }}
           >
-            Upload KeHE report
+            Upload KeHE reports
           </h3>
 
           <p
             className="text-sm"
             style={{ color: theme.muted }}
           >
-            Upload your latest KeHE CSV to refresh dashboard data.
+            Select one or more KeHE CSV reports and upload them together.
           </p>
         </div>
 
@@ -125,25 +142,27 @@ export default function KeheUploadCard({
               style={{
                 borderColor: theme.line,
                 backgroundColor: theme.surface,
-                color: file ? theme.charcoal : theme.muted,
+                color: files.length > 0 ? theme.charcoal : theme.muted,
               }}
             >
               <input
                 ref={inputRef}
                 type="file"
                 accept=".csv"
+                multiple
                 className="hidden"
                 onChange={handleFileChange}
               />
+
               <span className="truncate">
-                {file ? file.name : "Choose CSV file"}
+                {fileLabel}
               </span>
             </label>
 
             <button
               type="button"
               onClick={handleUpload}
-              disabled={isUploading || !file}
+              disabled={isUploading || files.length === 0}
               className="rounded-xl px-4 py-2 text-sm font-medium transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
               style={{
                 backgroundColor: theme.blue,
@@ -153,6 +172,23 @@ export default function KeheUploadCard({
               {isUploading ? "Uploading..." : "Upload"}
             </button>
           </div>
+
+          {files.length > 1 && (
+            <div
+              className="rounded-xl border px-3 py-2 text-xs"
+              style={{
+                borderColor: theme.line,
+                backgroundColor: theme.surface,
+                color: theme.muted,
+              }}
+            >
+              {files.map((file) => (
+                <div key={`${file.name}-${file.size}`}>
+                  {file.name}
+                </div>
+              ))}
+            </div>
+          )}
 
           {successMessage && (
             <div

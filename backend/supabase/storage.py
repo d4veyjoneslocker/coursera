@@ -73,7 +73,19 @@ def download_file(org_id: str, remote_path: str, local_path: str):
     supabase = get_supabase_client()
 
     storage_path = f"{org_id}/{remote_path}"
-    data = supabase.storage.from_(BUCKET_NAME).download(storage_path)
+
+    try:
+        data = supabase.storage.from_(BUCKET_NAME).download(storage_path)
+
+    except Exception as e:
+        error_text = str(e)
+
+        if "not_found" in error_text or "Object not found" in error_text:
+            raise FileNotFoundError(
+                f"Supabase file not found: {storage_path}"
+            ) from e
+
+        raise
 
     local_path_obj = Path(local_path)
     local_path_obj.parent.mkdir(parents=True, exist_ok=True)
