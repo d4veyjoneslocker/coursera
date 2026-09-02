@@ -6,7 +6,7 @@ from backend.metrics.metric_calculators import calculate_units
 from backend.metrics.metric_tables import chain_table, kpi_monthly_table
 from backend.metrics.kpis.overview_kpis import unit_kpis, buying_kpis, pod_kpis, vpo_kpis, count_channels, avg_skus_per_store
 from backend.data_pipeline.table_loader import load_org_tables
-from backend.metrics.metric_helpers import build_spine
+from backend.metrics.metric_spine_builders import build_spine
 from backend.metrics.monthly_metric_calculators import (
     calculate_monthly_units,
     calculate_monthly_active_pods,
