@@ -1,6 +1,7 @@
 # PROB MOVE THESE TWO FUNCTIONS SOMEWHERE ELSE
 import pandas as pd
-from backend.metrics.metric_helpers import (grouped_cumsum, build_spine, build_window_universe_spine, build_full_universe_spine, clean_group_cols)
+from backend.metrics.metric_spine_builders import build_spine, build_window_universe_spine, build_full_universe_spine
+from backend.metrics.metric_helpers import grouped_cumsum, clean_group_cols
 from datetime import datetime
 
 def calculate_reorder_rate(df):
