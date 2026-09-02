@@ -5,7 +5,7 @@ from backend.metrics.metric_calculators import (
     calculate_buying_stores,
     calculate_vpo,
 )
-from backend.metrics.metric_aggregations import safe_float
+from backend.metrics.metric_helpers import safe_float
 
 
 def get_current_and_prior_ytd(df: pd.DataFrame, today=None):
