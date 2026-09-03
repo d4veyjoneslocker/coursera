@@ -439,41 +439,34 @@ def choose_child_dimension(
     node: ExplanationNode,
     dimensions: list[str],
     top_n_support: int = 3,
-    concentration_gate: float = 0.60,
+    concentration_gate: float = 0.1,
 ) -> tuple[str | None, list[dict], float]:
-    """
-    Tests unused dimensions in predetermined order and chooses
-    the first dimension whose supporting movement is sufficiently
-    concentrated in a few children.
 
-    Dimension priority is determined by the order of `dimensions`.
-    """
+    if not dimensions:
+        return None, [], 0.0
 
-    best_score = 0.0
+    # Strict semantic hierarchy:
+    # only consider the first remaining dimension.
+    dimension = dimensions[0]
 
-    for dimension in dimensions:
-        children = get_dimension_children(
-            contributions=contributions,
-            node=node,
-            dimension=dimension,
-        )
+    children = get_dimension_children(
+        contributions=contributions,
+        node=node,
+        dimension=dimension,
+    )
 
-        if not children:
-            continue
+    if not children:
+        return None, [], 0.0
 
-        top1_share, topn_share = calculate_support_concentration(
-            children=children,
-            top_n_support=top_n_support,
-        )
+    top1_share, topn_share = calculate_support_concentration(
+        children=children,
+        top_n_support=top_n_support,
+    )
 
-        # Keep the strongest attempted score for debugging / metadata
-        best_score = max(best_score, top1_share)
+    if topn_share >= concentration_gate:
+        return dimension, children, top1_share
 
-        # Take the FIRST dimension in priority order that clears the gate
-        if topn_share >= concentration_gate:
-            return dimension, children, top1_share
-
-    return None, [], best_score
+    return None, [], top1_share
 
 
 # ---------------------------------------------------------
@@ -724,25 +717,32 @@ def should_expand(
 ) -> bool:
 
     if node.node_type == "residual":
+        print("STOP: residual")
         return False
 
     if node.driver_type is None:
+        print("STOP: no driver_type")
         return False
 
     if node.depth >= max_depth:
+        print("STOP: max depth")
         return False
 
     if not remaining_dimensions:
+        print("STOP: no dimensions")
         return False
 
     impact = abs(node.impact)
 
     if impact < magnitude_floor:
+        print("STOP: magnitude floor")
         return False
 
     if parent_impact and impact / abs(parent_impact) < min_share_of_parent:
+        print("STOP: share of parent")
         return False
 
+    print("PASS")
     return True
 
 
@@ -946,7 +946,7 @@ def build_business_explanation_tree(
     magnitude_floor: float = 250,
     min_child_impact: float = 100,
     min_share_of_parent: float = 0.03,
-    concentration_gate: float = 0.60,
+    concentration_gate: float = 0.40,
     top_n_support: int = 3,
     top_n_counterforce: int = 2,
     max_depth: int = 4,
