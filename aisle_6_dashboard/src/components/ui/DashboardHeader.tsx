@@ -44,7 +44,7 @@ const pages = [
   {
     label: "Insights",
     value: "insights",
-    href: "/email",
+    href: "/deep-dive",
     icon: Lightbulb,
   },
   {
