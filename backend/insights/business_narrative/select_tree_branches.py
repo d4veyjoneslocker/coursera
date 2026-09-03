@@ -37,7 +37,7 @@ STANDOUT_MULTIPLIER = 1.2
 
 # "is the split concentrated enough to bother drilling" — gentler than
 # STANDOUT_MULTIPLIER on purpose: mild real concentration should still expand.
-EXPAND_STANDOUT_MULTIPLIER = 1.10
+EXPAND_STANDOUT_MULTIPLIER = 1.1
 
 
 @dataclass
