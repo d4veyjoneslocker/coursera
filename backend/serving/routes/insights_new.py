@@ -55,6 +55,7 @@ def get_order_cadence_risk(
     return insight
 
 @router.get("/order_cadence_risk/stores")
+@router.get("/order_cadence_risk/stores")
 def get_order_cadence_risk_stores(
     org_id: str,
     filters: Filters = Depends(get_filters),
@@ -66,9 +67,46 @@ def get_order_cadence_risk_stores(
     table = build_order_cadence_risk_table(df_filtered)
     analyzed = analyze_order_cadence_risk(table)
 
-    result = clean_for_json(create_order_cadence_risk_store_list(analyzed)).to_dict("records")
+    store_list = create_order_cadence_risk_store_list(analyzed)
 
-    return result
+    return {
+        "title": "Missed Replenishment Stores",
+        "subtitle": (
+            "Stores that had been ordering consistently "
+            "but missed an expected recent replenishment."
+        ),
+        "columns": [
+            {
+                "key": "coded_customer",
+                "label": "Store",
+            },
+            {
+                "key": "dc",
+                "label": "DC",
+            },
+            {
+                "key": "avg_monthly_units_4m",
+                "label": "Avg Monthly Units",
+            },
+            {
+                "key": "months_purchased_last_4_prior",
+                "label": "Months Purchased",
+            },
+            {
+                "key": "last_month_purchased",
+                "label": "Last Purchased",
+            },
+            {
+                "key": "sku_count",
+                "label": "SKUs",
+            },
+            {
+                "key": "carried_skus",
+                "label": "Carried SKUs",
+            },
+        ],
+        "rows": clean_for_json(store_list).to_dict("records"),
+    }
 
 @router.get("/failure_to_launch_new_store_risk")
 def get_failure_to_launch_new_store_risk(
@@ -243,7 +281,8 @@ def get_overperforming_channel_momentum_stores(
 @router.get("/dropoff_sku_risk")
 def get_dropoff_sku_risk(
     org_id: str,
-    limit: int = Query(1, ge=1, le=10),
+    limit: int = Query(1, ge
+    =1, le=10),
     filters: Filters = Depends(get_filters),
 ):
     df = load_org_tables(org_id)
@@ -271,14 +310,55 @@ def get_dropoff_sku_risk_stores(
     detail_table = build_dropoff_sku_risk_table(df_filtered)
     analyzed = analyze_dropoff_sku_risk(detail_table)
 
-    result = clean_for_json(
-        create_dropoff_sku_risk_store_list(
-            analyzed_table=analyzed,
-            detail_table=detail_table,
-        )
-    ).to_dict("records")
+    store_list = create_dropoff_sku_risk_store_list(
+        analyzed_table=analyzed,
+        detail_table=detail_table,
+    )
 
-    return result
+    sku = analyzed.iloc[0]["sku"] if not analyzed.empty else ""
+
+    return {
+        "title": f"Stores That Dropped {sku}",
+        "subtitle": (
+            f"Stores that previously purchased {sku} but are still "
+            "actively purchasing other products from your brand."
+        ),
+        "columns": [
+            {
+                "key": "coded_customer",
+                "label": "Store",
+            },
+            {
+                "key": "chain",
+                "label": "Chain",
+            },
+            {
+                "key": "dc",
+                "label": "DC",
+            },
+            {
+                "key": "state",
+                "label": "State",
+            },
+            {
+                "key": "prior_3m_sku_units",
+                "label": "Prior 3M Units",
+            },
+            {
+                "key": "recent_3m_brand_units",
+                "label": "Recent Brand Units",
+            },
+            {
+                "key": "recent_brand_skus",
+                "label": "Current SKUs",
+            },
+            {
+                "key": "last_month_sku_purchased",
+                "label": "Last Purchased",
+            },
+        ],
+        "rows": clean_for_json(store_list).to_dict("records"),
+    }
 
 @router.get("/sales_change_driver")
 def get_sales_change_driver(

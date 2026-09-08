@@ -44,22 +44,23 @@ export default function OrderCadenceRisk({
   const brandColor =
     org?.primary_color ?? theme.brown
 
-  const cadencePct =
-    Math.min(
-      Math.max(
-        (Number(avgReplenishedMonths ?? 0) / 4) * 100,
-        0
-      ),
-      100
-    )
+  const cadencePct = Math.min(
+    Math.max(
+      (Number(avgReplenishedMonths ?? 0) / 4) * 100,
+      0
+    ),
+    100
+  )
 
   const singleSkuShare =
     affectedStores > 0
       ? (singleSkuStoreCount / affectedStores) * 100
       : 0
 
-  const hasSingleSkuExposure =
-    singleSkuStoreCount > 0
+  // Only show this when it is actually material.
+  const hasMeaningfulSingleSkuExposure =
+    singleSkuStoreCount >= 3 &&
+    singleSkuShare >= 10
 
   return (
     <div
@@ -74,14 +75,12 @@ export default function OrderCadenceRisk({
       {/* ================================================= */}
 
       <div className="flex items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <p
-            className="text-[13px] font-semibold uppercase tracking-[0.14em]"
-            style={{ color: theme.brown }}
-          >
-            Missed Replenishment
-          </p>
-        </div>
+        <p
+          className="text-[13px] font-semibold uppercase tracking-[0.14em]"
+          style={{ color: theme.brown }}
+        >
+          Missed Replenishment
+        </p>
 
         <InsightDescription
           definition={insightDefinitions.order_cadence_risk}
@@ -92,26 +91,27 @@ export default function OrderCadenceRisk({
       {/* PRIMARY STORY */}
       {/* ================================================= */}
 
-      <div className="mt-7 grid grid-cols-1 gap-8 lg:grid-cols-[0.88fr_1.12fr]">
+      <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[1fr_0.9fr]">
         {/* LEFT */}
+
         <div>
           <p
             className="text-[11px] font-medium uppercase tracking-[0.16em]"
             style={{ color: theme.brown }}
           >
-            Stores Off Cadence
+            Expected Replenishments Missed
           </p>
 
           <div className="mt-3 flex items-end gap-3">
             <p
-              className="text-[52px] font-semibold leading-none tracking-[-0.06em]"
+              className="text-[54px] font-semibold leading-none tracking-[-0.06em]"
               style={{ color: brandColor }}
             >
-              {affectedStores}
+              {formatNumber(affectedStores)}
             </p>
 
             <p
-              className="pb-1 text-[14px]"
+              className="pb-1.5 text-[15px]"
               style={{ color: theme.brown }}
             >
               stores
@@ -119,139 +119,79 @@ export default function OrderCadenceRisk({
           </div>
 
           <p
-            className="mt-5 max-w-md text-[16px] leading-7"
+            className="mt-5 max-w-lg text-[16px] leading-7"
             style={{ color: theme.charcoal }}
           >
-            These stores had been replenishing consistently,
-            but have now missed their expected recent order.
+            {formatNumber(affectedStores)} stores that had been
+            ordering consistently did not receive their expected
+            recent replenishment.
           </p>
 
-          <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
-            <span style={{ color: theme.brown }}>
-              Averaged{" "}
-              <strong style={{ color: theme.charcoal }}>
-                {Number(avgReplenishedMonths ?? 0).toFixed(1)}
-              </strong>{" "}
-              of 4 prior months
-            </span>
-          </div>
+          <p
+            className="mt-4 text-[13px] leading-6"
+            style={{ color: theme.brown }}
+          >
+            These were not occasional buyers — they purchased in an
+            average of{" "}
+            <strong style={{ color: theme.charcoal }}>
+              {Number(avgReplenishedMonths ?? 0).toFixed(1)}
+              {" "}of the prior 4 months
+            </strong>
+            .
+          </p>
         </div>
 
-        {/* RIGHT: CADENCE VISUAL */}
+        {/* RIGHT */}
+
         <div
           className="rounded-[18px] border px-5 py-5"
           style={{
-            backgroundColor: theme.surface,
+            backgroundColor: "#FCFAF6",
             borderColor: theme.line,
           }}
         >
-          <div className="flex items-start justify-between gap-5">
-            <div>
-              <p
-                className="text-[11px] font-medium uppercase tracking-[0.16em]"
-                style={{ color: theme.brown }}
-              >
-                Replenishment History
-              </p>
+          <p
+            className="text-[11px] font-medium uppercase tracking-[0.16em]"
+            style={{ color: theme.brown }}
+          >
+            Why This Stands Out
+          </p>
 
-              <p
-                className="mt-2 text-[13px]"
-                style={{ color: theme.brown }}
-              >
-                Average purchase frequency before the interruption
-              </p>
-            </div>
-
-            <div className="text-right">
-              <p
-                className="text-[21px] font-semibold"
-                style={{ color: brandColor }}
-              >
-                {Number(avgReplenishedMonths ?? 0).toFixed(1)}
-              </p>
-
-              <p
-                className="text-[10px] uppercase tracking-[0.12em]"
-                style={{ color: theme.brown }}
-              >
-                of 4 months
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-7 grid grid-cols-5 gap-2">
-            {Array.from({ length: 4 }).map(
-              (_, index) => {
-                const monthFilled =
-                  index < Math.round(avgReplenishedMonths)
-
-                return (
-                  <div key={index}>
-                    <div
-                      className="flex h-16 items-end rounded-[10px] border px-2 py-2"
-                      style={{
-                        backgroundColor: monthFilled
-                          ? brandColor
-                          : "transparent",
-                        borderColor: monthFilled
-                          ? brandColor
-                          : theme.line,
-                      }}
-                    >
-                      <span
-                        className="text-[10px] font-medium"
-                        style={{
-                          color: monthFilled
-                            ? "white"
-                            : theme.brown,
-                        }}
-                      >
-                        {monthFilled ? "Ordered" : "No order"}
-                      </span>
-                    </div>
-
-                    <p
-                      className="mt-2 text-center text-[9px] uppercase tracking-[0.1em]"
-                      style={{ color: theme.brown }}
-                    >
-                      Prior {4 - index}
-                    </p>
-                  </div>
-                )
-              }
-            )}
-
-            <div>
-              <div
-                className="flex h-16 items-end rounded-[10px] border px-2 py-2"
-                style={{
-                  borderColor: brandColor,
-                  backgroundColor: `${brandColor}12`,
-                }}
-              >
-                <span
-                  className="text-[10px] font-semibold"
-                  style={{ color: brandColor }}
+          <div className="mt-5">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p
+                  className="text-[30px] font-semibold tracking-[-0.05em]"
+                  style={{ color: theme.charcoal }}
                 >
-                  Missed
-                </span>
+                  {Number(avgReplenishedMonths ?? 0).toFixed(1)}
+                  <span
+                    className="ml-1 text-[15px] font-normal"
+                    style={{ color: theme.brown }}
+                  >
+                    / 4 months
+                  </span>
+                </p>
+
+                <p
+                  className="mt-1 text-[12px]"
+                  style={{ color: theme.brown }}
+                >
+                  typical prior purchase frequency
+                </p>
               </div>
 
               <p
-                className="mt-2 text-center text-[9px] uppercase tracking-[0.1em]"
+                className="text-[12px] font-medium"
                 style={{ color: brandColor }}
               >
-                Latest
+                {cadencePct.toFixed(0)}% cadence
               </p>
             </div>
-          </div>
 
-          <div className="mt-5">
             <div
-              className="h-2.5 rounded-full"
-              style={{
-                backgroundColor: theme.line,
-              }}
+              className="mt-4 h-2.5 overflow-hidden rounded-full"
+              style={{ backgroundColor: theme.line }}
             >
               <div
                 className="h-full rounded-full"
@@ -261,172 +201,120 @@ export default function OrderCadenceRisk({
                 }}
               />
             </div>
-
-            <p
-              className="mt-3 text-[11px] leading-5"
-              style={{ color: theme.brown }}
-            >
-              These stores had purchased in at least 3 of the
-              prior 4 months before missing the latest expected
-              replenishment.
-            </p>
           </div>
-        </div>
-      </div>
 
-      {/* ================================================= */}
-      {/* COMMERCIAL EXPOSURE */}
-      {/* ================================================= */}
+          <div
+            className="mt-6 border-t pt-5"
+            style={{ borderColor: theme.line }}
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p
+                  className="text-[11px] uppercase tracking-[0.12em]"
+                  style={{ color: theme.brown }}
+                >
+                  Latest Expected Replenishment
+                </p>
 
-      <div
-        className="mt-7 border-t pt-6"
-        style={{ borderColor: theme.line }}
-      >
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_300px]">
-          <div>
-            <p
-              className="text-[11px] font-medium uppercase tracking-[0.16em]"
-              style={{ color: theme.brown }}
-            >
-              Historical Volume At Risk
-            </p>
+                <p
+                  className="mt-1 text-[13px]"
+                  style={{ color: theme.charcoal }}
+                >
+                  None of these stores replenished.
+                </p>
+              </div>
 
-            <p
-              className="mt-2 text-[13px]"
-              style={{ color: theme.brown }}
-            >
-              Combined monthly volume from these stores before
-              the missed replenishment
-            </p>
-
-            <div className="mt-5 flex items-end gap-3">
-              <span
-                className="text-[38px] font-semibold tracking-[-0.05em]"
+              <p
+                className="text-[30px] font-semibold tracking-[-0.05em]"
                 style={{ color: brandColor }}
               >
-                {formatNumber(avgMonthlyUnits4m)}
-              </span>
-
-              <span
-                className="pb-1 text-[12px]"
-                style={{ color: theme.brown }}
-              >
-                units / month
-              </span>
-            </div>
-
-            <div
-              className="mt-5 max-w-2xl border-l-[3px] pl-4"
-              style={{ borderColor: brandColor }}
-            >
-              <p
-                className="text-[13px] leading-6"
-                style={{ color: theme.charcoal }}
-              >
-                This is a recent break from otherwise consistent
-                ordering behavior, rather than a group of stores
-                that had already been steadily declining.
+                0
               </p>
             </div>
           </div>
 
-          <div
-            className="rounded-[16px] border px-5 py-5"
-            style={{
-              backgroundColor: "#FCFAF6",
-              borderColor: theme.line,
-            }}
+          <p
+            className="mt-5 text-[12px] leading-5"
+            style={{ color: theme.brown }}
           >
+            The contrast between their normal ordering cadence and
+            the latest period is what triggered this finding.
+          </p>
+        </div>
+      </div>
+
+      {/* ================================================= */}
+      {/* VOLUME EXPOSURE */}
+      {/* ================================================= */}
+
+      <div
+        className="mt-8 border-t pt-7"
+        style={{ borderColor: theme.line }}
+      >
+        <p
+          className="text-[11px] font-medium uppercase tracking-[0.16em]"
+          style={{ color: theme.brown }}
+        >
+          What The Miss Represents
+        </p>
+
+        <div className="mt-5 grid grid-cols-1 gap-7 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+          <div>
+            <div className="flex items-end gap-3">
+              <p
+                className="text-[42px] font-semibold leading-none tracking-[-0.05em]"
+                style={{ color: brandColor }}
+              >
+                {formatNumber(avgMonthlyUnits4m)}
+              </p>
+
+              <p
+                className="pb-1 text-[13px]"
+                style={{ color: theme.brown }}
+              >
+                units / month
+              </p>
+            </div>
+
             <p
-              className="text-[10px] font-medium uppercase tracking-[0.16em]"
+              className="mt-2 text-[12px]"
               style={{ color: theme.brown }}
             >
-              Pattern At A Glance
+              normal combined monthly volume from these stores
             </p>
+          </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-x-5 gap-y-5">
-              <div>
-                <p
-                  className="text-[24px] font-semibold tracking-[-0.04em]"
-                  style={{ color: theme.charcoal }}
-                >
-                  {affectedStores}
-                </p>
-
-                <p
-                  className="mt-1 text-[11px]"
-                  style={{ color: theme.brown }}
-                >
-                  affected stores
-                </p>
-              </div>
-
-              <div>
-                <p
-                  className="text-[24px] font-semibold tracking-[-0.04em]"
-                  style={{ color: theme.charcoal }}
-                >
-                  {Number(avgReplenishedMonths ?? 0).toFixed(1)}
-                </p>
-
-                <p
-                  className="mt-1 text-[11px]"
-                  style={{ color: theme.brown }}
-                >
-                  avg prior months
-                </p>
-              </div>
-
-              <div>
-                <p
-                  className="text-[24px] font-semibold tracking-[-0.04em]"
-                  style={{ color: theme.charcoal }}
-                >
-                  {formatNumber(avgMonthlyUnits4m)}
-                </p>
-
-                <p
-                  className="mt-1 text-[11px]"
-                  style={{ color: theme.brown }}
-                >
-                  monthly units
-                </p>
-              </div>
-
-              <div>
-                <p
-                  className="text-[24px] font-semibold tracking-[-0.04em]"
-                  style={{
-                    color: hasSingleSkuExposure
-                      ? brandColor
-                      : theme.charcoal,
-                  }}
-                >
-                  {singleSkuStoreCount}
-                </p>
-
-                <p
-                  className="mt-1 text-[11px]"
-                  style={{ color: theme.brown }}
-                >
-                  single-SKU stores
-                </p>
-              </div>
-            </div>
+          <div
+            className="border-l-[3px] pl-5"
+            style={{ borderColor: brandColor }}
+          >
+            <p
+              className="text-[15px] leading-7"
+              style={{ color: theme.charcoal }}
+            >
+              Before this missed replenishment, these stores
+              collectively represented about{" "}
+              <strong>
+                {formatNumber(avgMonthlyUnits4m)} units in a
+                typical month
+              </strong>
+              . That gives a sense of the volume tied to the
+              ordering pattern that has now gone quiet.
+            </p>
           </div>
         </div>
       </div>
 
       {/* ================================================= */}
-      {/* SINGLE SKU EXPOSURE */}
+      {/* SINGLE-SKU EXPOSURE */}
       {/* ================================================= */}
 
-      {hasSingleSkuExposure && (
+      {hasMeaningfulSingleSkuExposure && (
         <div
-          className="mt-7 border-t pt-6"
+          className="mt-8 border-t pt-7"
           style={{ borderColor: theme.line }}
         >
-          <div className="flex flex-wrap items-end justify-between gap-5">
+          <div className="flex flex-wrap items-center justify-between gap-6">
             <div>
               <p
                 className="text-[11px] font-medium uppercase tracking-[0.16em]"
@@ -436,48 +324,31 @@ export default function OrderCadenceRisk({
               </p>
 
               <p
-                className="mt-2 max-w-xl text-[13px] leading-5"
-                style={{ color: theme.brown }}
+                className="mt-2 max-w-2xl text-[13px] leading-6"
+                style={{ color: theme.charcoal }}
               >
-                Some affected stores only carry one SKU, so a
-                missed replenishment there can effectively mean
-                the entire brand relationship goes quiet.
+                {formatNumber(singleSkuStoreCount)} of the affected
+                stores only carry one of your SKUs. In those stores,
+                a missed replenishment means the entire brand has
+                stopped shipping.
               </p>
             </div>
 
             <div className="text-right">
-              <span
+              <p
                 className="text-[28px] font-semibold tracking-[-0.04em]"
                 style={{ color: brandColor }}
               >
-                {singleSkuStoreCount}
-              </span>
+                {singleSkuShare.toFixed(0)}%
+              </p>
 
               <p
                 className="mt-1 text-[11px]"
                 style={{ color: theme.brown }}
               >
-                {singleSkuShare.toFixed(0)}% of affected stores
+                of affected stores
               </p>
             </div>
-          </div>
-
-          <div
-            className="mt-5 h-3 rounded-full"
-            style={{
-              backgroundColor: theme.line,
-            }}
-          >
-            <div
-              className="h-full rounded-full"
-              style={{
-                width: `${Math.min(
-                  Math.max(singleSkuShare, 0),
-                  100
-                )}%`,
-                backgroundColor: brandColor,
-              }}
-            />
           </div>
         </div>
       )}
@@ -487,7 +358,7 @@ export default function OrderCadenceRisk({
       {/* ================================================= */}
 
       {drilldown && (
-        <div className="mt-7">
+        <div className="mt-8">
           <a
             href={drilldown.href}
             className="inline-flex rounded-full border px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"

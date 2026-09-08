@@ -19,6 +19,17 @@ from backend.insights.sales_insights import build_top_sales_month_insight, build
 from backend.exports.insights_email.email_tables import chain_struggling_store_detail_table
 from backend.insights.failure_to_launch_new_store_risk import build_failure_to_launch_new_store_risk_insight
 from backend.insights.overperforming_channel_momentum import build_overperforming_channel_momentum_insight
+from backend.insights.dropoff_sku_risk import (
+    build_dropoff_sku_risk_table,
+    analyze_dropoff_sku_risk,
+    create_dropoff_sku_risk_store_list,
+)
+
+from backend.insights.missed_replenishment_risk import (
+    build_order_cadence_risk_table,
+    analyze_order_cadence_risk,
+    create_order_cadence_risk_store_list,
+)
 
 
 router = APIRouter(prefix="/insights", tags=["Insights"])
@@ -268,3 +279,183 @@ def get_channel_momentum_insight(
     )
 
     return insight or {}
+
+@router.get("/dropoff_sku_risk")
+def get_dropoff_sku_risk_stores(
+    org_id: str = Query(...),
+    sku: str = Query(...),
+):
+    features_df = load_org_tables(org_id)
+
+    detail_table = build_dropoff_sku_risk_table(
+        features_df
+    )
+
+    analyzed = analyze_dropoff_sku_risk(
+        detail_table,
+        limit=10,
+    )
+
+    if analyzed is None or analyzed.empty:
+        return {
+            "title": f"Stores that dropped {sku}",
+            "subtitle": "No affected stores found.",
+            "columns": [],
+            "rows": [],
+        }
+
+    # The store-list helper uses the first SKU in analyzed_table,
+    # so explicitly isolate the SKU from the clicked insight.
+    selected = analyzed[
+        analyzed["sku"] == sku
+    ].copy()
+
+    if selected.empty:
+        return {
+            "title": f"Stores that dropped {sku}",
+            "subtitle": "No affected stores found.",
+            "columns": [],
+            "rows": [],
+        }
+
+    table = create_dropoff_sku_risk_store_list(
+        analyzed_table=selected,
+        detail_table=detail_table,
+    )
+
+    cleaned = clean_for_json(table)
+
+    return {
+        "title": f"Stores that dropped {sku}",
+        "subtitle": (
+            f"Stores that previously purchased {sku}, "
+            "have not purchased it in the latest 3 full months, "
+            "but are still purchasing your brand."
+        ),
+        "columns": [
+            {
+                "key": "coded_customer",
+                "label": "Customer",
+                "align": "left",
+            },
+            {
+                "key": "chain",
+                "label": "Chain",
+                "align": "left",
+            },
+            {
+                "key": "dc",
+                "label": "DC",
+                "align": "left",
+            },
+            {
+                "key": "state",
+                "label": "State",
+                "align": "left",
+            },
+            {
+                "key": "prior_3m_sku_units",
+                "label": "Prior 3M SKU Units",
+                "align": "right",
+                "format": "number",
+            },
+            {
+                "key": "recent_3m_brand_units",
+                "label": "Recent Brand Units",
+                "align": "right",
+                "format": "number",
+            },
+            {
+                "key": "recent_brand_skus",
+                "label": "Current SKUs",
+                "align": "left",
+                "format": "sku_pills",
+            },
+            {
+                "key": "last_month_sku_purchased",
+                "label": "Last SKU Order",
+                "align": "left",
+                "format": "month",
+            },
+        ],
+        "rows": cleaned.to_dict(orient="records"),
+    }
+
+@router.get("/order_cadence_risk")
+def get_order_cadence_risk_stores(
+    org_id: str = Query(...),
+):
+    features_df = load_org_tables(org_id)
+
+    table = build_order_cadence_risk_table(
+        features_df
+    )
+
+    analyzed = analyze_order_cadence_risk(
+        table
+    )
+
+    if analyzed is None or analyzed.empty:
+        return {
+            "title": "Missed replenishment stores",
+            "subtitle": "No missed replenishment stores found.",
+            "columns": [],
+            "rows": [],
+        }
+
+    store_list = create_order_cadence_risk_store_list(
+        analyzed
+    )
+
+    cleaned = clean_for_json(store_list)
+
+    return {
+        "title": "Missed replenishment stores",
+        "subtitle": (
+            "Stores that had been ordering consistently "
+            "but did not receive their expected recent replenishment."
+        ),
+        "columns": [
+            {
+                "key": "coded_customer",
+                "label": "Customer",
+                "align": "left",
+            },
+            {
+                "key": "dc",
+                "label": "DC",
+                "align": "left",
+            },
+            {
+                "key": "avg_monthly_units_4m",
+                "label": "Typical Monthly Units",
+                "align": "right",
+                "format": "number",
+            },
+            {
+                "key": "months_purchased_last_4_prior",
+                "label": "Prior 4M Orders",
+                "align": "right",
+                "format": "number",
+            },
+            {
+                "key": "last_month_purchased",
+                "label": "Last Order",
+                "align": "left",
+                "format": "month",
+            },
+            {
+                "key": "sku_count",
+                "label": "SKUs",
+                "align": "right",
+                "format": "number",
+            },
+            {
+                "key": "carried_skus",
+                "label": "Carried SKUs",
+                "align": "left",
+                "format": "sku_pills",
+            },
+        ],
+        "rows": cleaned.to_dict(orient="records"),
+    }

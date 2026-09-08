@@ -308,11 +308,13 @@ export default function ExportGuide({
 
               <div
                 className="
-                  overflow-hidden
+                  flex
+                  justify-center
                   rounded-[20px]
                   border
                   border-[#22333B]/10
                   bg-white
+                  p-4
                 "
               >
                 <img
@@ -322,8 +324,9 @@ export default function ExportGuide({
                     currentStep.title
                   }
                   className="
-                    max-h-[48vh]
-                    max-w-[80%]
+                    block
+                    h-auto
+                    w-[70%]
                     object-contain
                   "
                 />

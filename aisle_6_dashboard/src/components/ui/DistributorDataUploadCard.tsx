@@ -837,13 +837,23 @@ export default function DistributorDataUploadCard({
                     theme.surface,
                 }}
               >
-                <img
-                  src={activeGuideStep.image}
-                  alt={`${distributorLabel} export step ${
-                    guideStepIndex + 1
-                  }: ${activeGuideStep.title}`}
-                  className="h-auto w-full object-contain"
-                />
+                <div className="mt-5 flex justify-center">
+                  <div
+                    className="w-fit max-w-full overflow-hidden rounded-2xl border"
+                    style={{
+                      borderColor: theme.line,
+                      backgroundColor: "white",
+                    }}
+                  >
+                    <img
+                      src={activeGuideStep.image}
+                      alt={`${distributorLabel} export step ${
+                        guideStepIndex + 1
+                      }: ${activeGuideStep.title}`}
+                      className="block h-auto max-h-[46vh] max-w-full object-contain"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 

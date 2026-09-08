@@ -44,7 +44,6 @@ export default function DropoffSkuRisk({
   affectedStoreShare,
   totalRecentBrandStores,
   prior3mSkuUnits,
-  recent3mBrandUnits,
   chain,
   dc,
   drilldown,
@@ -60,10 +59,7 @@ export default function DropoffSkuRisk({
     skuColors?.[sku.trim().toUpperCase()] ??
     brandColor
 
-  const affectedPct =
-    Number(affectedStoreShare ?? 0) * 100
-
-  const healthyBrandStores = Math.max(
+  const otherActiveBrandStores = Math.max(
     totalRecentBrandStores - affectedStores,
     0
   )
@@ -122,7 +118,9 @@ export default function DropoffSkuRisk({
         </div>
 
         <InsightDescription
-          definition={insightDefinitions.dropoff_sku_risk}
+          definition={
+            insightDefinitions.dropoff_sku_risk
+          }
         />
       </div>
 
@@ -132,12 +130,13 @@ export default function DropoffSkuRisk({
 
       <div className="mt-7 grid grid-cols-1 gap-8 lg:grid-cols-[0.9fr_1.1fr]">
         {/* LEFT */}
+
         <div>
           <p
             className="text-[11px] font-medium uppercase tracking-[0.16em]"
             style={{ color: theme.brown }}
           >
-            Active Stores That Dropped The SKU
+            Stores That Dropped This SKU
           </p>
 
           <div className="mt-3 flex items-end gap-3">
@@ -145,7 +144,7 @@ export default function DropoffSkuRisk({
               className="text-[52px] font-semibold leading-none tracking-[-0.06em]"
               style={{ color: skuColor }}
             >
-              {affectedStores}
+              {formatNumber(affectedStores)}
             </p>
 
             <p
@@ -161,29 +160,14 @@ export default function DropoffSkuRisk({
             style={{ color: theme.charcoal }}
           >
             These stores bought{" "}
-            <strong>{sku}</strong> previously, but bought
-            none in the latest 3 full months while continuing
-            to buy the brand.
+            <strong>{sku}</strong> previously, but
+            bought none in the latest 3 full months
+            while continuing to buy the brand.
           </p>
-
-          <div className="mt-5 flex items-center gap-3">
-            <span
-              className="text-[22px] font-semibold tracking-[-0.03em]"
-              style={{ color: skuColor }}
-            >
-              {affectedPct.toFixed(0)}%
-            </span>
-
-            <span
-              className="text-[13px]"
-              style={{ color: theme.brown }}
-            >
-              of recent active brand stores
-            </span>
-          </div>
         </div>
 
-        {/* RIGHT: STORE VISUAL */}
+        {/* RIGHT: STORE RELATIONSHIP */}
+
         <div
           className="rounded-[18px] border px-5 py-5"
           style={{
@@ -204,50 +188,61 @@ export default function DropoffSkuRisk({
                 className="mt-2 text-[13px]"
                 style={{ color: theme.brown }}
               >
-                Still buying the brand, no longer buying this SKU
+                Still buying the brand, no longer
+                buying this SKU
               </p>
             </div>
 
             <div className="text-right">
               <p
                 className="text-[21px] font-semibold"
-                style={{ color: theme.charcoal }}
+                style={{
+                  color: theme.charcoal,
+                }}
               >
-                {totalRecentBrandStores}
+                {formatNumber(
+                  totalRecentBrandStores
+                )}
               </p>
 
               <p
                 className="text-[10px] uppercase tracking-[0.12em]"
                 style={{ color: theme.brown }}
               >
-                active stores
+                active brand stores
               </p>
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-2">
-            {Array.from({ length: visualTotal }).map(
-              (_, index) => {
-                const isAffected =
-                  index < visualAffected
+          {/* Store visualization */}
 
-                return (
-                  <div
-                    key={index}
-                    className="h-4 w-4 rounded-[4px] border"
-                    style={{
-                      backgroundColor: isAffected
+          <div className="mt-6 flex flex-wrap gap-2">
+            {Array.from({
+              length: visualTotal,
+            }).map((_, index) => {
+              const isAffected =
+                index < visualAffected
+
+              return (
+                <div
+                  key={index}
+                  className="h-4 w-4 rounded-[4px] border"
+                  style={{
+                    backgroundColor:
+                      isAffected
                         ? skuColor
                         : "transparent",
-                      borderColor: isAffected
+                    borderColor:
+                      isAffected
                         ? skuColor
                         : theme.line,
-                    }}
-                  />
-                )
-              }
-            )}
+                  }}
+                />
+              )
+            })}
           </div>
+
+          {/* Legend */}
 
           <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2">
             <div className="flex items-center gap-2">
@@ -262,9 +257,8 @@ export default function DropoffSkuRisk({
                 className="text-[12px]"
                 style={{ color: theme.brown }}
               >
-                {useActualStores
-                  ? `${affectedStores} dropped ${sku}`
-                  : `${affectedPct.toFixed(0)}% dropped ${sku}`}
+                {formatNumber(affectedStores)} dropped{" "}
+                {sku}
               </span>
             </div>
 
@@ -280,9 +274,10 @@ export default function DropoffSkuRisk({
                 className="text-[12px]"
                 style={{ color: theme.brown }}
               >
-                {useActualStores
-                  ? `${healthyBrandStores} other active stores`
-                  : `${Math.max(100 - affectedPct, 0).toFixed(0)}% unaffected`}
+                {formatNumber(
+                  otherActiveBrandStores
+                )}{" "}
+                other active brand stores
               </span>
             </div>
           </div>
@@ -291,24 +286,34 @@ export default function DropoffSkuRisk({
             totalRecentBrandStores > 0 && (
               <p
                 className="mt-3 text-[10px]"
-                style={{ color: theme.brown }}
+                style={{
+                  color: theme.brown,
+                }}
               >
                 Each square represents approximately{" "}
-                {(totalRecentBrandStores / visualTotal).toFixed(1)} stores.
+                {(
+                  totalRecentBrandStores /
+                  visualTotal
+                ).toFixed(1)}{" "}
+                stores.
               </p>
             )}
         </div>
       </div>
 
       {/* ================================================= */}
-      {/* SALES CONTEXT */}
+      {/* CONTEXT */}
       {/* ================================================= */}
 
       <div
         className="mt-7 border-t pt-6"
-        style={{ borderColor: theme.line }}
+        style={{
+          borderColor: theme.line,
+        }}
       >
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_300px]">
+          {/* PRIOR VOLUME */}
+
           <div>
             <p
               className="text-[11px] font-medium uppercase tracking-[0.16em]"
@@ -321,15 +326,20 @@ export default function DropoffSkuRisk({
               className="mt-2 text-[13px]"
               style={{ color: theme.brown }}
             >
-              SKU volume from these same stores in the prior 3 months
+              SKU volume from these same stores in
+              the prior 3 months
             </p>
 
             <div className="mt-5 flex items-end gap-3">
               <span
                 className="text-[36px] font-semibold tracking-[-0.05em]"
-                style={{ color: skuColor }}
+                style={{
+                  color: skuColor,
+                }}
               >
-                {formatNumber(prior3mSkuUnits)}
+                {formatNumber(
+                  prior3mSkuUnits
+                )}
               </span>
 
               <span
@@ -342,141 +352,112 @@ export default function DropoffSkuRisk({
 
             <div
               className="mt-5 max-w-2xl border-l-[3px] pl-4"
-              style={{ borderColor: skuColor }}
+              style={{
+                borderColor: skuColor,
+              }}
             >
               <p
                 className="text-[13px] leading-6"
-                style={{ color: theme.charcoal }}
+                style={{
+                  color: theme.charcoal,
+                }}
               >
-                The store relationship is still active. The
-                issue is isolated to this SKU rather than a
-                complete loss of the account.
+                The store relationship is still
+                active. The issue is isolated to
+                this SKU rather than a complete loss
+                of the account.
               </p>
             </div>
           </div>
 
-          <div
-            className="rounded-[16px] border px-5 py-5"
-            style={{
-              backgroundColor: "#FCFAF6",
-              borderColor: theme.line,
-            }}
-          >
-            <p
-              className="text-[10px] font-medium uppercase tracking-[0.16em]"
-              style={{ color: theme.brown }}
-            >
-              Brand Activity Continues
-            </p>
+          {/* CONCENTRATION */}
 
-            <p
-              className="mt-5 text-[34px] font-semibold tracking-[-0.045em]"
-              style={{ color: theme.charcoal }}
-            >
-              {formatNumber(recent3mBrandUnits)}
-            </p>
-
-            <p
-              className="mt-1 text-[11px]"
-              style={{ color: theme.brown }}
-            >
-              recent brand units across affected stores
-            </p>
-
+          {hasConcentration && (
             <div
-              className="mt-5 border-t pt-4"
-              style={{ borderColor: theme.line }}
+              className="rounded-[16px] border px-5 py-5"
+              style={{
+                backgroundColor: "#FCFAF6",
+                borderColor: theme.line,
+              }}
             >
               <p
-                className="text-[12px] leading-5"
+                className="text-[10px] font-medium uppercase tracking-[0.16em]"
                 style={{ color: theme.brown }}
               >
-                These accounts are still ordering other items,
-                which makes them a practical SKU-specific
-                follow-up list.
+                Drop-Off Concentration
+              </p>
+
+              {chain && (
+                <div className="mt-5">
+                  <p
+                    className="text-[10px] font-medium uppercase tracking-[0.13em]"
+                    style={{
+                      color: theme.brown,
+                    }}
+                  >
+                    Chain
+                  </p>
+
+                  <p
+                    className="mt-1 text-[22px] font-semibold uppercase tracking-[-0.02em]"
+                    style={{
+                      color: theme.charcoal,
+                    }}
+                  >
+                    {chain}
+                  </p>
+                </div>
+              )}
+
+              {dc && (
+                <div
+                  className={
+                    chain
+                      ? "mt-4 border-t pt-4"
+                      : "mt-5"
+                  }
+                  style={
+                    chain
+                      ? {
+                          borderColor:
+                            theme.line,
+                        }
+                      : undefined
+                  }
+                >
+                  <p
+                    className="text-[10px] font-medium uppercase tracking-[0.13em]"
+                    style={{
+                      color: theme.brown,
+                    }}
+                  >
+                    Distribution Center
+                  </p>
+
+                  <p
+                    className="mt-1 text-[18px] font-semibold uppercase tracking-[-0.02em]"
+                    style={{
+                      color: theme.charcoal,
+                    }}
+                  >
+                    {dc}
+                  </p>
+                </div>
+              )}
+
+              <p
+                className="mt-4 text-[12px] leading-5"
+                style={{
+                  color: theme.brown,
+                }}
+              >
+                A meaningful share of the affected
+                stores is concentrated here.
               </p>
             </div>
-          </div>
+          )}
         </div>
       </div>
-
-      {/* ================================================= */}
-      {/* CONCENTRATION */}
-      {/* ================================================= */}
-
-      {hasConcentration && (
-        <div
-          className="mt-7 border-t pt-6"
-          style={{ borderColor: theme.line }}
-        >
-          <p
-            className="text-[11px] font-medium uppercase tracking-[0.16em]"
-            style={{ color: theme.brown }}
-          >
-            Where The Drop-Off Is Concentrated
-          </p>
-
-          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {chain && (
-              <div
-                className="rounded-[16px] border px-5 py-4"
-                style={{ borderColor: theme.line }}
-              >
-                <p
-                  className="text-[10px] font-medium uppercase tracking-[0.13em]"
-                  style={{ color: theme.brown }}
-                >
-                  Chain
-                </p>
-
-                <p
-                  className="mt-2 text-[18px] font-semibold uppercase tracking-[-0.02em]"
-                  style={{ color: theme.charcoal }}
-                >
-                  {chain}
-                </p>
-
-                <p
-                  className="mt-2 text-[11px] leading-5"
-                  style={{ color: theme.brown }}
-                >
-                  A meaningful share of the affected stores
-                  sits within this chain.
-                </p>
-              </div>
-            )}
-
-            {dc && (
-              <div
-                className="rounded-[16px] border px-5 py-4"
-                style={{ borderColor: theme.line }}
-              >
-                <p
-                  className="text-[10px] font-medium uppercase tracking-[0.13em]"
-                  style={{ color: theme.brown }}
-                >
-                  Distribution Center
-                </p>
-
-                <p
-                  className="mt-2 text-[18px] font-semibold uppercase tracking-[-0.02em]"
-                  style={{ color: theme.charcoal }}
-                >
-                  {dc}
-                </p>
-
-                <p
-                  className="mt-2 text-[11px] leading-5"
-                  style={{ color: theme.brown }}
-                >
-                  The affected stores also show meaningful
-                  concentration through this DC.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* ================================================= */}
       {/* CTA */}
