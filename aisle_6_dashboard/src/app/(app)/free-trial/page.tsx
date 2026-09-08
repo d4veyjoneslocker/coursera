@@ -10,6 +10,8 @@ import { supabase } from "@/lib/supabase"
 import DistributionOpportunity from "@/components/deep-dive/DistributionOpportunity"
 import ChainStruggling from "@/components/deep-dive/ChainStruggling"
 import FailureToLaunch from "@/components/deep-dive/FailureToLaunch"
+import DropoffSkuRisk from "@/components/deep-dive/DropoffSkuRisk"
+import OrderCadenceRisk from "@/components/deep-dive/OrderCadenceRisk"
 
 
 type Insight = {
@@ -240,14 +242,53 @@ function FreeTrialInsight({
   }
 
 
-  if (
-    insight.type === "dropoff_sku_risk" ||
-    insight.type === "order_cadence_risk"
-  ) {
+  if (insight.type === "dropoff_sku_risk") {
     return (
-      <PlaceholderInsight
+      <DropoffSkuRisk
         key={`${insight.type}-${index}`}
-        insight={insight}
+        sku={insight.entities?.sku ?? ""}
+        affectedStores={Number(
+          insight.metrics?.affected_stores ?? 0
+        )}
+        affectedStoreShare={Number(
+          insight.metrics?.affected_store_share ?? 0
+        )}
+        totalRecentBrandStores={Number(
+          insight.metrics?.total_recent_brand_stores ?? 0
+        )}
+        prior3mSkuUnits={Number(
+          insight.metrics?.prior_3m_sku_units ?? 0
+        )}
+        recent3mBrandUnits={Number(
+          insight.metrics?.recent_3m_brand_units ?? 0
+        )}
+        chain={insight.entities?.chain}
+        dc={insight.entities?.dc}
+        drilldown={insight.drilldown}
+        theme={theme}
+      />
+    )
+  }
+
+
+  if (insight.type === "order_cadence_risk") {
+    return (
+      <OrderCadenceRisk
+        key={`${insight.type}-${index}`}
+        affectedStores={Number(
+          insight.metrics?.affected_stores ?? 0
+        )}
+        avgMonthlyUnits4m={Number(
+          insight.metrics?.avg_monthly_units_4m ?? 0
+        )}
+        avgReplenishedMonths={Number(
+          insight.metrics?.avg_replenished_months ?? 0
+        )}
+        singleSkuStoreCount={Number(
+          insight.metrics?.single_sku_store_count ?? 0
+        )}
+        drilldown={insight.drilldown}
+        theme={theme}
       />
     )
   }

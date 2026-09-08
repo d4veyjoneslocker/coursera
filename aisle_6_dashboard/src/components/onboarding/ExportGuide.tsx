@@ -323,7 +323,7 @@ export default function ExportGuide({
                   }
                   className="
                     max-h-[48vh]
-                    w-full
+                    max-w-[80%]
                     object-contain
                   "
                 />
