@@ -2,20 +2,79 @@
 
 import { useEffect, useState } from "react";
 
-const messages = [
-  "Connecting to distributor data...",
-  "Checking reorder patterns...",
-  "Scanning velocity changes...",
-  "Surfacing hidden opportunities...",
-];
+type LoadingMode = "setup" | "upload" | "processing" | "results";
 
-export default function LoadingScreen() {
+type LoadingConfig = {
+  headline: string;
+  messages: string[];
+  slowMessage: string;
+};
+
+const loadingConfigs: Record<LoadingMode, LoadingConfig> = {
+  setup: {
+    headline: "Getting things ready",
+    messages: [
+      "Setting up your free analysis...",
+      "Getting your workspace ready...",
+      "Almost ready for your distributor data...",
+    ],
+    slowMessage:
+      "Still working — this should only take a moment.",
+  },
+
+  upload: {
+    headline: "Getting your data ready",
+    messages: [
+      "Reading your distributor reports...",
+      "Checking your uploads...",
+      "Organizing your distributor data...",
+    ],
+    slowMessage:
+      "Still working — larger distributor files can take a little longer.",
+  },
+
+  processing: {
+    headline: "Diving into your distributor data",
+    messages: [
+      "Checking reorder patterns...",
+      "Scanning velocity changes...",
+      "Looking across stores and SKUs...",
+      "Surfacing hidden opportunities...",
+    ],
+    slowMessage:
+      "Still diving — there’s a lot of distributor data to explore.",
+  },
+
+  results: {
+    headline: "Getting your insights ready",
+    messages: [
+      "Pulling together your findings...",
+      "Prioritizing what needs your attention...",
+      "Putting the finishing touches on your analysis...",
+    ],
+    slowMessage:
+      "Almost there — we’re finishing up your analysis.",
+  },
+};
+
+export default function LoadingScreen({
+  mode = "setup",
+}: {
+  mode?: LoadingMode;
+}) {
   const [messageIndex, setMessageIndex] = useState(0);
   const [slow, setSlow] = useState(false);
 
+  const config = loadingConfigs[mode];
+
   useEffect(() => {
+    setMessageIndex(0);
+    setSlow(false);
+
     const messageTimer = setInterval(() => {
-      setMessageIndex((prev) => (prev + 1) % messages.length);
+      setMessageIndex(
+        (prev) => (prev + 1) % config.messages.length
+      );
     }, 1800);
 
     const slowTimer = setTimeout(() => {
@@ -26,23 +85,36 @@ export default function LoadingScreen() {
       clearInterval(messageTimer);
       clearTimeout(slowTimer);
     };
-  }, []);
+  }, [mode, config.messages.length]);
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#DFEDFF] px-6 text-center">
+    <div
+      className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#F4F0E5] px-6 text-center"
+      style={{
+        fontFamily: "'Figtree', system-ui, sans-serif",
+      }}
+    >
+      <style jsx global>{`
+        @import url("https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Figtree:wght@400;500;600;700&display=swap");
+
+        .skuba-display {
+          font-family: "Baloo 2", cursive;
+        }
+      `}</style>
+
       {/* Background glow */}
       <div className="absolute -left-24 top-24 h-72 w-72 rounded-full bg-white/30 blur-3xl" />
-      <div className="absolute -right-24 bottom-24 h-72 w-72 rounded-full bg-sky-300/20 blur-3xl" />
+      <div className="absolute -right-24 bottom-24 h-72 w-72 rounded-full bg-[#ECE6D6]/50 blur-3xl" />
 
       {/* Bubbles */}
-      <div className="absolute left-[18%] bottom-12 h-3 w-3 rounded-full bg-white/50 animate-bubble" />
-      <div className="absolute left-[24%] bottom-24 h-2 w-2 rounded-full bg-white/40 animate-bubble-slow" />
-      <div className="absolute right-[18%] bottom-16 h-4 w-4 rounded-full bg-white/35 animate-bubble" />
-      <div className="absolute right-[26%] bottom-28 h-2 w-2 rounded-full bg-white/45 animate-bubble-slow" />
+      <div className="absolute bottom-12 left-[18%] h-3 w-3 rounded-full bg-white/50 animate-bubble" />
+      <div className="absolute bottom-24 left-[24%] h-2 w-2 rounded-full bg-white/40 animate-bubble-slow" />
+      <div className="absolute bottom-16 right-[18%] h-4 w-4 rounded-full bg-white/35 animate-bubble" />
+      <div className="absolute bottom-28 right-[26%] h-2 w-2 rounded-full bg-white/45 animate-bubble-slow" />
 
       {/* Octopus */}
       <div className="relative">
-        <div className="absolute inset-0 scale-125 rounded-full bg-sky-200/50 blur-3xl" />
+        <div className="absolute inset-0 scale-125 rounded-full bg-[#ECE6D6]/50 blur-3xl" />
 
         <img
           src="/octopus-loading.png"
@@ -52,22 +124,22 @@ export default function LoadingScreen() {
         />
       </div>
 
-      <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
-        Diving into your distributor data
+      <h2 className="skuba-display mt-3 text-3xl font-bold tracking-tight text-[#22333B]">
+        {config.headline}
       </h2>
 
-      <p className="mt-2 h-6 text-base font-medium text-sky-800 transition-all duration-300">
-        {messages[messageIndex]}
+      <p className="skuba-display mt-2 h-7 text-[17px] font-semibold text-[#48605F] transition-all duration-300">
+        {config.messages[messageIndex]}
       </p>
 
       {/* Loading bar */}
       <div className="mt-5 h-2 w-80 overflow-hidden rounded-full bg-white/70 shadow-sm">
-        <div className="h-full w-1/3 rounded-full bg-sky-700 animate-skuba-shimmer" />
+        <div className="h-full w-1/3 rounded-full bg-[#EE6A4C] animate-skuba-shimmer" />
       </div>
 
       {slow && (
-        <p className="mt-4 max-w-sm text-sm text-slate-500">
-          Still working — larger distributor files can take a little longer.
+        <p className="mt-4 max-w-sm text-sm text-[#48605F]">
+          {config.slowMessage}
         </p>
       )}
     </div>

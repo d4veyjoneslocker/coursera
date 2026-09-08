@@ -392,7 +392,7 @@ export default function EmailPreviewPage() {
   }
 
   if (!data) {
-    return <LoadingScreen />
+    return <LoadingScreen mode="results"/>
   }
 
   const sections = Array.isArray(data.sections)

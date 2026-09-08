@@ -1,10 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Lock } from "lucide-react"
+import { Check, Lock } from "lucide-react"
 
 import { useOrg } from "@/components/OrgContext"
 import LoadingScreen from "@/components/LoadingScreen"
+import { supabase } from "@/lib/supabase"
 
 import DistributionOpportunity from "@/components/deep-dive/DistributionOpportunity"
 import ChainStruggling from "@/components/deep-dive/ChainStruggling"
@@ -53,6 +54,9 @@ const theme = {
   line: "#EEE5D8",
   brown: "#705C4F",
   charcoal: "#343332",
+  coral: "#EE6A4C",
+  coralDark: "#D9532F",
+  coralSoft: "#FCE8E1",
 }
 
 
@@ -267,6 +271,15 @@ export default function FreeTrialPage() {
   const [error, setError] =
     useState<string | null>(null)
 
+  const [trialRequested, setTrialRequested] =
+    useState(false)
+
+  const [trialRequestLoading, setTrialRequestLoading] =
+    useState(false)
+
+  const [trialRequestError, setTrialRequestError] =
+    useState<string | null>(null)
+
 
   useEffect(() => {
     if (!org?.id) return
@@ -306,6 +319,37 @@ export default function FreeTrialPage() {
   }, [org?.id])
 
 
+  async function handleTrialRequest() {
+    if (!org?.id || trialRequestLoading) return
+
+    setTrialRequestLoading(true)
+    setTrialRequestError(null)
+
+    const { error: requestError } = await supabase
+      .from("full_trial_requests")
+      .insert({
+        org_id: org.id,
+      })
+
+    if (requestError) {
+      console.error(
+        "FULL TRIAL REQUEST ERROR:",
+        requestError
+      )
+
+      setTrialRequestError(
+        "Something went wrong sending your request. Please try again."
+      )
+
+      setTrialRequestLoading(false)
+      return
+    }
+
+    setTrialRequested(true)
+    setTrialRequestLoading(false)
+  }
+
+
   if (!org?.id) {
     return <LoadingScreen />
   }
@@ -343,7 +387,7 @@ export default function FreeTrialPage() {
 
 
   if (!data) {
-    return <LoadingScreen />
+    return <LoadingScreen mode="results" />
   }
 
 
@@ -363,9 +407,14 @@ export default function FreeTrialPage() {
         {/* INTRO */}
 
         <section className="mx-auto mb-12 max-w-3xl text-center">
+          <div
+            className="mx-auto mb-5 h-1 w-10 rounded-full"
+            style={{ backgroundColor: theme.coral }}
+          />
+
           <p
-            className="mb-3 text-[12px] font-medium uppercase tracking-[0.16em]"
-            style={{ color: theme.brown }}
+            className="mb-3 text-[12px] font-semibold uppercase tracking-[0.16em]"
+            style={{ color: theme.coralDark }}
           >
             Your distributor data analysis
           </p>
@@ -386,7 +435,6 @@ export default function FreeTrialPage() {
             and changes across your business.
           </p>
         </section>
-
 
         {/* FINDINGS */}
 
@@ -479,54 +527,113 @@ export default function FreeTrialPage() {
         )}
 
 
-        {/* PAID CTA */}
+        {/* FULL ACCESS TRIAL CTA */}
 
         <section className="mt-14">
           <div
-            className="rounded-[32px] border px-7 py-10 text-center md:px-12 md:py-12"
+            className="relative overflow-hidden rounded-[32px] border px-7 py-10 text-center md:px-12 md:py-12"
             style={{
-              backgroundColor: "#FFFEFB",
-              borderColor: theme.line,
+              backgroundColor: theme.coralSoft,
+              borderColor: "#F3C8BB",
             }}
           >
-            <p
-              className="text-[12px] font-medium uppercase tracking-[0.16em]"
-              style={{ color: "#9A8A7C" }}
-            >
-              Keep SKUba watching
-            </p>
+            <div
+              className="absolute left-1/2 top-0 h-1 w-24 -translate-x-1/2 rounded-b-full"
+              style={{ backgroundColor: theme.coral }}
+            />
 
-            <h2
-              className="mx-auto mt-3 max-w-2xl text-[28px] font-semibold leading-tight tracking-[-0.03em]"
-              style={{ color: theme.charcoal }}
-            >
-              Turn this snapshot into continuous monitoring.
-            </h2>
+            {trialRequested ? (
+              <>
+                <div
+                  className="mx-auto flex h-12 w-12 items-center justify-center rounded-full"
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    color: theme.coralDark,
+                  }}
+                >
+                  <Check size={22} strokeWidth={2.5} />
+                </div>
 
-            <p
-              className="mx-auto mt-3 max-w-xl text-[15px] leading-relaxed"
-              style={{ color: theme.brown }}
-            >
-              SKUba keeps analyzing your distributor data as your
-              business changes, so you know what needs your attention
-              without digging through reports yourself.
-            </p>
+                <p
+                  className="mt-5 text-[12px] font-semibold uppercase tracking-[0.16em]"
+                  style={{ color: theme.coralDark }}
+                >
+                  Request received
+                </p>
 
-            <button
-              type="button"
-              className="mt-7 rounded-full px-6 py-3 text-[14px] font-medium transition-opacity hover:opacity-90"
-              style={{
-                backgroundColor: theme.charcoal,
-                color: "#FFFFFF",
-              }}
-              onClick={() => {
-                // TODO:
-                // Wire into paid conversion / onboarding flow.
-                console.log("Upgrade")
-              }}
-            >
-              Keep monitoring my business
-            </button>
+                <h2
+                  className="mx-auto mt-3 max-w-2xl text-[28px] font-semibold leading-tight tracking-[-0.03em] md:text-[32px]"
+                  style={{ color: theme.charcoal }}
+                >
+                  You&apos;re all set!
+                </h2>
+
+                <p
+                  className="mx-auto mt-3 max-w-xl text-[15px] leading-relaxed"
+                  style={{ color: theme.brown }}
+                >
+                  Your request has been received. A member of the SKUba
+                  team will reach out within 24 hours to activate your
+                  2-month free trial.
+                </p>
+              </>
+            ) : (
+              <>
+                <p
+                  className="text-[12px] font-semibold uppercase tracking-[0.16em]"
+                  style={{ color: theme.coralDark }}
+                >
+                  Try the full SKUba experience
+                </p>
+
+                <h2
+                  className="mx-auto mt-3 max-w-2xl text-[28px] font-semibold leading-tight tracking-[-0.03em] md:text-[32px]"
+                  style={{ color: theme.charcoal }}
+                >
+                  Get 2 months of full access, free.
+                </h2>
+
+                <p
+                  className="mx-auto mt-3 max-w-xl text-[15px] leading-relaxed"
+                  style={{ color: theme.brown }}
+                >
+                  See what SKUba is like when it&apos;s monitoring your business
+                  continuously — with the full product free for your first two months.
+                </p>
+
+                <button
+                  type="button"
+                  disabled={trialRequestLoading}
+                  className="mt-7 rounded-full px-7 py-3.5 text-[14px] font-semibold transition-all hover:-translate-y-0.5 hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                  style={{
+                    backgroundColor: theme.coral,
+                    color: "#FFFFFF",
+                    boxShadow: "0 5px 0 #D9532F",
+                  }}
+                  onClick={handleTrialRequest}
+                >
+                  {trialRequestLoading
+                    ? "Sending request..."
+                    : "Start my 2-month free trial"}
+                </button>
+
+                {trialRequestError && (
+                  <p
+                    className="mx-auto mt-4 max-w-md text-[13px] font-medium"
+                    style={{ color: theme.coralDark }}
+                  >
+                    {trialRequestError}
+                  </p>
+                )}
+
+                <p
+                  className="mt-4 text-[12px]"
+                  style={{ color: "#9A766C" }}
+                >
+                  Full access for 2 months. No commitment.
+                </p>
+              </>
+            )}
           </div>
         </section>
       </div>

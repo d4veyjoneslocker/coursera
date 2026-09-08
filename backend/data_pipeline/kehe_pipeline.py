@@ -337,7 +337,7 @@ def update_kehe_processed_data(
     processed_current_path,
     processed_previous_path,
     org_id: str,
-    expected_months,
+    expected_months=None,
 ):
     """
     Builds and validates the KeHE processed file from the exact
@@ -396,16 +396,17 @@ def update_kehe_processed_data(
 
     # Extra defensive check that the exact local candidate we're
     # about to process contains every uploaded month.
-    missing_raw_months = (
-        set(expected_months)
-        - set(raw_with_month["month_key"].unique())
-    )
-
-    if missing_raw_months:
-        raise ValueError(
-            "Validated raw master is missing uploaded months: "
-            f"{sorted(str(m) for m in missing_raw_months)}"
+    if expected_months is not None:
+        missing_raw_months = (
+            set(expected_months)
+            - set(raw_with_month["month_key"].unique())
         )
+
+        if missing_raw_months:
+            raise ValueError(
+                "Validated raw master is missing uploaded months: "
+                f"{sorted(str(m) for m in missing_raw_months)}"
+            )
 
     print("Normalizing KeHE upload...")
 
@@ -477,21 +478,22 @@ def update_kehe_processed_data(
         sorted(str(month) for month in processed_months),
     )
 
-    missing_processed_months = (
-        set(expected_months)
-        - processed_months
-    )
-
-    if missing_processed_months:
-        raise ValueError(
-            "KeHE processed validation failed. "
-            "Uploaded months missing after transform: "
-            f"{sorted(str(m) for m in missing_processed_months)}"
+    if expected_months is not None:
+        missing_processed_months = (
+            set(expected_months)
+            - processed_months
         )
 
-    print(
-        "✅ Processed validation passed for all uploaded months"
-    )
+        if missing_processed_months:
+            raise ValueError(
+                "KeHE processed validation failed. "
+                "Uploaded months missing after transform: "
+                f"{sorted(str(m) for m in missing_processed_months)}"
+            )
+
+        print(
+            "✅ Processed validation passed for all uploaded months"
+        )
 
     # ---------------------------------------------------------
     # Save candidate processed file LOCALLY only

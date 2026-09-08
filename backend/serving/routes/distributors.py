@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query
 
-from backend.data_pipeline.unfi_pipeline import refresh_unfi_processed_data
+from backend.data_pipeline.unfi_pipeline_crisp import refresh_unfi_processed_data
 from backend.data_pipeline.generate_tables import save_base_tables
 from backend.data_pipeline.table_loader import clear_table_cache, load_org_tables
 from backend.storage.local_cleanup import delete_local_org_data

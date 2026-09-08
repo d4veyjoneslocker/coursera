@@ -405,7 +405,7 @@ export default function EmailPreviewPage() {
 
   if (!org?.id) return <div className="p-8">Missing org id.</div>
   if (error) return <div className="p-8 text-red-600">Error: {error}</div>
-  if (!data) return <LoadingScreen />;
+  if (!data) return <LoadingScreen mode="results"/>;
 
 
   const sections = Array.isArray(data.sections) ? data.sections : []

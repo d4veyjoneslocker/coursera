@@ -266,7 +266,7 @@ export default function DashboardHeader({
                 const href =
                   page.value === "insights" &&
                   org.id === "839a67d6-7afa-4607-8524-8621184bfabc"
-                    ? "/email_preview"
+                    ? "/deep-dive"
                     : page.href
 
                 return (

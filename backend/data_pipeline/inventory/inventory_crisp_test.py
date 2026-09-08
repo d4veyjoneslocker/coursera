@@ -1,4 +1,4 @@
-from backend.data_pipeline.unfi_pipeline import pull_crisp_data
+from backend.data_pipeline.unfi_pipeline_crisp import pull_crisp_data
 
 
 df = pull_crisp_data(

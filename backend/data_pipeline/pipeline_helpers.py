@@ -46,27 +46,77 @@ def apply_sku_map(df: pd.DataFrame, org_id: str) -> pd.DataFrame:
     # -----------------------------
     sku_map = pd.read_csv(sku_map_path, encoding="utf-8-sig")
 
-    # Clean column names
     sku_map.columns = sku_map.columns.str.strip().str.lower()
 
-    if "raw_sku" not in sku_map.columns or "clean_sku" not in sku_map.columns:
-        raise ValueError(f"Invalid columns in sku_map: {sku_map.columns.tolist()}")
+    required_columns = {"raw_sku", "clean_sku"}
+
+    if not required_columns.issubset(sku_map.columns):
+        raise ValueError(
+            f"Invalid columns in sku_map: {sku_map.columns.tolist()}"
+        )
 
     # Clean values
-    sku_map["raw_sku"] = sku_map["raw_sku"].astype(str).str.strip()
-    sku_map["clean_sku"] = sku_map["clean_sku"].astype(str).str.strip()
+    sku_map["raw_sku"] = (
+        sku_map["raw_sku"]
+        .astype(str)
+        .str.strip()
+    )
+
+    sku_map["clean_sku"] = (
+        sku_map["clean_sku"]
+        .astype(str)
+        .str.strip()
+    )
 
     df = df.copy()
-    df["sku"] = df["sku"].astype(str).str.strip()
+
+    df["sku"] = (
+        df["sku"]
+        .astype(str)
+        .str.strip()
+    )
 
     # -----------------------------
-    # Apply mapping
+    # Apply SKU name mapping
     # -----------------------------
-    lookup = dict(zip(sku_map["raw_sku"], sku_map["clean_sku"]))
+    sku_lookup = dict(
+        zip(
+            sku_map["raw_sku"],
+            sku_map["clean_sku"],
+        )
+    )
 
     before = df["sku"].copy()
-    df["sku"] = df["sku"].replace(lookup)
 
-    print(f"SKU map applied. Rows changed: {(before != df['sku']).sum()}")
+    df["sku"] = df["sku"].replace(sku_lookup)
+
+    print(
+        f"SKU map applied. Rows changed: "
+        f"{(before != df['sku']).sum()}"
+    )
+
+    # -----------------------------
+    # Optional units_per_case
+    # -----------------------------
+    if "units_per_case" in sku_map.columns:
+        sku_map["units_per_case"] = pd.to_numeric(
+            sku_map["units_per_case"],
+            errors="coerce",
+        )
+
+        case_lookup = dict(
+            zip(
+                sku_map["clean_sku"],
+                sku_map["units_per_case"],
+            )
+        )
+
+        df["units_per_case"] = df["sku"].map(case_lookup)
+
+        print(
+            "Units per case added. "
+            f"Rows populated: "
+            f"{df['units_per_case'].notna().sum()}"
+        )
 
     return df

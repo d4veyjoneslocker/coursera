@@ -2,7 +2,7 @@ import pandas as pd
 import requests
 from supabase import Client
 from backend.data_pipeline.pipeline_helpers import get_source_file_paths
-from backend.transforms.unfi import transform_unfi_natural_vendor_sales
+from backend.transforms.unfi_crisp import transform_unfi_natural_vendor_sales
 from backend.supabase.storage import upload_file
 from backend.supabase.credentials import get_source_credentials
 

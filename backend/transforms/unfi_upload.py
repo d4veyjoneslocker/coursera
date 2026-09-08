@@ -6,18 +6,22 @@ from backend.data_pipeline.pipeline_helpers import apply_sku_map
 from backend.transforms.set_distributor_data_types import set_data_types
 from backend.transforms.whole_foods_id import add_whole_foods_flags
 
-def transform_unfi_natural_vendor_sales(df, org_id):
+def transform_unfi_upload(df, org_id):
 
-    # Convert date columns to datetime format
-    date_columns = ['SalesPeriodEnd', 'SalesPeriodStart_Week']
-    for col in date_columns:
-        df[col] = pd.to_datetime(df[col], errors='coerce')
+    df = df.copy()
+
+    # Convert user-selected report month to datetime
+    df["DateRangeStart_Month"] = pd.to_datetime(
+        df["user_report_month"],
+        format="%Y-%m",
+        errors="coerce"
+    )
 
     # Renaming columns to keep untransformed
 
     df = df.rename(columns={
-        'Warehouse': 'dc',
-        'TotalSales': 'revenue',
+        'Distribution Center': 'dc',
+        'Sales Dollars Selected Period': 'revenue',
     })
 
     # Adding new columns
@@ -25,42 +29,47 @@ def transform_unfi_natural_vendor_sales(df, org_id):
 
     # Time columns
 
-    df["year"] = df["SalesPeriodStart_Week"].dt.year
-    df["month"] = df["SalesPeriodStart_Week"].dt.month
-    df["month_year"] = df["SalesPeriodStart_Week"].dt.to_period("M")
+    df["year"] = df["DateRangeStart_Month"].dt.year
+    df["month"] = df["DateRangeStart_Month"].dt.month
+    df["month_year"] = df["DateRangeStart_Month"].dt.to_period("M")
 
     # Distributor (hard coded)
     df["distributor"] = "UNFI"
 
-    # convert cases to units
-
-    df["units"] = df["TotalQuantityShipped"] * 8
-
     # map Channels
 
-    df["channel"] = df["ChannelDesc"].map(channel_map)
+    df["channel"] = df["Channel"].map(channel_map)
 
     # map SKUs
 
-    df["sku"] = df["Description"]
+    upc_idx = df.columns.get_loc("UPC")
+    sku_col = df.columns[upc_idx - 1]
+
+    df["sku"] = df[sku_col]
     df = apply_sku_map(df, org_id)
+
+
+    #### FIX SO UNITS PER CASE IS DYNAMIC ####
+    df["units"] = df["Cases Shipped Selected Period"] * df["units_per_case"]
+    df["revenue"] = df["revenue"].str.replace(r"[$,]", "", regex=True).astype("Int64")
+
 
     # map UPCs
 
-    df["upc"] = df["Upc"].map(upc_map)
+    df["upc"] = df["UPC"].map(upc_map)
 
     # fix chains (Doordash)
 
     df["chain"] = np.select(
         [
-         df["ChainName"].str.startswith("DOOR"),
-         df["ChainName"].str.startswith("WAKEFERN")   
+         df["Chain"].str.startswith("DOOR"),
+         df["Chain"].str.startswith("WAKEFERN")   
         ],
         [
          "DOORDASH",
          "SHOPRITE"
         ],
-        df["ChainName"].str.upper()
+        df["Chain"].str.upper()
     )
 
     df["chain"] = np.select(
@@ -122,14 +131,14 @@ def transform_unfi_natural_vendor_sales(df, org_id):
 
     df["store_number"] = np.where(
         df["chain"] == "WHOLE FOODS", df["wf_Store_Number"].astype(str),
-        df["CustomerAccount"].astype(str)
+        df["Source Number"].astype(str)
     )
 
     # Update street address for WF 
 
     df["street_address"] = np.where(
         df["chain"] == "WHOLE FOODS", df["wf_Street"].str.upper(),
-        df["CustomerAddress"].str.upper()
+        df["Address"].str.upper()
     )
 
     # Update city for WF
@@ -150,7 +159,7 @@ def transform_unfi_natural_vendor_sales(df, org_id):
 
     df["customer_name"] = np.where(
         df["chain"] == "WHOLE FOODS", df["wf_Store_Name"].str.upper(),
-        df["CustomerName"].str.upper()
+        df["Store"].str.upper()
     )
 
     # Create coded customer name, combining chain/store name and store number (or zip for confidential)
