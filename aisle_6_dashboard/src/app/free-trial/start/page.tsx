@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowRight, Check } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import posthog from "posthog-js"
 
 type Distributor = "kehe" | "unfi" | "other"
 
@@ -1015,6 +1016,17 @@ async function captureFreeTrialSubmission(
                 type="text"
                 value={brandName}
                 onChange={(event) => setBrandName(event.target.value)}
+                onBlur={() => {
+                  if (brandName.trim()) {
+                    posthog.setPersonProperties({
+                      brand_name: brandName.trim(),
+                    })
+
+                    posthog.capture("free_trial_brand_entered", {
+                      brand_name: brandName.trim(),
+                    })
+                  }
+                }}
                 placeholder="e.g. Goodles"
                 className="w-full rounded-[14px] border-2 px-4 py-3 text-[16px] outline-none"
                 style={{
@@ -1022,6 +1034,7 @@ async function captureFreeTrialSubmission(
                   backgroundColor: "#FFFEFB",
                   color: theme.ink,
                 }}
+                
               />
             </div>
 
