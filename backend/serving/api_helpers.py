@@ -23,6 +23,25 @@ def clean_for_json(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
+def clean_object_for_json(value):
+    if isinstance(value, dict):
+        return {
+            key: clean_object_for_json(val)
+            for key, val in value.items()
+        }
+
+    if isinstance(value, list):
+        return [
+            clean_object_for_json(val)
+            for val in value
+        ]
+
+    if isinstance(value, float):
+        if pd.isna(value) or np.isinf(value):
+            return None
+
+    return value
+
 def prep_monthly_graph(df, metric):
     df = df[["month_year", metric]]
     df = df.rename(columns={metric: "value"})

@@ -27,6 +27,9 @@ def calculate_monthly_units(df, group_cols=None, selected_years=None, selected_m
     non_time_cols = [c for c in group_cols if c != "month_year"]
     spine = build_spine(df, group_cols=non_time_cols, selected_years=selected_years, selected_months=selected_months, include_current_month=include_current_month,)
 
+    if "month_year" in spine.columns:
+        spine["month_year"] = pd.PeriodIndex(spine["month_year"], freq="M")
+
     result = (
         df.groupby(group_cols, as_index=False)
         .agg(units=("units", "sum"))

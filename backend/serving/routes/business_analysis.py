@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from backend.context.build_business_context import detect_retailer_launches
 from backend.data_pipeline.table_loader import load_org_tables
 from backend.insights.insights_helper import get_last_full_month
+from backend.serving.api_helpers import clean_object_for_json
 
 from backend.insights.business_narrative.build_business_explanation_tree import (
     build_business_explanation_tree,
@@ -84,25 +85,6 @@ def get_filter_options(
 
     return options
 
-
-def clean_object_for_json(value):
-    if isinstance(value, dict):
-        return {
-            key: clean_object_for_json(val)
-            for key, val in value.items()
-        }
-
-    if isinstance(value, list):
-        return [
-            clean_object_for_json(val)
-            for val in value
-        ]
-
-    if isinstance(value, float):
-        if pd.isna(value) or np.isinf(value):
-            return None
-
-    return value
 
 
 @router.get("/tree")

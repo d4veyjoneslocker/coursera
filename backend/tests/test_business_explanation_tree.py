@@ -562,3 +562,73 @@ if __name__ == "__main__":
         print("✅ passed")
 
     print("\n✅ All mature velocity tests passed")
+
+def test_compute_node_velocity_uses_full_six_month_period():
+    """
+    Explicit 6-month bounds must use the entire requested period,
+    not silently fall back to the last 3 months.
+
+    Prior H1 per store:
+        Jan-Jun = 10 units/month = 60 total
+
+    Current H1 per store:
+        Jan-Mar = 5 units/month
+        Apr-Jun = 15 units/month
+        = 60 total
+
+    Therefore full-period VPO is unchanged => 0% change.
+
+    But if the calculation incorrectly used only the final 3 months:
+        prior Apr-Jun = 30
+        current Apr-Jun = 45
+        => +50%
+
+    So this test distinguishes full-H1 velocity from old L3M behavior.
+    """
+
+    rows = []
+
+    for store in ["STORE_A", "STORE_B"]:
+        add_placement(
+            rows,
+            store=store,
+            chain="TEST CHAIN",
+            sku="TEST SKU",
+            lifecycle="Mature",
+            monthly_units={
+                # Prior H1
+                "2025-01": 10,
+                "2025-02": 10,
+                "2025-03": 10,
+                "2025-04": 10,
+                "2025-05": 10,
+                "2025-06": 10,
+
+                # Current H1
+                "2026-01": 5,
+                "2026-02": 5,
+                "2026-03": 5,
+                "2026-04": 15,
+                "2026-05": 15,
+                "2026-06": 15,
+            },
+        )
+
+    df = pd.DataFrame(rows)
+
+    rate_current, rate_prior, rate_change = compute_node_velocity(
+        df=df,
+        scope={"chain": "TEST CHAIN"},
+        current_start=pd.Period("2026-01", freq="M"),
+        current_end=pd.Period("2026-06", freq="M"),
+        prior_start=pd.Period("2025-01", freq="M"),
+        prior_end=pd.Period("2025-06", freq="M"),
+    )
+
+    # Both periods:
+    # 120 total units / 2 stores / 24 weeks
+    expected_vpo = 120 / 2 / 24
+
+    assert abs(rate_prior - expected_vpo) < 1e-9
+    assert abs(rate_current - expected_vpo) < 1e-9
+    assert abs(rate_change) < 1e-9

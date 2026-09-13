@@ -2,9 +2,6 @@ from __future__ import annotations
 
 import pandas as pd
 
-from backend.metrics.metric_calculators import calculate_vpo
-from backend.metrics.metric_growth_rates import calculate_vpo_3m
-
 
 def enrich_node(
     node,
@@ -235,49 +232,6 @@ def _sum_units(
     return float(
         units.sum()
     )
-
-
-def _calculate_current_vpo(
-    df: pd.DataFrame,
-    current_end,
-) -> float | None:
-    """
-    Current L3M VPO for the NEW placements in this node.
-
-    Reuses the existing calculate_vpo_3m() metric rather than
-    defining a second velocity calculation here.
-    """
-
-    if df.empty:
-        return None
-
-    velocity = calculate_vpo_3m(
-        df,
-        df,
-        [],
-    )
-
-    if (
-        velocity is None
-        or velocity.empty
-        or "month_year" not in velocity.columns
-        or "vpo_3m" not in velocity.columns
-    ):
-        return None
-
-    current_row = velocity[
-        velocity["month_year"] == current_end
-    ]
-
-    if current_row.empty:
-        return None
-
-    value = current_row.iloc[0]["vpo_3m"]
-
-    if pd.isna(value):
-        return None
-
-    return float(value)
 
 
 # ---------------------------------------------------------------------------

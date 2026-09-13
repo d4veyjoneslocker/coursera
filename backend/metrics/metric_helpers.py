@@ -94,3 +94,105 @@ def calculate_avg_skus_per_store(df, grain):
 
     return result
 
+
+def resolve_period(period, year):
+    period = period.upper()
+
+    period_map = {
+        "Q1": (1, 3),
+        "Q2": (4, 6),
+        "Q3": (7, 9),
+        "Q4": (10, 12),
+        "H1": (1, 6),
+        "H2": (7, 12),
+        "FY": (1, 12),
+    }
+
+    if period not in period_map:
+        raise ValueError(f"Unsupported period: {period}")
+
+    start_month, end_month = period_map[period]
+
+    return {
+        "label": f"{period} {year}",
+        "start": pd.Period(f"{year}-{start_month:02d}", freq="M"),
+        "end": pd.Period(f"{year}-{end_month:02d}", freq="M"),
+    }
+
+
+def resolve_period_comparison(period, year, comparison):
+    current = resolve_period(period, year)
+    comparison = comparison.upper()
+
+    if comparison == "PY":
+        prior = resolve_period(period, year - 1)
+
+    elif comparison == "PP":
+        months = len(
+            pd.period_range(
+                start=current["start"],
+                end=current["end"],
+                freq="M",
+            )
+        )
+
+        prior_end = current["start"] - 1
+        prior_start = prior_end - (months - 1)
+
+        prior = {
+            "label": label_period(prior_start, prior_end),
+            "start": prior_start,
+            "end": prior_end,
+        }
+
+    else:
+        raise ValueError(f"Unsupported comparison: {comparison}")
+
+    return current, prior
+
+def get_period_months(start, end):
+    start = pd.Period(start, freq="M")
+    end = pd.Period(end, freq="M")
+
+    if end < start:
+        raise ValueError("end must be on or after start")
+
+    return list(pd.period_range(start=start, end=end, freq="M"))
+
+
+def filter_to_period(df, start, end, date_col="month_year"):
+    start = pd.Period(start, freq="M")
+    end = pd.Period(end, freq="M")
+
+    return df[
+        (df[date_col] >= start) &
+        (df[date_col] <= end)
+    ].copy()
+
+def label_period(start, end):
+    start = pd.Period(start, freq="M")
+    end = pd.Period(end, freq="M")
+
+    months = len(
+        pd.period_range(
+            start=start,
+            end=end,
+            freq="M",
+        )
+    )
+
+    if months == 3:
+        quarter = ((start.month - 1) // 3) + 1
+        if start.month in (1, 4, 7, 10):
+            return f"Q{quarter} {start.year}"
+
+    if months == 6:
+        if start.month == 1:
+            return f"H1 {start.year}"
+        if start.month == 7:
+            return f"H2 {start.year}"
+
+    if months == 12 and start.month == 1:
+        return f"FY {start.year}"
+
+    return f"{start.strftime('%b %Y')}–{end.strftime('%b %Y')}"

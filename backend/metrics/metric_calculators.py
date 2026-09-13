@@ -5,6 +5,8 @@ from backend.metrics.metric_spine_builders import build_spine, build_full_univer
 from backend.metrics.metric_helpers import clean_group_cols
 from backend.metrics.monthly_metric_calculators import calculate_monthly_active_pods, calculate_monthly_units
 
+
+
 def calculate_revenue(df, group_cols=None):
     if isinstance(group_cols, str):
         group_cols = [group_cols]
@@ -364,3 +366,50 @@ def calculate_store_table_vpo(df_all_time, group_cols):
     result["vpo"] = result["units_total"] / result["active_pod_months"] / 4
 
     return result[group_cols + ["vpo"]]
+
+def _calculate_store_vpo_fast(
+    df_filtered,
+    group_cols,
+    start_period,
+    end_period,
+    value_name,
+):
+    if df_filtered.empty:
+        return pd.DataFrame(
+            columns=group_cols + [value_name]
+        )
+
+    months = list(
+        pd.period_range(
+            start=start_period,
+            end=end_period,
+            freq="M",
+        )
+    )
+
+    month_count = len(months)
+
+    if month_count == 0:
+        return pd.DataFrame(
+            columns=group_cols + [value_name]
+        )
+
+    result = (
+        df_filtered
+        .groupby(
+            group_cols,
+            dropna=False,
+            as_index=False,
+        )
+        .agg(
+            total_units=("units", "sum"),
+        )
+    )
+
+    result[value_name] = (
+        result["total_units"]
+        / month_count
+        / 4
+    )
+
+    return result[group_cols + [value_name]]
