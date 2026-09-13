@@ -30,7 +30,23 @@ def transform_kehe_inventory(
     # Metadata
     # -----------------------------
     df["org_id"] = org_id
-    df["distributor"] = "kehe"
+    df["distributor"] = "KEHE"
+
+    kehe_dc_map = {
+    "Aurora, CO": "AUR",
+    "Bloomington, IN": "BLO",
+    "Chino A, CA": "CHN",
+    "Dallas/Fort Worth, TX": "DFW",
+    "Douglasville, GA": "DGV",
+    "Lehigh Valley, PA": "LHV",
+    "Miami, FL": "MIA",
+    "North East Maryland, MD": "EMD",
+    "Phoenix, AZ": "PHX",
+    "Portland, OR": "POR",
+    "Stockton, CA": "NCA",
+    }
+
+    df["dc"] = df["dc"].replace(kehe_dc_map)
 
     # KeHE report is current-state snapshot
     df["report_date"] = pd.Timestamp.today().normalize()
@@ -103,6 +119,14 @@ def transform_kehe_inventory(
         "source_weeks_on_hand",
         "source_weeks_on_po",
     ]
+
+    df = apply_sku_map(df, org_id)
+
+    for col in numeric_cols:
+        out[col] = pd.to_numeric(
+            out[col].astype(str).str.replace(",", "", regex=False),
+            errors="coerce",
+        )
 
     for col in numeric_cols:
         out[col] = pd.to_numeric(

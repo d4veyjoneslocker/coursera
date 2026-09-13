@@ -39,7 +39,6 @@ def main():
     # -----------------------------
     # Load local inventory files
     # -----------------------------
-    print("Loading inventory files...")
 
     kehe_raw = pd.read_csv(KEHE_RAW_PATH)
     unfi_raw = pd.read_csv(UNFI_RAW_PATH)

@@ -10,7 +10,7 @@ def transform_unfi_inventory(
 
     rename_map = {
         "Brand": "brand",
-        "Warehouse": "dc",
+        "Name": "dc",
         "Upc": "upc",
         "Description": "sku",
 
@@ -34,7 +34,10 @@ def transform_unfi_inventory(
     # Metadata
     # -----------------------------
     df["org_id"] = org_id
-    df["distributor"] = "unfi"
+    df["distributor"] = "UNFI"
+
+    df = apply_sku_map(df, org_id)
+    df["dc"] = df["dc"].astype("string").str.strip().str.split("-").str[-1]
 
     df["report_date"] = pd.to_datetime(
         df["report_date"],
@@ -64,6 +67,7 @@ def transform_unfi_inventory(
 
         "vendor_item_number",
         "vendor_case_pack",
+        "units_per_case",
 
         "quantity_on_hand_cases",
         "quantity_on_purchase_order_cases",
@@ -106,6 +110,7 @@ def transform_unfi_inventory(
         "quantity_on_hand_cases",
         "quantity_on_purchase_order_cases",
         "lead_time_weeks",
+        "units_per_case"
     ]
 
     for col in numeric_cols:
@@ -127,12 +132,12 @@ def transform_unfi_inventory(
     # -----------------------------
     out["quantity_on_hand_units"] = (
         out["quantity_on_hand_cases"]
-        * out["vendor_case_pack"]
+        * out["units_per_case"]
     )
 
     out["quantity_on_purchase_order_units"] = (
         out["quantity_on_purchase_order_cases"]
-        * out["vendor_case_pack"]
+        * out["units_per_case"]
     )
 
     # -----------------------------
