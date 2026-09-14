@@ -5,11 +5,9 @@ import Map, {
   Marker,
   NavigationControl,
   Popup,
-} from "react-map-gl"
+} from "react-map-gl/mapbox"
 import mapboxgl from "mapbox-gl"
 import { Store, Warehouse } from "lucide-react"
-
-import "mapbox-gl/dist/mapbox-gl.css"
 
 
 type MapStore = {
@@ -25,10 +23,8 @@ type MapStore = {
 type DcStoreMapProps = {
   dcCode: string
   dcName?: string | null
-
   dcLatitude?: number | null
   dcLongitude?: number | null
-
   stores: MapStore[]
 }
 
@@ -79,18 +75,27 @@ export default function DcStoreMap({
       typeof dcLatitude === "number" &&
       typeof dcLongitude === "number"
     ) {
-      points.push([dcLongitude, dcLatitude])
+      points.push([
+        dcLongitude,
+        dcLatitude,
+      ])
     }
 
     if (points.length === 0) {
       return null
     }
 
-    const nextBounds = new mapboxgl.LngLatBounds()
+    const nextBounds =
+      new mapboxgl.LngLatBounds()
 
-    points.forEach(([longitude, latitude]) => {
-      nextBounds.extend([longitude, latitude])
-    })
+    points.forEach(
+      ([longitude, latitude]) => {
+        nextBounds.extend([
+          longitude,
+          latitude,
+        ])
+      }
+    )
 
     return nextBounds
   }, [
@@ -133,16 +138,20 @@ export default function DcStoreMap({
 
           <div
             className="mt-3 text-sm font-semibold"
-            style={{ color: theme.charcoal }}
+            style={{
+              color: theme.charcoal,
+            }}
           >
             Store locations unavailable
           </div>
 
           <div
             className="mt-1 text-xs"
-            style={{ color: theme.brown }}
+            style={{
+              color: theme.brown,
+            }}
           >
-            Coordinates will appear here once geocoding is complete.
+            Coordinates are not available for these stores yet.
           </div>
         </div>
       </div>
@@ -166,34 +175,41 @@ export default function DcStoreMap({
           width: "100%",
           height: "310px",
         }}
-        initialViewState={{
-          longitude:
-            dcLongitude ??
-            plottedStores[0]?.longitude ??
-            -98.5,
-
-          latitude:
-            dcLatitude ??
-            plottedStores[0]?.latitude ??
-            39.5,
-
-          zoom: 5,
-        }}
-        bounds={
+        initialViewState={
           bounds
-            ? [
-                bounds.getWest(),
-                bounds.getSouth(),
-                bounds.getEast(),
-                bounds.getNorth(),
-              ]
-            : undefined
+            ? {
+                bounds: [
+                  [
+                    bounds.getWest(),
+                    bounds.getSouth(),
+                  ],
+                  [
+                    bounds.getEast(),
+                    bounds.getNorth(),
+                  ],
+                ],
+                fitBoundsOptions: {
+                  padding: 55,
+                  maxZoom: 10,
+                },
+              }
+            : {
+                longitude:
+                  dcLongitude ??
+                  plottedStores[0]
+                    ?.longitude ??
+                  -98.5,
+
+                latitude:
+                  dcLatitude ??
+                  plottedStores[0]
+                    ?.latitude ??
+                  39.5,
+
+                zoom: 5,
+              }
         }
-        fitBoundsOptions={{
-          padding: 55,
-          maxZoom: 10,
-        }}
-        attributionControl={false}
+        attributionControl
         reuseMaps
       >
         <NavigationControl
@@ -203,32 +219,38 @@ export default function DcStoreMap({
         />
 
 
-        {plottedStores.map((store) => (
-          <Marker
-            key={store.coded_customer}
-            longitude={store.longitude}
-            latitude={store.latitude}
-            anchor="center"
-          >
-            <button
-              type="button"
-              onMouseEnter={() =>
-                setHoveredStore(store)
-              }
-              onMouseLeave={() =>
-                setHoveredStore(null)
-              }
-              className="flex h-3 w-3 items-center justify-center rounded-full border-2 border-white shadow-sm transition-transform hover:scale-125"
-              style={{
-                background: theme.secondary,
-              }}
-              aria-label={
+        {plottedStores.map(
+          (store, index) => (
+            <Marker
+              key={
                 store.coded_customer ??
-                "Store location"
+                `store-${index}`
               }
-            />
-          </Marker>
-        ))}
+              longitude={store.longitude}
+              latitude={store.latitude}
+              anchor="center"
+            >
+              <button
+                type="button"
+                onMouseEnter={() =>
+                  setHoveredStore(store)
+                }
+                onMouseLeave={() =>
+                  setHoveredStore(null)
+                }
+                className="flex h-3 w-3 items-center justify-center rounded-full border-2 border-white shadow-sm transition-transform hover:scale-125"
+                style={{
+                  background:
+                    theme.secondary,
+                }}
+                aria-label={
+                  store.coded_customer ??
+                  "Store location"
+                }
+              />
+            </Marker>
+          )
+        )}
 
 
         {hasDcCoordinates && (
@@ -274,7 +296,8 @@ export default function DcStoreMap({
                   <div
                     className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
                     style={{
-                      background: "#F3ECE6",
+                      background:
+                        "#F3ECE6",
                       color: theme.coral,
                     }}
                   >
@@ -316,13 +339,14 @@ export default function DcStoreMap({
 
 
       <div
-        className="pointer-events-none absolute bottom-3 left-3 rounded-full border bg-white/90 px-3 py-1.5 text-[11px] font-medium shadow-sm backdrop-blur"
+        className="pointer-events-none absolute top-3 left-3 rounded-full border bg-white/90 px-3 py-1.5 text-[11px] font-medium shadow-sm backdrop-blur"
         style={{
           borderColor: theme.line,
           color: theme.brown,
         }}
       >
-        {plottedStores.length} stores mapped
+        {plottedStores.length} of{" "}
+        {stores.length} stores mapped
       </div>
     </div>
   )

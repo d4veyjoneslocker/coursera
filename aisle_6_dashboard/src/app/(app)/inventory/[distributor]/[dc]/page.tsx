@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
+import DcStoreMap from "@/components/inventory/DcStoreMap"
 
 
 const theme = {
@@ -62,6 +63,8 @@ type StoreRow = {
   chain: string | null
   channel: string | null
   state: string | null
+  latitude: number | null
+  longitude: number | null
 }
 
 
@@ -70,6 +73,8 @@ type DcDetail = {
   dc: string
   dc_name: string
   status: string
+  dc_latitude: number | null
+  dc_longitude: number | null
 
   quantity_on_hand_cases: number | null
   quantity_on_hand_units: number | null
@@ -650,67 +655,13 @@ export default function DistributionCenterDetailPage() {
 
                     {/* Temporary map mock.
                         Real coordinates slot in here once geocoding finishes. */}
-                    <div
-                      className="relative min-h-[310px] flex-1 overflow-hidden rounded-[24px] border"
-                      style={{
-                        background:
-                          "radial-gradient(circle at center, #F9F4EA 0%, #F2ECE1 100%)",
-                        borderColor: theme.softLine,
-                      }}
-                    >
-                      <div className="absolute inset-0 opacity-50">
-                        <div className="absolute left-[15%] top-0 h-full w-px bg-[#DFD6C8]" />
-                        <div className="absolute left-[37%] top-0 h-full w-px bg-[#DFD6C8]" />
-                        <div className="absolute left-[67%] top-0 h-full w-px bg-[#DFD6C8]" />
-
-                        <div className="absolute left-0 top-[22%] h-px w-full bg-[#DFD6C8]" />
-                        <div className="absolute left-0 top-[51%] h-px w-full bg-[#DFD6C8]" />
-                        <div className="absolute left-0 top-[76%] h-px w-full bg-[#DFD6C8]" />
-                      </div>
-
-                      {[
-                        [18, 27],
-                        [30, 61],
-                        [41, 38],
-                        [52, 71],
-                        [63, 24],
-                        [73, 50],
-                        [81, 70],
-                        [23, 79],
-                        [68, 82],
-                        [87, 34],
-                      ].map(([left, top], index) => (
-                        <div
-                          key={index}
-                          className="absolute h-2.5 w-2.5 rounded-full border-2 border-white shadow-sm"
-                          style={{
-                            left: `${left}%`,
-                            top: `${top}%`,
-                            background: theme.secondary,
-                          }}
-                        />
-                      ))}
-
-                      <div
-                        className="absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-2xl border-4 border-white shadow-md"
-                        style={{
-                          background: theme.coral,
-                          color: "#FFFFFF",
-                        }}
-                      >
-                        <Warehouse className="h-5 w-5" />
-                      </div>
-
-                      <div
-                        className="absolute bottom-4 left-4 rounded-full border bg-white/90 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur"
-                        style={{
-                          borderColor: theme.softLine,
-                          color: theme.brown,
-                        }}
-                      >
-                        Map positions loading from store geocoding
-                      </div>
-                    </div>
+                    <DcStoreMap
+                    dcCode={data.dc}
+                    dcName={data.dc_name}
+                    dcLatitude={data.dc_latitude}
+                    dcLongitude={data.dc_longitude}
+                    stores={data.stores}
+                    />
 
 
                     <div className="mt-4 grid grid-cols-3 gap-3">

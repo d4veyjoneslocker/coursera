@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Figtree } from "next/font/google";
 import "./globals.css";
+import "mapbox-gl/dist/mapbox-gl.css"
 import { cn } from "@/lib/utils";
 import PHProvider from "./posthog-provider"
 
