@@ -1,8 +1,9 @@
 import pandas as pd
 
-from backend.metrics.inventory.replenishment_lead_time import (
+from backend.metrics.inventory.replenishment_metrics import (
     find_replenishment_events,
     calculate_replenishment_lead_time,
+    calculate_replenishment_target_quantity,
 )
 
 pd.set_option("display.max_columns", None)
@@ -50,6 +51,19 @@ def main():
     if not summary.empty:
         print(
             summary.sort_values("dc")
+            .to_string(index=False)
+        )
+
+    # -----------------------------
+    # Replenishment target quantity
+    # -----------------------------
+    targets = calculate_replenishment_target_quantity(df)
+
+    print("\nReplenishment target quantity by DC / SKU:")
+
+    if not targets.empty:
+        print(
+            targets.sort_values(["dc", "sku"])
             .to_string(index=False)
         )
 

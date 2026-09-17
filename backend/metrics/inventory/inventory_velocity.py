@@ -15,20 +15,23 @@ def calculate_dc_weekly_velocity(
     store_col: str = "coded_customer",
     month_col: str = "month_year",
     first_month_col: str = "sku_first_month_purchased",
+    as_of_month: pd.Period | None = None,
 ) -> pd.DataFrame:
     df = features_df.copy()
 
-    # Current calendar month is partial and must never contribute to velocity.
-    current_month = pd.Timestamp.today().to_period("M")
+    df = features_df.copy()
+
+    # Normally velocity runs through the latest completed month.
+    # For historical analysis, as_of_month explicitly becomes that completed month.
+    current_month = (as_of_month + 1) if as_of_month is not None else pd.Timestamp.today().to_period("M")
     complete_end = current_month - 1
 
-    # Full dataset is retained so current-month launches are still recognized.
-    df_complete = df[df[month_col] <= complete_end].copy()
+    # Historical runs must not see data after the requested month.
+    if as_of_month is not None:
+        df = df[df[month_col] <= as_of_month].copy()
 
-    if df_complete.empty:
-        raise ValueError(
-            "Not enough completed sales history to calculate inventory velocity."
-        )
+    # Current calendar month is excluded from direct velocity calculations.
+    df_complete = df[df[month_col] <= complete_end].copy()
 
     # Lifecycle is anchored to the latest completed 3-month window.
     current_start = complete_end - 2
@@ -109,7 +112,7 @@ def calculate_dc_weekly_velocity(
 
     ramping["eligible_months"] = (
         complete_end.ordinal
-        - ramping["eligible_start"].apply(lambda x: x.ordinal)
+        - ramping["eligible_start"].astype("int64")
         + 1
     ).clip(lower=0, upper=3)
 

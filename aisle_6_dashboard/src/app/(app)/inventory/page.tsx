@@ -15,40 +15,26 @@ import {
 type InventorySummary = {
   dc_count: number
   dcs_needing_action: number
-  dcs_monitoring_inbound: number
+  dcs_monitoring: number
   dcs_needing_review: number
+  dcs_with_projection_unavailable: number
   known_recommended_cases: number
 }
 
 type DistributionCenter = {
   distributor: string
   dc: string
-
-  status:
-    | "critical"
-    | "needs_attention"
-    | "review"
-    | "healthy"
-    | "unknown"
-
-  quantity_needed_cases: number | null
-  recommendation_complete: boolean
-
-  weeks_on_hand: number | null
-  weeks_with_inbound: number | null
-  planning_lead_time_days: number | null
-
-  monitor_inbound: boolean
-  order_needed: boolean
-
   sku_count: number
-  skus_needing_order: number
-
-  quantity_on_hand_cases: number | null
-  quantity_on_po_cases: number | null
-
-  units_per_week: number | null
-  cases_per_week: number | null
+  skus_needing_action: number
+  skus_monitoring: number
+  skus_healthy: number
+  skus_needing_review: number
+  skus_projection_unavailable: number
+  skus_to_expedite: number
+  skus_needing_new_order: number
+  skus_monitoring_projected_order: number
+  quantity_needed_cases: number
+  recommendation_complete: boolean
 }
 
 type InventoryOverviewResponse = {
@@ -56,14 +42,22 @@ type InventoryOverviewResponse = {
   distribution_centers: DistributionCenter[]
 }
 
+type DcStatus =
+  | "needs_attention"
+  | "monitoring"
+  | "review"
+  | "healthy"
+
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL
+  process.env.NEXT_PUBLIC_API_URL ??
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  "http://localhost:8000"
 
 function formatNumber(
   value: number | null | undefined,
   digits = 0
 ) {
-  if (value === null || value === undefined) {
+  if (value == null || Number.isNaN(value)) {
     return "—"
   }
 
@@ -73,68 +67,66 @@ function formatNumber(
   })
 }
 
-function formatWeeks(
-  value: number | null | undefined
+function pluralize(
+  count: number,
+  singular: string,
+  plural = `${singular}s`
 ) {
-  if (value === null || value === undefined) {
-    return "—"
-  }
-
-  return `${value.toFixed(1)} wks`
+  return count === 1 ? singular : plural
 }
 
-function formatLeadTime(
-  value: number | null | undefined
-) {
-  if (value === null || value === undefined) {
-    return "Not set"
+function getDcStatus(
+  dc: DistributionCenter
+): DcStatus {
+  if (
+    !dc.recommendation_complete ||
+    dc.skus_needing_review > 0 ||
+    dc.skus_projection_unavailable > 0
+  ) {
+    return "review"
   }
 
-  const rounded = Math.round(value * 10) / 10
+  if (dc.skus_needing_action > 0) {
+    return "needs_attention"
+  }
 
-  return `${rounded} day${rounded === 1 ? "" : "s"}`
+  if (dc.skus_monitoring > 0) {
+    return "monitoring"
+  }
+
+  return "healthy"
 }
 
-function getStatusLabel(
-  status: DistributionCenter["status"]
-) {
-  switch (status) {
-    case "critical":
-      return "Critical"
-
-    case "needs_attention":
-      return "Needs attention"
-
-    case "review":
-      return "Review"
-
-    case "healthy":
-      return "Healthy"
-
-    default:
-      return "Unknown"
+function getStatusLabel(status: DcStatus) {
+  if (status === "needs_attention") {
+    return "Needs attention"
   }
+
+  if (status === "monitoring") {
+    return "Monitoring"
+  }
+
+  if (status === "review") {
+    return "Review"
+  }
+
+  return "Healthy"
 }
 
-function getStatusClasses(
-  status: DistributionCenter["status"]
-) {
-  switch (status) {
-    case "critical":
-      return "border-[#F0C8BE] bg-[#FFF1EC] text-[#B94A30]"
-
-    case "needs_attention":
-      return "border-[#E8D5B5] bg-[#FFF8E8] text-[#8A651F]"
-
-    case "review":
-      return "border-[#DED8E8] bg-[#F5F2FA] text-[#6D6681]"
-
-    case "healthy":
-      return "border-[#CFE2D6] bg-[#F1F8F3] text-[#55735E]"
-
-    default:
-      return "border-[#E5DDD0] bg-[#F6F2EA] text-[#705C4F]"
+function getStatusClasses(status: DcStatus) {
+  if (status === "needs_attention") {
+    return "border-[#E8D5B5] bg-[#FFF8E8] text-[#8A651F]"
   }
+
+  if (status === "monitoring") {
+    return "border-[#D8D2E5] bg-[#F6F3FA] text-[#6E6683]"
+  }
+
+  if (status === "review") {
+    return "border-[#DED8E8] bg-[#F5F2FA] text-[#6D6681]"
+  }
+
+  return "border-[#CFE2D6] bg-[#F1F8F3] text-[#55735E]"
 }
 
 function SummaryCard({
@@ -180,14 +172,7 @@ function DcCard({
   dc: DistributionCenter
   onClick: () => void
 }) {
-  const hasInbound =
-    dc.monitor_inbound &&
-    (dc.quantity_on_po_cases ?? 0) > 0
-
-  const coverageImproves =
-    dc.weeks_on_hand !== null &&
-    dc.weeks_with_inbound !== null &&
-    dc.weeks_with_inbound > dc.weeks_on_hand
+  const status = getDcStatus(dc)
 
   return (
     <button
@@ -204,15 +189,15 @@ function DcCard({
 
             <div
               className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getStatusClasses(
-                dc.status
+                status
               )}`}
             >
-              {getStatusLabel(dc.status)}
+              {getStatusLabel(status)}
             </div>
 
-            {dc.monitor_inbound && (
+            {dc.skus_monitoring > 0 && (
               <div className="rounded-full border border-[#D8D2E5] bg-[#F6F3FA] px-2.5 py-1 text-[11px] font-medium text-[#6E6683]">
-                Inbound
+                {dc.skus_monitoring} monitoring
               </div>
             )}
           </div>
@@ -220,38 +205,44 @@ function DcCard({
           <div className="mt-4 grid gap-4 sm:grid-cols-4">
             <div>
               <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-[#A09890]">
-                On hand
+                Action
               </div>
 
               <div className="mt-1 text-sm font-semibold text-[#343332]">
-                {formatNumber(dc.quantity_on_hand_cases)} cases
+                {dc.skus_needing_action}{" "}
+                {pluralize(
+                  dc.skus_needing_action,
+                  "SKU"
+                )}
               </div>
 
               <div className="mt-1 text-xs text-[#8A8179]">
-                current quantity
+                of {dc.sku_count} active{" "}
+                {pluralize(dc.sku_count, "SKU")}
               </div>
             </div>
 
             <div>
               <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-[#A09890]">
-                Coverage
+                Actions
               </div>
 
               <div className="mt-1 text-sm font-semibold text-[#343332]">
-                {formatWeeks(dc.weeks_on_hand)}
-
-                {coverageImproves && (
-                  <span className="font-normal text-[#8A8179]">
-                    {" "}
-                    → {formatWeeks(dc.weeks_with_inbound)}
-                  </span>
-                )}
+                {dc.skus_to_expedite > 0
+                  ? `${dc.skus_to_expedite} expedite`
+                  : dc.skus_needing_new_order > 0
+                    ? `${dc.skus_needing_new_order} new order`
+                    : "None"}
               </div>
 
               <div className="mt-1 text-xs text-[#8A8179]">
-                {coverageImproves
-                  ? "with inbound inventory"
-                  : "current weeks on hand"}
+                {dc.skus_to_expedite > 0 &&
+                dc.skus_needing_new_order > 0
+                  ? `${dc.skus_needing_new_order} also need new orders`
+                  : dc.skus_monitoring_projected_order >
+                      0
+                    ? `${dc.skus_monitoring_projected_order} projected order monitored`
+                    : "Current engine actions"}
               </div>
             </div>
 
@@ -261,48 +252,40 @@ function DcCard({
               </div>
 
               <div className="mt-1 text-sm font-semibold text-[#343332]">
-                {dc.recommendation_complete
-                  ? `${formatNumber(
-                      dc.quantity_needed_cases
-                    )} cases`
-                  : "Needs setup"}
+                {formatNumber(
+                  dc.quantity_needed_cases
+                )}{" "}
+                cases
               </div>
 
               <div className="mt-1 text-xs text-[#8A8179]">
-                {dc.recommendation_complete
-                  ? dc.order_needed
-                    ? `${dc.skus_needing_order} SKU${
-                        dc.skus_needing_order === 1
-                          ? ""
-                          : "s"
-                      } need replenishment`
-                    : "No replenishment required"
-                  : dc.planning_lead_time_days === null
-                    ? "Lead time required"
-                    : "Recommendation unavailable"}
+                {dc.quantity_needed_cases > 0
+                  ? "recommended replenishment"
+                  : "no additional cases needed"}
               </div>
             </div>
 
             <div>
               <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-[#A09890]">
-                Lead time
+                Monitoring
               </div>
 
               <div className="mt-1 text-sm font-semibold text-[#343332]">
-                {formatLeadTime(
-                  dc.planning_lead_time_days
+                {dc.skus_monitoring}{" "}
+                {pluralize(
+                  dc.skus_monitoring,
+                  "SKU"
                 )}
               </div>
 
               <div className="mt-1 text-xs text-[#8A8179]">
-                {hasInbound
-                  ? `${formatNumber(
-                      dc.quantity_on_po_cases
-                    )} cases currently inbound`
-                  : `${formatNumber(
-                      dc.cases_per_week,
-                      1
-                    )} cases / week`}
+                {dc.skus_monitoring_projected_order >
+                0
+                  ? `${dc.skus_monitoring_projected_order} projected-order ${pluralize(
+                      dc.skus_monitoring_projected_order,
+                      "watch"
+                    )}`
+                  : "no immediate action"}
               </div>
             </div>
           </div>
@@ -316,13 +299,18 @@ function DcCard({
   )
 }
 
-function HealthyRow({
+function CompactDcRow({
   dc,
   onClick,
+  mode,
 }: {
   dc: DistributionCenter
   onClick: () => void
+  mode: "monitoring" | "healthy"
 }) {
+  const monitoring =
+    mode === "monitoring"
+
   return (
     <button
       type="button"
@@ -330,8 +318,18 @@ function HealthyRow({
       className="group flex w-full cursor-pointer items-center justify-between gap-4 border-b border-[#EEE5D8] px-1 py-4 text-left last:border-b-0"
     >
       <div className="flex min-w-0 items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#F1F6F2] text-[#55735E]">
-          <PackageCheck className="h-4 w-4" />
+        <div
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+            monitoring
+              ? "bg-[#F6F3FA] text-[#6E6683]"
+              : "bg-[#F1F6F2] text-[#55735E]"
+          }`}
+        >
+          {monitoring ? (
+            <Truck className="h-4 w-4" />
+          ) : (
+            <PackageCheck className="h-4 w-4" />
+          )}
         </div>
 
         <div>
@@ -340,9 +338,15 @@ function HealthyRow({
           </div>
 
           <div className="mt-0.5 text-xs text-[#8A8179]">
-            {formatNumber(dc.quantity_on_hand_cases)} cases on hand ·{" "}
-            {dc.sku_count} SKU
-            {dc.sku_count === 1 ? "" : "s"}
+            {monitoring
+              ? `${dc.skus_monitoring} ${pluralize(
+                  dc.skus_monitoring,
+                  "SKU"
+                )} monitoring`
+              : `${dc.skus_healthy} healthy ${pluralize(
+                  dc.skus_healthy,
+                  "SKU"
+                )} · ${dc.sku_count} total`}
           </div>
         </div>
       </div>
@@ -350,11 +354,17 @@ function HealthyRow({
       <div className="flex items-center gap-6">
         <div className="hidden text-right sm:block">
           <div className="text-sm font-semibold text-[#343332]">
-            {formatWeeks(dc.weeks_on_hand)}
+            {monitoring
+              ? `${dc.skus_monitoring_projected_order} projected`
+              : `${formatNumber(
+                  dc.quantity_needed_cases
+                )} cases`}
           </div>
 
           <div className="text-xs text-[#8A8179]">
-            coverage
+            {monitoring
+              ? "orders monitored"
+              : "recommended"}
           </div>
         </div>
 
@@ -368,9 +378,13 @@ export default function InventoryPage() {
   const router = useRouter()
 
   const [data, setData] =
-    useState<InventoryOverviewResponse | null>(null)
+    useState<InventoryOverviewResponse | null>(
+      null
+    )
 
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] =
+    useState(true)
+
   const [error, setError] =
     useState<string | null>(null)
 
@@ -379,22 +393,19 @@ export default function InventoryPage() {
       setLoading(true)
       setError(null)
 
-      const params = new URLSearchParams()
+      const params =
+        new URLSearchParams()
 
-      /*
-       * Keep this consistent with however you currently
-       * pass the valid org UUID to this endpoint.
-       *
-       * If you already changed this successfully,
-       * leave your working org_id line here.
-       */
-      const orgId =
-        "PUT_YOUR_EXISTING_WORKING_ORG_UUID_HERE"
-
-      params.set("org_id", orgId)
+      params.set(
+        "org_id",
+        "default_org"
+      )
 
       const response = await fetch(
-        `${API_BASE_URL}/inventory/overview?${params.toString()}`
+        `${API_BASE_URL}/inventory/overview?${params.toString()}`,
+        {
+          cache: "no-store",
+        }
       )
 
       if (!response.ok) {
@@ -427,29 +438,41 @@ export default function InventoryPage() {
 
   const {
     actionDcs,
+    monitoringDcs,
     reviewDcs,
     healthyDcs,
   } = useMemo(() => {
-    const action: DistributionCenter[] = []
-    const review: DistributionCenter[] = []
-    const healthy: DistributionCenter[] = []
+    const action: DistributionCenter[] =
+      []
+    const monitoring: DistributionCenter[] =
+      []
+    const review: DistributionCenter[] =
+      []
+    const healthy: DistributionCenter[] =
+      []
 
-    for (const dc of
-      data?.distribution_centers ?? []) {
+    for (
+      const dc of
+        data?.distribution_centers ?? []
+    ) {
       if (
         !dc.recommendation_complete ||
-        dc.status === "review"
+        dc.skus_needing_review > 0 ||
+        dc.skus_projection_unavailable > 0
       ) {
         review.push(dc)
         continue
       }
 
       if (
-        dc.order_needed ||
-        dc.status === "critical" ||
-        dc.status === "needs_attention"
+        dc.skus_needing_action > 0
       ) {
         action.push(dc)
+        continue
+      }
+
+      if (dc.skus_monitoring > 0) {
+        monitoring.push(dc)
         continue
       }
 
@@ -458,12 +481,15 @@ export default function InventoryPage() {
 
     return {
       actionDcs: action,
+      monitoringDcs: monitoring,
       reviewDcs: review,
       healthyDcs: healthy,
     }
   }, [data])
 
-  const openDc = (dc: DistributionCenter) => {
+  const openDc = (
+    dc: DistributionCenter
+  ) => {
     router.push(
       `/inventory/${encodeURIComponent(
         dc.distributor
@@ -496,7 +522,8 @@ export default function InventoryPage() {
 
               <div>
                 <div className="font-semibold text-[#343332]">
-                  Inventory planning could not load
+                  Inventory planning
+                  could not load
                 </div>
 
                 <div className="mt-1 text-sm text-[#8A8179]">
@@ -524,40 +551,46 @@ export default function InventoryPage() {
           </h1>
 
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[#7C746D]">
-            See where inventory is tight, what is
-            already inbound, and where replenishment
-            is needed next.
+            See where inventory needs
+            action and where SKUba is
+            monitoring future supply.
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <SummaryCard
             icon={
               <AlertTriangle className="h-5 w-5" />
             }
             value={formatNumber(
-              data.summary.dcs_needing_action
+              data.summary
+                .dcs_needing_action
             )}
-            label="DCs need replenishment"
-            detail="Locations with a calculated order recommendation"
+            label="DCs need action"
+            detail="Locations with active inventory interventions"
           />
 
           <SummaryCard
-            icon={<Boxes className="h-5 w-5" />}
+            icon={
+              <Boxes className="h-5 w-5" />
+            }
             value={formatNumber(
-              data.summary.known_recommended_cases
+              data.summary
+                .known_recommended_cases
             )}
             label="Cases recommended"
-            detail="Known replenishment across calculable DCs"
+            detail="Active new-order recommendations"
           />
 
           <SummaryCard
-            icon={<Truck className="h-5 w-5" />}
+            icon={
+              <Truck className="h-5 w-5" />
+            }
             value={formatNumber(
-              data.summary.dcs_monitoring_inbound
+              data.summary.dcs_monitoring
             )}
-            label="Inbound to monitor"
-            detail="DCs with open purchase orders"
+            label="DCs monitoring"
+            detail="Locations with inventory being watched"
           />
 
           <SummaryCard
@@ -565,10 +598,23 @@ export default function InventoryPage() {
               <CircleAlert className="h-5 w-5" />
             }
             value={formatNumber(
-              data.summary.dcs_needing_review
+              data.summary
+                .dcs_with_projection_unavailable
+            )}
+            label="Projection unavailable"
+            detail="Locations with relevant inventory but unavailable projection"
+          />
+
+          <SummaryCard
+            icon={
+              <CircleAlert className="h-5 w-5" />
+            }
+            value={formatNumber(
+              data.summary
+                .dcs_needing_review
             )}
             label="DCs need review"
-            detail="Locations without active demand signals"
+            detail="Locations with incomplete recommendations"
           />
         </div>
 
@@ -581,14 +627,17 @@ export default function InventoryPage() {
                 </div>
 
                 <div className="mt-1 text-sm text-[#8A8179]">
-                  Prioritized locations where inventory
-                  needs operator attention.
+                  Locations with active
+                  inventory interventions.
                 </div>
               </div>
 
               <div className="text-xs font-medium text-[#A09890]">
-                {actionDcs.length} location
-                {actionDcs.length === 1 ? "" : "s"}
+                {actionDcs.length}{" "}
+                {pluralize(
+                  actionDcs.length,
+                  "location"
+                )}
               </div>
             </div>
 
@@ -598,18 +647,16 @@ export default function InventoryPage() {
                   <DcCard
                     key={`${dc.distributor}-${dc.dc}`}
                     dc={dc}
-                    onClick={() => openDc(dc)}
+                    onClick={() =>
+                      openDc(dc)
+                    }
                   />
                 ))
               ) : (
                 <div className="rounded-[26px] border border-[#DDE7DF] bg-[#F7FBF8] p-6">
                   <div className="font-semibold text-[#55735E]">
-                    No replenishment actions right now
-                  </div>
-
-                  <div className="mt-1 text-sm text-[#789080]">
-                    Current calculable locations are
-                    sufficiently covered.
+                    No inventory actions
+                    right now
                   </div>
                 </div>
               )}
@@ -619,121 +666,109 @@ export default function InventoryPage() {
           <section>
             <div className="mb-4">
               <div className="text-lg font-semibold tracking-[-0.02em] text-[#343332]">
-                Needs setup or review
+                Needs review
               </div>
 
               <div className="mt-1 text-sm text-[#8A8179]">
-                Locations where SKUba cannot yet make a
-                complete recommendation.
+                Locations with unavailable
+                or incomplete projections.
               </div>
             </div>
 
             <div className="overflow-hidden rounded-[26px] border border-[#E5DDD0] bg-[#FFFDF9] shadow-sm">
               {reviewDcs.length > 0 ? (
-                reviewDcs.map((dc) => {
-                  const missingLeadTime =
-                    dc.planning_lead_time_days ===
-                      null &&
-                    !dc.recommendation_complete
-
-                  return (
-                    <button
-                      type="button"
-                      key={`${dc.distributor}-${dc.dc}`}
-                      onClick={() => openDc(dc)}
-                      className="group w-full cursor-pointer border-b border-[#EEE5D8] p-4 text-left last:border-b-0 hover:bg-[#FCFAF6]"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="font-semibold text-[#343332]">
-                              {dc.distributor} · {dc.dc}
-                            </div>
-
-                            <div
-                              className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getStatusClasses(
-                                dc.status
-                              )}`}
-                            >
-                              {getStatusLabel(dc.status)}
-                            </div>
-                          </div>
-
-                          <div className="mt-2 text-xs leading-5 text-[#8A8179]">
-                            {missingLeadTime
-                              ? "Lead time required to calculate replenishment."
-                              : dc.weeks_on_hand ===
-                                  null
-                                ? "No active demand detected for this location."
-                                : `${formatWeeks(
-                                    dc.weeks_on_hand
-                                  )} current coverage.`}
-                          </div>
-
-                          <div className="mt-2 text-xs font-medium text-[#705C4F]">
-                            {formatNumber(
-                              dc.quantity_on_hand_cases
-                            )}{" "}
-                            cases on hand
-                          </div>
-
-                          {dc.monitor_inbound && (
-                            <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-[#6E6683]">
-                              <Truck className="h-3.5 w-3.5" />
-
-                              {formatNumber(
-                                dc.quantity_on_po_cases
-                              )}{" "}
-                              cases inbound
-                            </div>
-                          )}
+                reviewDcs.map((dc) => (
+                  <button
+                    type="button"
+                    key={`${dc.distributor}-${dc.dc}`}
+                    onClick={() =>
+                      openDc(dc)
+                    }
+                    className="group w-full cursor-pointer border-b border-[#EEE5D8] p-4 text-left last:border-b-0 hover:bg-[#FCFAF6]"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-[#343332]">
+                          {dc.distributor} ·{" "}
+                          {dc.dc}
                         </div>
 
-                        <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[#A59C93] transition group-hover:text-[#C8795A]" />
+                        <div className="mt-2 text-xs leading-5 text-[#8A8179]">
+                          {
+                            dc.skus_projection_unavailable
+                          }{" "}
+                          projection unavailable ·{" "}
+                          {
+                            dc.skus_needing_review
+                          }{" "}
+                          need review
+                        </div>
                       </div>
-                    </button>
-                  )
-                })
+
+                      <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[#A59C93]" />
+                    </div>
+                  </button>
+                ))
               ) : (
                 <div className="p-5 text-sm text-[#8A8179]">
-                  No locations currently need review.
+                  No locations currently
+                  need review.
                 </div>
               )}
             </div>
           </section>
         </div>
 
-        <section>
-          <div className="mb-4 flex items-end justify-between gap-4">
-            <div>
-              <div className="text-lg font-semibold tracking-[-0.02em] text-[#343332]">
-                Healthy locations
+        {monitoringDcs.length > 0 && (
+          <section>
+            <div className="mb-4">
+              <div className="text-lg font-semibold text-[#343332]">
+                Monitoring
               </div>
 
               <div className="mt-1 text-sm text-[#8A8179]">
-                Locations with no current replenishment
-                action required.
+                No action recommended yet.
               </div>
             </div>
 
-            <div className="text-xs font-medium text-[#A09890]">
-              {healthyDcs.length} location
-              {healthyDcs.length === 1 ? "" : "s"}
+            <div className="rounded-[26px] border border-[#E5DDD0] bg-[#FFFDF9] px-5 shadow-sm">
+              {monitoringDcs.map((dc) => (
+                <CompactDcRow
+                  key={`${dc.distributor}-${dc.dc}`}
+                  dc={dc}
+                  mode="monitoring"
+                  onClick={() =>
+                    openDc(dc)
+                  }
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section>
+          <div className="mb-4">
+            <div className="text-lg font-semibold text-[#343332]">
+              Healthy locations
             </div>
           </div>
 
           <div className="rounded-[26px] border border-[#E5DDD0] bg-[#FFFDF9] px-5 shadow-sm">
             {healthyDcs.length > 0 ? (
               healthyDcs.map((dc) => (
-                <HealthyRow
+                <CompactDcRow
                   key={`${dc.distributor}-${dc.dc}`}
                   dc={dc}
-                  onClick={() => openDc(dc)}
+                  mode="healthy"
+                  onClick={() =>
+                    openDc(dc)
+                  }
                 />
               ))
             ) : (
               <div className="py-5 text-sm text-[#8A8179]">
-                No healthy locations to show.
+                No healthy locations to
+                show.
               </div>
             )}
           </div>
