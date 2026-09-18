@@ -16,6 +16,12 @@ import {
   Truck,
 } from "lucide-react"
 import LoadingScreen from "@/components/LoadingScreen"
+import SkuInventoryCard, {
+  type OverviewInventorySku,
+} from "@/components/inventory/SkuInventoryCard"
+import { useOrg } from "@/components/OrgContext"
+
+
 
 type InventorySummary = {
   dc_count: number
@@ -92,6 +98,7 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   process.env.NEXT_PUBLIC_API_BASE_URL ??
   "http://localhost:8000"
+
 
 function formatNumber(value: number | null | undefined, digits = 0) {
   if (value == null || Number.isNaN(value)) return "—"
@@ -400,6 +407,7 @@ function DcActionCard({
   onOpen: (sku: SkuWithDc) => void
   compact?: boolean
 }) {
+  const { skuColors } = useOrg()
   const toneStyles = {
     critical: {
       border: "border-[#EEC4B9]",
@@ -446,14 +454,20 @@ function DcActionCard({
         )}
       </div>
 
-      {group.items.map((sku) => (
-        <ActionSkuRow
-          key={`${sku.distributor}-${sku.dc}-${sku.sku}`}
-          sku={sku}
-          compact={compact}
-          onClick={() => onOpen(sku)}
-        />
-      ))}
+      <div className="space-y-3 p-3">
+        {group.items.map((sku) => (
+          <SkuInventoryCard
+            key={`${sku.distributor}-${sku.dc}-${sku.sku}`}
+            sku={sku as OverviewInventorySku}
+            skuColor={
+              skuColors[sku.sku] ??
+              skuColors[sku.product_name] ??
+              "#C8795A"
+            }
+            orgId="default_org"
+          />
+        ))}
+      </div>
     </div>
   )
 }
@@ -466,6 +480,7 @@ function WorkflowSection({
   tone,
   onOpen,
   compact = false,
+  skuColors,
 }: {
   eyebrow: string
   title: string
@@ -474,6 +489,7 @@ function WorkflowSection({
   tone: "critical" | "high" | "normal"
   onOpen: (sku: SkuWithDc) => void
   compact?: boolean
+  skuColors: Record<string, string>
 }) {
   if (items.length === 0) return null
 
@@ -650,6 +666,7 @@ export default function InventoryPage() {
       setLoading(false)
     }
   }
+  const { skuColors } = useOrg()
 
   useEffect(() => {
     loadInventory()
@@ -798,6 +815,7 @@ export default function InventoryPage() {
           items={groups.handleToday}
           tone="critical"
           onOpen={openSku}
+          skuColors={skuColors}
         />
 
         <WorkflowSection
@@ -807,6 +825,7 @@ export default function InventoryPage() {
           items={groups.handleThisWeek}
           tone="high"
           onOpen={openSku}
+          skuColors={skuColors}
         />
 
         <WorkflowSection
@@ -817,6 +836,7 @@ export default function InventoryPage() {
           tone="normal"
           compact
           onOpen={openSku}
+          skuColors={skuColors}
         />
 
         {(groups.monitorFollowUp.length > 0 || groups.otherMonitoring.length > 0) && (
