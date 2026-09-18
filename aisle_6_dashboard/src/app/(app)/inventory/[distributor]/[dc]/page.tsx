@@ -800,7 +800,7 @@ function SkuCard({
 
 export default function DistributionCenterDetailPage() {
   const params = useParams()
-  const { skuColors } = useOrg()
+  const { org, skuColors } = useOrg()
 
   const distributor = String(
     params.distributor ?? ""
@@ -824,6 +824,7 @@ export default function DistributionCenterDetailPage() {
 
   useEffect(() => {
     if (
+      !org?.id ||
       !distributor ||
       !dcCode
     ) {
@@ -840,7 +841,7 @@ export default function DistributionCenterDetailPage() {
 
         const query =
           new URLSearchParams({
-            org_id: "default_org",
+            org_id: org.id,
             distributor,
             dc: dcCode,
           })
@@ -893,7 +894,7 @@ export default function DistributionCenterDetailPage() {
 
     return () =>
       controller.abort()
-  }, [distributor, dcCode])
+  }, [org?.id, distributor, dcCode])
 
   const sortedSkus =
     useMemo(() => {

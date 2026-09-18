@@ -27,6 +27,7 @@ import DcNetworkMap, {
 } from "@/components/inventory/DcNetworkMap"
 
 import LoadingScreen from "@/components/LoadingScreen"
+import { useOrg } from "@/components/OrgContext"
 
 const theme = {
   primary: "#9A93B0",
@@ -404,6 +405,7 @@ function InventoryStateBar({
 
 export default function DcNetworkPage() {
   const router = useRouter()
+  const { org } = useOrg()
 
   const [data, setData] =
     useState<DcNetworkPayload | null>(
@@ -427,14 +429,18 @@ export default function DcNetworkPage() {
       new AbortController()
 
     async function loadNetwork() {
+      if (!org?.id) return
+
       try {
         setLoading(true)
         setError(null)
 
         const query =
           new URLSearchParams({
-            org_id: "default_org",
+            org_id: org.id,
           })
+
+        // rest stays the same
 
         const response =
           await fetch(
@@ -484,7 +490,7 @@ export default function DcNetworkPage() {
 
     return () =>
       controller.abort()
-  }, [])
+  }, [org?.id])
 
   const visibleRows =
     useMemo(() => {
