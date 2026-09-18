@@ -49,14 +49,16 @@ type Intervention = {
 }
 
 type ProjectedOrderEvaluation = {
-  exists?: boolean
+  projected_order_exists?: boolean
   resolves_breach?: boolean
   reason?: string | null
   resolving_order?: {
     cases?: number
-    order_date?: string | null
-    expected_delivery_date?: string | null
-    source?: string | null
+    expected_order_date?: string | null
+    expected_receipt_date?: string | null
+    within_lookahead?: boolean
+    resolves_breach?: boolean
+    reason?: string | null
   } | null
 }
 
@@ -67,6 +69,7 @@ type Breach = {
   lowest_woh_date: string
   breaches_tolerance: boolean
   first_tolerance_breach_date: string | null
+  reaches_oos: boolean
   first_oos_date: string | null
   projected_order?: ProjectedOrderEvaluation
   intervention?: Intervention
@@ -257,65 +260,53 @@ function getPrimaryExpedite(
 function InventoryBlocks({
   cases,
   accentColor,
+  casesPerBlock,
 }: {
   cases: number
   accentColor: string
+  casesPerBlock: number
 }) {
-  /*
-   * Visual only.
-   *
-   * We intentionally scale the blocks rather than drawing
-   * one block per case.
-   */
-  const targetBlocks = 8
-
-  const scale =
-    cases > 0
-      ? Math.max(
-          1,
-          Math.ceil(cases / targetBlocks)
-        )
-      : 1
-
   const fullBlocks = Math.floor(
-    cases / scale
+    cases / casesPerBlock
   )
 
   const remainder =
-    cases - fullBlocks * scale
+    cases -
+    fullBlocks * casesPerBlock
 
-  const blockCount = Math.min(
-    targetBlocks,
+  const blockCount =
     fullBlocks +
-      (remainder > 0 ? 1 : 0)
-  )
+    (remainder > 0 ? 1 : 0)
 
   return (
     <div className="mt-4 flex flex-wrap gap-2">
       {Array.from({
         length: blockCount,
       }).map((_, index) => {
-        const partial =
+        const isPartial =
           index === blockCount - 1 &&
           remainder > 0
+
+        const fillRatio =
+          isPartial
+            ? remainder /
+              casesPerBlock
+            : 1
 
         return (
           <div
             key={index}
-            className="h-7 w-7 rounded-[7px]"
-            style={{
-              backgroundColor:
-                accentColor,
-              opacity: partial
-                ? Math.max(
-                    0.3,
-                    remainder / scale
-                  )
-                : 1,
-              boxShadow:
-                "inset 0 -2px 0 rgba(0,0,0,0.06)",
-            }}
-          />
+            className="relative h-7 w-7 overflow-hidden rounded-[7px] bg-[#EEE8DF]"
+          >
+            <div
+              className="absolute inset-y-0 left-0"
+              style={{
+                width: `${fillRatio * 100}%`,
+                backgroundColor:
+                  accentColor,
+              }}
+            />
+          </div>
         )
       })}
     </div>
@@ -341,6 +332,36 @@ function InventoryVelocityVisual({
     data.baseline
       ?.velocity_cases_per_week ??
     0
+  
+  const maxQuantity = Math.max(
+    onHand,
+    velocity,
+    1
+  )
+
+  const rawScale =
+    maxQuantity / 8
+
+  const scaleSteps = [
+    1,
+    2,
+    5,
+    10,
+    20,
+    25,
+    50,
+    100,
+    200,
+    500,
+    1000,
+  ]
+
+  const casesPerBlock =
+    scaleSteps.find(
+      (step) => step >= rawScale
+    ) ??
+    Math.ceil(rawScale / 1000) *
+      1000
 
   return (
     <div
@@ -402,6 +423,7 @@ function InventoryVelocityVisual({
           <InventoryBlocks
             cases={onHand}
             accentColor={accentColor}
+            casesPerBlock={casesPerBlock}
           />
 
           <div
@@ -445,6 +467,7 @@ function InventoryVelocityVisual({
             accentColor={
               theme.charcoal
             }
+            casesPerBlock={casesPerBlock}
           />
 
           <div
@@ -462,6 +485,9 @@ function InventoryVelocityVisual({
           <div className="mt-0.5 text-xs text-[#8A8378]">
             leave each week
           </div>
+        </div>
+        <div className="mt-3 text-[10px] text-[#9A9389]">
+          Each block ≈ {formatCases(casesPerBlock)} cases
         </div>
       </div>
 
@@ -1094,6 +1120,34 @@ export function InventoryOutlook({
   const floorCases =
     velocity * 3
 
+  const primaryBreach = data.breaches?.[0]
+
+  const withoutActionWoh =
+    primaryBreach?.lowest_woh ?? null
+
+  const withoutActionDate =
+    primaryBreach?.lowest_woh_date ?? null
+
+  const reachesOos =
+    primaryBreach?.reaches_oos ?? false
+
+  const firstOosDate =
+    primaryBreach?.first_oos_date ?? null
+
+  const withoutActionHeadline =
+    withoutActionWoh != null
+      ? `${formatOneDecimal(withoutActionWoh)} WOH`
+      : "—"
+
+  const withoutActionDescription =
+    reachesOos && firstOosDate
+      ? `Inventory runs out ${formatDate(firstOosDate)}`
+      : withoutActionDate
+        ? `Lowest projected coverage on ${formatDate(
+            withoutActionDate
+          )}`
+        : "Lowest projected coverage"
+
   const maxCases = Math.max(
     ...series.flatMap(
       (point) => [
@@ -1230,15 +1284,16 @@ export function InventoryOutlook({
               ?.resolving_order
 
           if (
-            !projected?.exists ||
+            !projected?.projected_order_exists ||
+            !projected.resolves_breach ||
             !order ||
             order.cases == null ||
-            !order.expected_delivery_date
+            !order.expected_receipt_date
           ) {
             return
           }
 
-          const key = `${order.cases}-${order.expected_delivery_date}`
+          const key = `${order.cases}-${order.expected_receipt_date}`
 
           if (seen.has(key)) {
             return
@@ -1250,8 +1305,7 @@ export function InventoryOutlook({
             id: `projected-${index}-${key}`,
             kind: "projected",
             cases: order.cases,
-            date:
-              order.expected_delivery_date,
+            date: order.expected_receipt_date,
             label:
               "Projected order",
             status:
@@ -1259,7 +1313,6 @@ export function InventoryOutlook({
                 ? "Resolves gap"
                 : "Projected",
             secondary:
-              projected.reason ??
               "Distributor-projected supply. Not committed.",
           })
         }
@@ -1386,92 +1439,96 @@ export function InventoryOutlook({
          ------------------------------------------------ */}
 
       <div className="grid gap-6 lg:grid-cols-[0.78fr_1.22fr] lg:items-center">
-        <div>
+        {/* WITHOUT ACTION */}
+        <div className="flex min-h-[190px] flex-col justify-center">
           <div
-            className="text-[11px] font-semibold uppercase tracking-[0.14em]"
+            className="text-[14px] font-semibold uppercase tracking-[0.14em]"
             style={{
-              color:
-                theme.accent_color,
+              color: theme.accent_color,
             }}
           >
-            {primaryNewOrder ||
-            primaryExpedite
-              ? "SKUba recommendation"
-              : "Inventory status"}
+            Projected without action
           </div>
 
           <div
             className="mt-2 text-[42px] font-semibold leading-none tracking-[-0.04em]"
             style={{
-              color:
-                primaryNewOrder ||
-                primaryExpedite
-                  ? accentColor
-                  : theme.charcoal,
+              color: reachesOos
+                ? "#B94A30"
+                : accentColor,
             }}
           >
-            {recommendationTitle}
-          </div>
-
-          <div className="mt-2 text-sm text-[#8A8378]">
-            {primaryNewOrder
-              ? "recommended to order"
-              : primaryExpedite
-                ? "on confirmed supply"
-                : ""}
+            {withoutActionHeadline}
           </div>
 
           <div
-            className="mt-5 border-l-[3px] pl-3"
+            className="mt-2 text-sm font-medium"
             style={{
-              borderColor:
-                primaryNewOrder ||
-                primaryExpedite
-                  ? accentColor
-                  : "#55735E",
+              color: theme.charcoal,
             }}
           >
-            <div className="text-base font-semibold text-[#343332]">
-              {
-                recommendationSubtitle
-              }
-            </div>
+            {withoutActionDescription}
+          </div>
 
-            {primaryNewOrder &&
-              data.planning_lead_time_days !=
-                null && (
-                <div className="mt-1 text-xs text-[#8A8378]">
-                  {
-                    data.planning_lead_time_days
-                  }
-                  -day planning lead time
-                  {primaryNewOrder.expected_delivery_date
-                    ? ` · modeled receipt ${formatDate(
-                        primaryNewOrder.expected_delivery_date
-                      )}`
-                    : ""}
+          {primaryBreach && (
+            <div
+              className="mt-5 max-w-[320px] border-t pt-4"
+              style={{
+                borderColor: theme.line,
+              }}
+            >
+              {primaryBreach.first_tolerance_breach_date && (
+                <div className="flex items-center justify-between gap-6 text-xs">
+                  <span className="text-[#8A8378]">
+                    Below 3 WOH + buffer
+                  </span>
+
+                  <span
+                    className="font-semibold"
+                    style={{
+                      color: theme.charcoal,
+                    }}
+                  >
+
+                  {dateValue(primaryBreach.first_tolerance_breach_date) <=
+                  dateValue(asOf)
+                    ? "Already"
+                    : formatDate(
+                        primaryBreach.first_tolerance_breach_date
+                      )}
+                  </span>
                 </div>
               )}
 
-            {primaryExpedite && (
-              <div className="mt-1 text-xs text-[#8A8378]">
-                {primaryExpedite.needed_by_date
-                  ? `Needed by ${formatDate(
-                      primaryExpedite.needed_by_date
-                    )}`
-                  : "Confirmed supply needs earlier arrival"}
+              <div className="mt-2 flex items-center justify-between gap-6 text-xs">
+                <span className="text-[#8A8378]">
+                  Stockout
+                </span>
+
+                <span
+                  className="font-semibold"
+                  style={{
+                    color: reachesOos
+                      ? "#B94A30"
+                      : theme.charcoal,
+                  }}
+                >
+                  {reachesOos && firstOosDate
+                    ? formatDate(firstOosDate)
+                    : "Not projected"}
+                </span>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
+        {/* INVENTORY AT THE DC — UNCHANGED */}
         <InventoryVelocityVisual
           data={data}
           accentColor={accentColor}
           theme={theme}
         />
       </div>
-
       {/* ------------------------------------------------
           WHY
          ------------------------------------------------ */}

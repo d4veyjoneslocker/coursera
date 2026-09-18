@@ -27,6 +27,11 @@ from backend.transforms.inventory.unfi import (
 from backend.forecasting.inventory_projection import (
     _evidence_window_end
 )
+from backend.metrics.inventory.build_dc_inventory_snapshot import (
+    build_dc_network_snapshot,
+)
+
+from backend.mappings.dc_locations import DC_LOCATIONS
 
 router = APIRouter(
     prefix="/inventory",
@@ -970,7 +975,83 @@ def _build_assessment_record(
 
         "assessment_status": "available",
         "inventory_status": (
-            summary["status"]
+            assessment[
+                "classification"
+            ][
+                "inventory_status"
+            ]
+        ),
+
+        "inventory_urgency": (
+            assessment[
+                "classification"
+            ][
+                "inventory_urgency"
+            ]
+        ),
+
+        "po_status": (
+            assessment[
+                "classification"
+            ][
+                "po_status"
+            ]
+        ),
+
+        "has_active_po": (
+            assessment[
+                "classification"
+            ][
+                "has_active_po"
+            ]
+        ),
+
+        "has_overdue_po": (
+            assessment[
+                "classification"
+            ][
+                "has_overdue_po"
+            ]
+        ),
+
+        "has_stale_po": (
+            assessment[
+                "classification"
+            ][
+                "has_stale_po"
+            ]
+        ),
+
+        "has_projected_order": (
+            assessment[
+                "classification"
+            ][
+                "has_projected_order"
+            ]
+        ),
+
+        "has_resolving_projected_order": (
+            assessment[
+                "classification"
+            ][
+                "has_resolving_projected_order"
+            ]
+        ),
+
+        "days_until_oos": (
+            assessment[
+                "classification"
+            ][
+                "days_until_oos"
+            ]
+        ),
+
+        "days_of_cushion": (
+            assessment[
+                "classification"
+            ][
+                "days_of_cushion"
+            ]
         ),
         "projection_available": True,
         "projection_unavailable_reason": None,
@@ -1047,6 +1128,14 @@ def _build_assessment_record(
             lead_time[
                 "lead_time_source"
             ]
+        ),
+
+        # --------------------------------------------------------------
+        # Engine classification
+        # --------------------------------------------------------------
+
+        "classification": (
+            assessment["classification"]
         ),
 
         # --------------------------------------------------------------
@@ -1489,6 +1578,157 @@ def _load_and_assess_inventory(
 # DC SUMMARY
 # =============================================================================
 
+def _build_overview_sku(
+    row: dict,
+) -> dict:
+    """
+    Return existing engine classifications and intervention facts
+    needed by the inventory overview.
+
+    No inventory calculations or classifications are performed here.
+    """
+
+    interventions = []
+
+    for breach in row.get(
+        "breaches",
+        [],
+    ):
+        intervention = breach.get(
+            "intervention",
+            {},
+        )
+
+        if not intervention:
+            continue
+
+        interventions.append({
+            "reaches_oos": (
+                breach.get(
+                    "reaches_oos"
+                )
+            ),
+
+            "first_oos_date": (
+                breach.get(
+                    "first_oos_date"
+                )
+            ),
+
+            "lowest_woh": (
+                breach.get(
+                    "lowest_woh"
+                )
+            ),
+
+            "lowest_woh_date": (
+                breach.get(
+                    "lowest_woh_date"
+                )
+            ),
+
+            "first_tolerance_breach_date": (
+                breach.get(
+                    "first_tolerance_breach_date"
+                )
+            ),
+
+            "intervention_required": (
+                intervention.get(
+                    "intervention_required"
+                )
+            ),
+            "intervention_type": (
+                intervention.get(
+                    "intervention_type"
+                )
+            ),
+            "recommended_cases": (
+                intervention.get(
+                    "recommended_cases"
+                )
+            ),
+            "order_by_date": (
+                intervention.get(
+                    "order_by_date"
+                )
+            ),
+            "needed_by_date": (
+                intervention.get(
+                    "needed_by_date"
+                )
+            ),
+            "expected_delivery_date": (
+                intervention.get(
+                    "expected_delivery_date"
+                )
+            ),
+            "po_cases": (
+                intervention.get(
+                    "po_cases"
+                )
+            ),
+            "current_po_receipt_date": (
+                intervention.get(
+                    "current_po_receipt_date"
+                )
+            ),
+        })
+
+    return {
+        "sku": row.get("sku"),
+        "product_name": row.get(
+            "product_name"
+        ),
+
+        "inventory_status": row.get(
+            "inventory_status"
+        ),
+
+        "inventory_urgency": row.get(
+            "inventory_urgency"
+        ),
+
+        "po_status": row.get(
+            "po_status"
+        ),
+
+        "has_active_po": row.get(
+            "has_active_po"
+        ),
+
+        "has_overdue_po": row.get(
+            "has_overdue_po"
+        ),
+
+        "has_stale_po": row.get(
+            "has_stale_po"
+        ),
+
+        "has_projected_order": row.get(
+            "has_projected_order"
+        ),
+
+        "has_resolving_projected_order": (
+            row.get(
+                "has_resolving_projected_order"
+            )
+        ),
+
+        "days_until_oos": row.get(
+            "days_until_oos"
+        ),
+
+        "days_of_cushion": row.get(
+            "days_of_cushion"
+        ),
+
+        "planning_lead_time_days": row.get(
+            "planning_lead_time_days"
+        ),
+
+        "interventions": interventions,
+    }
 
 def _build_dc_summary(
     dc_inventory: list[dict],
@@ -1662,6 +1902,11 @@ def _build_dc_summary(
             len(review) == 0
             and len(unavailable) == 0
         ),
+
+        "skus": [
+            _build_overview_sku(row)
+            for row in dc_inventory
+        ],
     }
 
 
@@ -2140,13 +2385,30 @@ def get_inventory_dc_detail(
                 ),
             })
 
+    dc_location = DC_LOCATIONS.get(
+        (distributor, dc),
+        {},
+    )
+
     return _json_safe({
         "distributor": distributor,
         "dc": dc,
-        "dc_name": dc,
+        "dc_name": dc_location.get(
+            "name",
+            dc,
+        ),
 
-        "dc_latitude": None,
-        "dc_longitude": None,
+        "dc_latitude": dc_location.get(
+            "latitude"
+        ),
+
+        "dc_longitude": dc_location.get(
+            "longitude"
+        ),
+
+        "dc_location_precision": dc_location.get(
+            "location_precision"
+        ),
 
         **dc_summary,
 
@@ -2246,3 +2508,156 @@ def get_inventory_projection(
     return _json_safe(
         selected[0]
     )
+
+@router.get("/dcs")
+def get_dc_network(
+    org_id: str = Query(...),
+):
+    """
+    Return the factual inventory state of the distributor DC network,
+    plus the geographic data needed by the network map.
+
+    This endpoint intentionally contains no inventory assessment,
+    recommendation, urgency, or intervention logic.
+    """
+
+    org_dir = BASE_DATA_DIR / org_id
+
+    (
+        inventory_features,
+        inventory_history,
+        _,
+        purchase_orders,
+    ) = _load_inventory_inputs(
+        org_dir=org_dir,
+        org_id=org_id,
+    )
+
+    snapshot = build_dc_network_snapshot(
+        inventory_history=inventory_history,
+        features_df=inventory_features,
+        purchase_orders=purchase_orders,
+    )
+
+    # ------------------------------------------------------------------
+    # Network map data
+    # ------------------------------------------------------------------
+
+    features_path = (
+        org_dir
+        / "processed"
+        / "features_df.parquet"
+    )
+
+    coordinates_path = (
+        org_dir
+        / "maps"
+        / "store_coordinates.csv"
+    )
+
+    map_data = []
+
+    if features_path.exists():
+        features_df = pd.read_parquet(
+            features_path
+        )
+
+        for dc_row in snapshot.get(
+            "distribution_centers",
+            [],
+        ):
+            distributor = (
+                str(
+                    dc_row.get(
+                        "distributor",
+                        "",
+                    )
+                )
+                .upper()
+                .strip()
+            )
+
+            dc = (
+                str(
+                    dc_row.get(
+                        "dc",
+                        "",
+                    )
+                )
+                .upper()
+                .strip()
+            )
+
+            if not distributor or not dc:
+                continue
+
+            stores = _add_store_coordinates(
+                _get_active_stores(
+                    features_df=features_df,
+                    distributor=distributor,
+                    dc=dc,
+                ),
+                coordinates_path=coordinates_path,
+            )
+
+            store_rows = []
+
+            if not stores.empty:
+                for _, store in stores.iterrows():
+                    store_rows.append({
+                        "coded_customer": store.get(
+                            "coded_customer"
+                        ),
+                        "chain": store.get(
+                            "chain"
+                        ),
+                        "channel": store.get(
+                            "channel"
+                        ),
+                        "state": store.get(
+                            "state"
+                        ),
+                        "latitude": _safe_float(
+                            store.get(
+                                "latitude"
+                            )
+                        ),
+                        "longitude": _safe_float(
+                            store.get(
+                                "longitude"
+                            )
+                        ),
+                    })
+
+            dc_location = DC_LOCATIONS.get(
+                (distributor, dc),
+                {},
+            )
+
+            map_data.append({
+                "distributor": distributor,
+                "dc": dc,
+                "dc_name": dc_location.get(
+                    "name",
+                    dc,
+                ),
+                "dc_latitude": dc_location.get(
+                    "latitude"
+                ),
+                "dc_longitude": dc_location.get(
+                    "longitude"
+                ),
+                "dc_location_precision": (
+                    dc_location.get(
+                        "location_precision"
+                    )
+                ),
+                "active_store_count": len(
+                    stores
+                ),
+                "stores": store_rows,
+            })
+
+    snapshot["map_data"] = map_data
+
+    return _json_safe(snapshot)

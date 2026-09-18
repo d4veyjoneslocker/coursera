@@ -1216,7 +1216,7 @@ def classify_inventory_assessment(
     elif pd.isna(days_of_cushion):
         inventory_urgency = "normal"
 
-    elif days_of_cushion <= 3:
+    elif days_of_cushion <= 1:
         inventory_urgency = "critical"
 
     elif days_of_cushion <= 7:
@@ -1859,13 +1859,27 @@ def get_inventory_relevance(
     """
     Determine whether a DC × SKU is operationally relevant.
 
-    A combination is relevant if it has any:
-    - physical inventory on hand
-    - open PO quantity
-    - observed velocity
+    Relevance is distributor-specific because inventory reporting
+    differs between KeHE and UNFI.
+
+    KeHE:
+    - Presence in the current inventory snapshot establishes relevance.
+    - This includes SKUs with zero inventory on hand.
+
+    UNFI:
+    - UNFI may report theoretical DC × SKU combinations that are not
+      actually active.
+    - A combination is relevant if it has any evidence of activity:
+        - physical inventory on hand
+        - open PO quantity
+        - observed sales velocity
 
     Purchase Orders is the source of truth for open PO quantity.
     """
+
+    distributor = str(
+        row.get("distributor", "")
+    ).strip().upper()
 
     qoh_cases = pd.to_numeric(
         row.get("quantity_on_hand_cases", 0),
@@ -1891,11 +1905,23 @@ def get_inventory_relevance(
 
     open_po_cases = 0.0
 
-    if purchase_orders is not None and not purchase_orders.empty:
+    if (
+        purchase_orders is not None
+        and not purchase_orders.empty
+    ):
         po = purchase_orders[
-            (purchase_orders["distributor"] == row["distributor"])
-            & (purchase_orders["dc"] == row["dc"])
-            & (purchase_orders["sku"] == row["sku"])
+            (
+                purchase_orders["distributor"]
+                == row["distributor"]
+            )
+            & (
+                purchase_orders["dc"]
+                == row["dc"]
+            )
+            & (
+                purchase_orders["sku"]
+                == row["sku"]
+            )
         ].copy()
 
         if not po.empty:
@@ -1904,20 +1930,37 @@ def get_inventory_relevance(
                 errors="coerce",
             ).fillna(0).clip(lower=0).sum()
 
-    is_relevant = (
-        qoh_cases > 0
-        or open_po_cases > 0
-        or velocity_cases_per_week > 0
-    )
+    # --------------------------------------------------------------
+    # Distributor-specific relevance
+    # --------------------------------------------------------------
+
+    if distributor == "KEHE":
+        # KeHE only reports DC × SKU combinations present in its
+        # inventory snapshot, so the row itself establishes relevance.
+        is_relevant = True
+
+    else:
+        # UNFI can contain theoretical DC × SKU combinations.
+        # Require evidence that the combination is operationally active.
+        is_relevant = (
+            qoh_cases > 0
+            or open_po_cases > 0
+            or velocity_cases_per_week > 0
+        )
 
     return {
         "is_relevant": bool(is_relevant),
-        "has_positive_velocity": velocity_cases_per_week > 0,
+        "has_positive_velocity": (
+            velocity_cases_per_week > 0
+        ),
         "quantity_on_hand_cases": qoh_cases,
-        "quantity_on_po_cases": float(open_po_cases),
-        "velocity_cases_per_week": velocity_cases_per_week,
+        "quantity_on_po_cases": float(
+            open_po_cases
+        ),
+        "velocity_cases_per_week": (
+            velocity_cases_per_week
+        ),
     }
-
 # =============================================================================
 # WRAPPER
 # =============================================================================

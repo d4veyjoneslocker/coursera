@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-type LoadingMode = "setup" | "upload" | "processing" | "results";
+type LoadingMode = "setup" | "upload" | "processing" | "results" | "inventory-overview" | "dc-network" | "dc-detail";
 
 type LoadingConfig = {
   headline: string;
@@ -54,6 +54,42 @@ const loadingConfigs: Record<LoadingMode, LoadingConfig> = {
     ],
     slowMessage:
       "Almost there — we’re finishing up your analysis.",
+  },
+
+  "inventory-overview": {
+    headline: "Checking your inventory",
+    messages: [
+      "Reviewing inventory across your network...",
+      "Checking upcoming inventory needs...",
+      "Prioritizing what needs your attention...",
+      "Looking for supply risks...",
+    ],
+    slowMessage:
+      "Still checking — we're working through your inventory network.",
+  },
+
+  "dc-network": {
+    headline: "Loading your DC network",
+    messages: [
+      "Pulling together your distribution centers...",
+      "Checking inventory across your network...",
+      "Mapping your distribution centers and stores...",
+      "Getting your network view ready...",
+    ],
+    slowMessage:
+      "Still loading — we're pulling together your distribution network.",
+  },
+
+  "dc-detail": {
+    headline: "Loading distribution center",
+    messages: [
+      "Pulling the latest inventory...",
+      "Checking SKU inventory levels...",
+      "Loading supply and PO activity...",
+      "Building your inventory outlook...",
+    ],
+    slowMessage:
+      "Still loading — we're finishing up this distribution center.",
   },
 };
 
