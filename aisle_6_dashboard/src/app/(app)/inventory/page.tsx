@@ -407,7 +407,7 @@ function DcActionCard({
   onOpen: (sku: SkuWithDc) => void
   compact?: boolean
 }) {
-  const { skuColors } = useOrg()
+  const { org, skuColors } = useOrg()
   const toneStyles = {
     critical: {
       border: "border-[#EEC4B9]",
@@ -464,7 +464,7 @@ function DcActionCard({
               skuColors[sku.product_name] ??
               "#C8795A"
             }
-            orgId="default_org"
+            orgId={org.id}
           />
         ))}
       </div>
@@ -636,17 +636,21 @@ function sortByPriority(items: SkuWithDc[]) {
 
 export default function InventoryPage() {
   const router = useRouter()
+  const { org, skuColors } = useOrg()
+
   const [data, setData] = useState<InventoryOverviewResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const loadInventory = async () => {
+    if (!org?.id) return
+
     try {
       setLoading(true)
       setError(null)
 
       const params = new URLSearchParams()
-      params.set("org_id", "default_org")
+      params.set("org_id", org.id)
 
       const response = await fetch(
         `${API_BASE_URL}/inventory/overview?${params.toString()}`,
@@ -666,11 +670,10 @@ export default function InventoryPage() {
       setLoading(false)
     }
   }
-  const { skuColors } = useOrg()
 
   useEffect(() => {
     loadInventory()
-  }, [])
+  }, [org?.id])
 
   const groups = useMemo(() => {
     const allSkus: SkuWithDc[] = []
