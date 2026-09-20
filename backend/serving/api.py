@@ -1,7 +1,8 @@
 import os
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Header, Path
+from pathlib import Path
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from backend.serving.routes.overview import router as overview_router
 from backend.serving.routes.store_health import router as store_health_router
