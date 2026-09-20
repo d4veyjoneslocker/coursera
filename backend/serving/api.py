@@ -23,7 +23,7 @@ load_dotenv()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     BASE_DATA_DIR = Path("backend/data")
-    org_id = "default_org"
+    org_id = "67a96381-5014-4a9b-bfe8-a14e6da5affe"
 
     try:
         _load_cached_inventory_assessments(
