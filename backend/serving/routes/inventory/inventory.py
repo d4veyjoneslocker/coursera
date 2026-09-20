@@ -31,6 +31,11 @@ from backend.metrics.inventory.build_dc_inventory_snapshot import (
     build_dc_network_snapshot,
 )
 
+from backend.data_pipeline.table_loader import (
+    get_cached_inventory_assessments,
+    cache_inventory_assessments,
+)
+
 from backend.mappings.dc_locations import DC_LOCATIONS
 
 router = APIRouter(
@@ -1573,6 +1578,27 @@ def _load_and_assess_inventory(
         purchase_orders,
     )
 
+def _load_cached_inventory_assessments(
+    org_dir: Path,
+    org_id: str,
+):
+    cached = get_cached_inventory_assessments(org_id)
+
+    if cached is not None:
+        print("⚡ INVENTORY CACHE HIT")
+        return cached
+
+    print("🔄 INVENTORY CACHE MISS — building assessments")
+
+    assessments, *_ = _load_and_assess_inventory(
+        org_dir=org_dir,
+        org_id=org_id,
+    )
+
+    return cache_inventory_assessments(
+        org_id=org_id,
+        assessments=assessments,
+    )
 
 # =============================================================================
 # DC SUMMARY
@@ -1924,16 +1950,12 @@ def get_inventory_overview(
         / org_id
     )
 
-    (
-        inventory,
-        _,
-        _,
-        _,
-        _,
-    ) = _load_and_assess_inventory(
+    cache = _load_cached_inventory_assessments(
         org_dir=org_dir,
         org_id=org_id,
     )
+
+    inventory = cache["rows"]
 
     if not inventory:
         return {
@@ -2263,16 +2285,12 @@ def get_inventory_dc_detail(
             ),
         )
 
-    (
-        inventory,
-        _,
-        _,
-        _,
-        _,
-    ) = _load_and_assess_inventory(
+    cache = _load_cached_inventory_assessments(
         org_dir=org_dir,
         org_id=org_id,
     )
+
+    inventory = cache["rows"]
 
     features_df = pd.read_parquet(
         features_path
@@ -2465,49 +2483,29 @@ def get_inventory_projection(
         / org_id
     )
 
-    (
-        inventory,
-        _,
-        _,
-        _,
-        _,
-    ) = _load_and_assess_inventory(
+    cache = _load_cached_inventory_assessments(
         org_dir=org_dir,
         org_id=org_id,
     )
 
-    selected = [
-        row
-        for row in inventory
-        if (
-            row.get(
-                "distributor"
-            )
-            == distributor
-            and row.get(
-                "dc"
-            )
-            == dc
-            and row.get(
-                "sku"
-            )
-            == sku
+    assessment = cache["by_sku"].get(
+        (
+            distributor,
+            dc,
+            sku,
         )
-    ]
+    )
 
-    if not selected:
+    if assessment is None:
         raise HTTPException(
             status_code=404,
             detail=(
-                "Inventory assessment not "
-                f"found for {distributor} / "
-                f"{dc} / {sku}"
-            ),
+                "Inventory assessment not found "
+                "for this distributor, DC, and SKU."),
         )
+    
+    return _json_safe(assessment)
 
-    return _json_safe(
-        selected[0]
-    )
 
 @router.get("/dcs")
 def get_dc_network(

@@ -1,10 +1,11 @@
 
 import pandas as pd
+import time
 from backend.metrics.monthly_metric_calculators import calculate_monthly_units, calculate_monthly_active_pods, calculate_monthly_new_pods, calculate_monthly_buying_stores, calculate_monthly_vpo, calculate_monthly_reorder_rate, calculate_monthly_revenue
 from backend.metrics.metric_growth_rates import add_additive_metric_3m, calculate_buying_stores_3m, calculate_vpo_3m, calculate_reorder_rate_3m, add_prior_month_columns, add_pct_change_columns, add_abs_change_columns
 from backend.metrics.metric_calculators import calculate_units, calculate_revenue, calculate_buying_stores, calculate_vpo, calculate_store_table_vpo
-from backend.metrics.metric_helpers import calculate_avg_skus_per_store
-
+from backend.metrics.metric_helpers import calculate_avg_skus_per_store, resolve_period, filter_to_period
+from backend.metrics.metric_comparisons import compare_metric, compare_metric_new
 
 def kpi_monthly_table(df, df_all_time, selected_years=None, selected_months=None):
 
@@ -102,67 +103,122 @@ def kpi_monthly_table(df, df_all_time, selected_years=None, selected_months=None
         ]
     ]
 
-def chain_table(df):
+
+def chain_table(df, active_pods_df):
 
     result = calculate_revenue(df, "chain")
     result = result.merge(calculate_units(df, "chain"), on="chain", how="left")
     result = result.merge(calculate_buying_stores(df, "chain"), on="chain", how="left")
     result = result.merge(calculate_vpo(df, df, "chain"), on="chain", how="left")
+    result = result.merge(calculate_avg_skus_per_store(df, "chain"), on="chain", how="left")
 
-    current_month = pd.Timestamp.today().to_period("M")
-    last_full_month = current_month - 1
+    l1m_period = resolve_period("L1M")
+    df_l1m = filter_to_period(df, l1m_period["start"], l1m_period["end"])
 
-    buying_l3m = calculate_buying_stores_3m(df, "chain")
+    buying_l1m = calculate_buying_stores(df_l1m, "chain").rename(
+        columns={"buying_stores": "buying_stores_l1m"}
+    )
 
-    # keep only the latest full month's 3M value
-    buying_l3m["month_year"] = pd.PeriodIndex(buying_l3m["month_year"], freq="M")
-    buying_l3m = buying_l3m[buying_l3m["month_year"] == last_full_month].copy()
+    result = result.merge(buying_l1m, on="chain", how="left")
 
-    buying_l3m = buying_l3m[[
-        "chain",
-        "buying_stores_3m",
-    ]]
+    # -------------------------------------------------
+    # FIX BUYING STORES L1M 0 VS NaN
+    #
+    # If a chain had active PODs in L1M but no buying
+    # stores, the correct value is 0.
+    #
+    # If the chain had no active PODs in L1M, leave the
+    # value as NaN because the period is not applicable.
+    # -------------------------------------------------
 
-    buying_monthly = calculate_monthly_buying_stores(df, "chain")
-    buying_monthly["month_year"] = pd.PeriodIndex(buying_monthly["month_year"], freq="M")
+    active_l1m = filter_to_period(
+        active_pods_df,
+        l1m_period["start"],
+        l1m_period["end"],
+    )
 
-    buying_l1m = buying_monthly[
-        buying_monthly["month_year"] == last_full_month
-    ].copy()
-
-    buying_l1m = buying_l1m.rename(columns={
-        "buying_stores": "buying_stores_l1m"
-    })
-
-    buying_l1m = buying_l1m[[
-        "chain",
-        "buying_stores_l1m",
-    ]]
-
-    buying = buying_l3m.merge(buying_l1m, on="chain", how="left")
-
-    result = result.merge(buying, on="chain", how="left")
-
-    monthly_result = calculate_monthly_units(df, "chain")
-    monthly_result = add_additive_metric_3m(monthly_result, "chain", "units")
-    monthly_result = add_prior_month_columns(monthly_result, "chain", "units", l1m=True, l3m=True)
-    monthly_result = add_pct_change_columns(monthly_result, "units", l1m=True, l3m=True)
-
-    current_month = pd.Timestamp.today().to_period("M")
-    monthly_result = monthly_result[monthly_result["month_year"] != current_month]
-
-    latest_month = monthly_result["month_year"].max()
-    monthly_latest = monthly_result[monthly_result["month_year"] == latest_month].copy()
-
-    monthly_latest = monthly_latest[["chain", "units_l1m_pct", "units_l3m_pct"]]
+    active_l1m = (
+        active_l1m
+        .groupby("chain", as_index=False)["pod_helper"]
+        .nunique()
+        .rename(
+            columns={
+                "pod_helper": "active_pods_l1m",
+            }
+        )
+    )
 
     result = result.merge(
-        calculate_avg_skus_per_store(df, "chain"),
+        active_l1m,
         on="chain",
         how="left",
     )
 
-    result = result.merge(monthly_latest, on="chain", how="left")
+    has_active_pods = (
+        result["active_pods_l1m"]
+        .fillna(0)
+        .gt(0)
+    )
+
+    missing_buyers = (
+        result["buying_stores_l1m"]
+        .isna()
+    )
+
+    result.loc[
+        has_active_pods & missing_buyers,
+        "buying_stores_l1m",
+    ] = 0
+
+    result = result.drop(
+        columns=["active_pods_l1m"]
+    )
+
+
+    l3m_period = resolve_period("L3M")
+    df_l3m = filter_to_period(df, l3m_period["start"], l3m_period["end"])
+
+    buying_l3m = calculate_buying_stores(df_l3m, "chain").rename(
+        columns={"buying_stores": "buying_stores_3m"}
+    )
+
+    result = result.merge(buying_l3m, on="chain", how="left")
+
+    units_l1m = compare_metric_new(
+        df=df,
+        df_full=df,
+        active_pods_df=active_pods_df,
+        metric="units",
+        period="L1M",
+        year=None,
+        comparison="PP",
+        group_cols=["chain"],
+    )
+
+
+    units_l1m = units_l1m[
+        ["chain", "pct_change"]
+    ].rename(columns={"pct_change": "units_l1m_pct"})
+
+    result = result.merge(units_l1m, on="chain", how="left")
+
+    units_l3m = compare_metric_new(
+        df=df,
+        df_full=df,
+        active_pods_df=active_pods_df,
+        metric="units",
+        period="L3M",
+        year=None,
+        comparison="PP",
+        group_cols=["chain"],
+    )
+
+    units_l3m = units_l3m[
+        ["chain", "pct_change"]
+    ].rename(columns={"pct_change": "units_l3m_pct"})
+
+    result = result.merge(units_l3m, on="chain", how="left")
+
     result = result.sort_values("units", ascending=False)
 
     return result[[
@@ -176,8 +232,7 @@ def chain_table(df):
         "vpo",
         "units_l1m_pct",
         "units_l3m_pct",
-        ]]
-
+    ]]
 
 def store_performance(df, df_all_time):
     grain = ["coded_customer", "chain"]

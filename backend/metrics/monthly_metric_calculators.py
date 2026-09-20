@@ -55,7 +55,6 @@ def calculate_monthly_buying_stores(df, group_cols=None, selected_years=None, se
 
     return result
 
-
 def calculate_monthly_active_pods(
     df_filtered,
     df_full,
@@ -80,6 +79,7 @@ def calculate_monthly_active_pods(
                 for month in selected_months
             ]
 
+    # Keep the exact same requested output universe as the current function.
     spine = build_window_universe_spine(
         df_filtered,
         df_full,
@@ -89,54 +89,170 @@ def calculate_monthly_active_pods(
         include_current_month=include_current_month,
     )
 
-    full_universe_spine = build_full_universe_spine(
-        df_filtered,
-        df_full,
-        group_cols=non_time_cols,
-        selected_years=selected_years,
-        selected_months=selected_periods,
-        include_current_month=include_current_month,
+    if spine.empty:
+        return pd.DataFrame(columns=group_cols + ["active_pods"])
+
+    spine = spine.copy()
+    spine["month_year"] = pd.PeriodIndex(
+        spine["month_year"].astype(str),
+        freq="M",
     )
 
-    rows = []
+    # We only need purchase history capable of affecting the earliest
+    # month we're actually returning.
+    min_output_month = spine["month_year"].min()
+    max_output_month = spine["month_year"].max()
 
-    for _, spine_row in full_universe_spine.iterrows():
-        end_month = spine_row["month_year"]
-        start_month = end_month - (lookback_months - 1)
+    history_start = min_output_month - (lookback_months - 1)
 
-        window = df_full[
-            (df_full["month_year"] >= start_month) &
-            (df_full["month_year"] <= end_month)
+    history = df_full[
+        (df_full["month_year"] >= history_start)
+        & (df_full["month_year"] <= max_output_month)
+    ].copy()
+
+    if history.empty:
+        result = spine.copy()
+        result["active_pods"] = 0
+        return result[group_cols + ["active_pods"]]
+
+    # A POD only needs one row per purchase month/group.
+    purchase_cols = non_time_cols + ["month_year", "pod_helper"]
+
+    purchases = (
+        history[purchase_cols]
+        .drop_duplicates()
+        .copy()
+    )
+
+    # Each purchase keeps that POD active for the purchase month
+    # plus the next lookback_months - 1 months.
+    active_frames = []
+
+    for offset in range(lookback_months):
+        active = purchases.copy()
+        active["month_year"] = active["month_year"] + offset
+
+        # Don't create active memberships outside the requested period.
+        active = active[
+            (active["month_year"] >= min_output_month)
+            & (active["month_year"] <= max_output_month)
         ]
 
-        for col in non_time_cols:
-            window = window[window[col] == spine_row[col]]
+        active_frames.append(active)
 
-        rows.append({
-            **{col: spine_row[col] for col in non_time_cols},
-            "month_year": end_month,
-            "active_pods": window["pod_helper"].nunique(),
-        })
+    active_memberships = pd.concat(
+        active_frames,
+        ignore_index=True,
+    )
 
-    full_df = pd.DataFrame(rows)
-    if full_df.empty:
-        return pd.DataFrame(columns=group_cols + ["active_pods"])
-    
-    spine = spine.copy()
-    full_df = full_df.copy()
+    # Multiple purchases may make the same POD active in the same month.
+    # It should still count only once.
+    active_memberships = active_memberships.drop_duplicates(
+        subset=non_time_cols + ["month_year", "pod_helper"]
+    )
 
-    spine["month_year"] = pd.PeriodIndex(spine["month_year"].astype(str), freq="M")
-    full_df["month_year"] = pd.PeriodIndex(full_df["month_year"].astype(str), freq="M")
+    # Count active PODs for each group/month.
+    active_counts = (
+        active_memberships
+        .groupby(
+            non_time_cols + ["month_year"],
+            dropna=False,
+        )["pod_helper"]
+        .nunique()
+        .reset_index(name="active_pods")
+    )
 
     result = spine.merge(
-        full_df[non_time_cols + ["month_year", "active_pods"]],
+        active_counts,
         on=non_time_cols + ["month_year"],
         how="left",
     )
 
-    result["active_pods"] = result["active_pods"].fillna(0).astype(int)
+    result["active_pods"] = (
+        result["active_pods"]
+        .fillna(0)
+        .astype(int)
+    )
 
     return result[group_cols + ["active_pods"]]
+
+def calculate_monthly_active_pods_new(
+    active_pods_df,
+    group_cols=None,
+    selected_years=None,
+    selected_months=None,
+    include_current_month=False,
+):
+    """
+    Calculate monthly active PODs from the precomputed
+    active_pods_df.
+    """
+
+    if group_cols is None:
+        group_cols = []
+
+    if isinstance(group_cols, str):
+        group_cols = [group_cols]
+
+    df = active_pods_df.copy()
+
+    df["month_year"] = pd.PeriodIndex(
+        df["month_year"],
+        freq="M",
+    )
+
+    # Match normal monthly output behavior
+    if not include_current_month:
+        current_month = pd.Timestamp.today().to_period("M")
+
+        df = df[
+            df["month_year"] != current_month
+        ]
+
+    if selected_years:
+        selected_years = {
+            int(year)
+            for year in selected_years
+        }
+
+        df = df[
+            df["month_year"].dt.year.isin(
+                selected_years
+            )
+        ]
+
+    if selected_months:
+        selected_months = {
+            pd.Period(month, freq="M")
+            for month in selected_months
+        }
+
+        df = df[
+            df["month_year"].isin(
+                selected_months
+            )
+        ]
+
+    grouping = [
+        "month_year",
+        *group_cols,
+    ]
+
+    result = (
+        df
+        .groupby(
+            grouping,
+            as_index=False,
+        )["pod_helper"]
+        .nunique()
+        .rename(
+            columns={
+                "pod_helper": "active_pods",
+            }
+        )
+    )
+
+    return result
 
 
 def calculate_monthly_vpo(df_filtered, df_full, group_cols=None, selected_years=None, selected_months=None):

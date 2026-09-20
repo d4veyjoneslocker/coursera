@@ -141,7 +141,7 @@ def refresh_all_for_cadence(cadence: str) -> None:
     print(f"Failed: {len(failures)}")
 
     if len(orgs) - len(failures) > 0:
-        notify_api_to_clear_cache()
+        notify_api_to_reload_cache(org_id)
 
     if failures:
         print("\nFailure summary:")
@@ -149,24 +149,25 @@ def refresh_all_for_cadence(cadence: str) -> None:
             print(f"- {org_id}: {message}")
 
 
-def notify_api_to_clear_cache():
+def notify_api_to_reload_cache(org_id: str):
     api_url = os.getenv("API_BASE_URL")
     secret = os.getenv("ADMIN_REFRESH_SECRET")
 
     if not api_url or not secret:
-        print("Skipping cache clear: missing API_BASE_URL or ADMIN_REFRESH_SECRET")
+        print("Skipping cache reload: missing API_BASE_URL or ADMIN_REFRESH_SECRET")
         return
 
     try:
         response = requests.post(
-            f"{api_url}/admin/clear-cache",
+            f"{api_url}/admin/reload-cache",
             headers={"x-refresh-secret": secret},
-            timeout=30,
+            params={"org_id": org_id},
+            timeout=60,
         )
         response.raise_for_status()
-        print("API cache cleared")
+        print(f"API cache reloaded for {org_id}")
     except Exception as e:
-        print(f"Failed to clear API cache: {e}")
+        print(f"Failed to reload API cache for {org_id}: {e}")
 
 
 def main() -> None:
@@ -180,6 +181,8 @@ def main() -> None:
     args = parser.parse_args()
 
     refresh_all_for_cadence(args.cadence)
+
+
 
 
 if __name__ == "__main__":

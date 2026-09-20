@@ -1,3 +1,4 @@
+import time
 import pandas as pd
 from fastapi import (FastAPI, APIRouter, Depends, Query)
 from backend.filters.filter_table import filter_table
@@ -5,11 +6,11 @@ from backend.filters.filters import get_filters, generate_filter_api
 from backend.metrics.metric_calculators import calculate_units
 from backend.metrics.metric_tables import chain_table, kpi_monthly_table
 from backend.metrics.kpis.overview_kpis import unit_kpis, buying_kpis, pod_kpis, vpo_kpis, count_channels, avg_skus_per_store
-from backend.data_pipeline.table_loader import load_org_tables
+from backend.data_pipeline.table_loader import load_org_tables, load_active_pods
 from backend.metrics.metric_spine_builders import build_spine
 from backend.metrics.monthly_metric_calculators import (
     calculate_monthly_units,
-    calculate_monthly_active_pods,
+    calculate_monthly_active_pods, calculate_monthly_active_pods_new,
     calculate_monthly_buying_stores,
     calculate_monthly_vpo
 )
@@ -20,6 +21,11 @@ from backend.serving.api_helpers import (
 
 
 router = APIRouter(prefix="/overview", tags=["Overview"])
+
+
+def log_timing(name: str, start: float):
+    elapsed = time.perf_counter() - start
+    print(f"⏱️ {name}: {elapsed:.3f}s")
 
 
 
@@ -68,6 +74,8 @@ def get_filter_options(
 
 @router.get("/kpis")
 def kpis(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    start = time.perf_counter()
+
     features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
@@ -88,11 +96,15 @@ def kpis(org_id: str = Query(...), filters: dict = Depends(get_filters)):
         "count_channel": count_channels(df)
     }
 
+    log_timing("KPIS", start)
+
     return kpis
 
 
 @router.get("/units")
 def units(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    start = time.perf_counter()
+
     features_df = load_org_tables(org_id)
 
     df = filter_table(features_df, **filters)
@@ -105,6 +117,8 @@ def units(org_id: str = Query(...), filters: dict = Depends(get_filters)):
     result = prep_monthly_graph(result,"units")
     result = clean_for_json(result)
 
+    log_timing("UNITS", start)
+
     return result.to_dict(orient="records")
 
 
@@ -112,6 +126,8 @@ def units(org_id: str = Query(...), filters: dict = Depends(get_filters)):
 
 @router.get("/buyers")
 def buying_stores(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    start = time.perf_counter()
+
     features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
@@ -123,6 +139,8 @@ def buying_stores(org_id: str = Query(...), filters: dict = Depends(get_filters)
     result = prep_monthly_graph(result,"buying_stores")
     result = clean_for_json(result)
 
+    log_timing("BUYERS", start)
+
     return result.to_dict(orient="records")
 
 
@@ -130,6 +148,8 @@ def buying_stores(org_id: str = Query(...), filters: dict = Depends(get_filters)
 
 @router.get("/velocity")
 def velocity(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    start = time.perf_counter()
+
     features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
@@ -145,11 +165,15 @@ def velocity(org_id: str = Query(...), filters: dict = Depends(get_filters)):
     result = prep_monthly_graph(result,"vpo")
     result = clean_for_json(result)
 
+    log_timing("VELOCITY", start)
+
     return result.to_dict(orient="records")
 
 
 @router.get("/pods")
 def pods_test(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    start = time.perf_counter()
+
     features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
@@ -167,6 +191,8 @@ def pods_test(org_id: str = Query(...), filters: dict = Depends(get_filters)):
     result = prep_monthly_graph(result,"active_pods")
     result = clean_for_json(result)
 
+    log_timing("PODS", start)
+
     return result.to_dict(orient="records")
 
 
@@ -175,6 +201,8 @@ def pods_test(org_id: str = Query(...), filters: dict = Depends(get_filters)):
 
 @router.get("/skus")
 def skus(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    start = time.perf_counter()
+
     features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
@@ -187,12 +215,16 @@ def skus(org_id: str = Query(...), filters: dict = Depends(get_filters)):
     
     result = result[["name", "value"]]
 
+    log_timing("SKUS", start)
+
     return result.to_dict(orient="records")
 
 # KPI Cards
 
 @router.get("/channels")
 def channels(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+    start = time.perf_counter()
+
     features_df = load_org_tables(org_id)
     df = filter_table(features_df, **filters)
 
@@ -205,18 +237,49 @@ def channels(org_id: str = Query(...), filters: dict = Depends(get_filters)):
     
     result = result[["name","value"]]
 
+    log_timing("CHANNELS", start)
+
     return result.to_dict(orient="records")
 
 @router.get("/chain_table")
-def chain_table_api(org_id: str = Query(...), filters: dict = Depends(get_filters)):
-    features_df = load_org_tables(org_id)
-    df = filter_table(features_df, **filters)
+def chain_table_api(
+    org_id: str = Query(...),
+    filters: dict = Depends(get_filters),
+):
+    start = time.perf_counter()
 
-    result = chain_table(df)
+    features_df = load_org_tables(org_id)
+    active_pods_df = load_active_pods(org_id)
+
+    # Normal filtered feature data
+    df = filter_table(
+        features_df,
+        **filters,
+    )
+
+    # Active POD history needs to remain available for
+    # comparison eligibility, so apply non-time filters only.
+    active_pod_filters = remove_time_filters(
+        filters
+    )
+
+    active_pods_filtered = filter_table(
+        active_pods_df,
+        **active_pod_filters,
+    )
+
+    result = chain_table(
+        df,
+        active_pods_filtered,
+    )
 
     result = clean_for_json(result)
 
-    return result.to_dict(orient="records")
+    log_timing("CHAIN TABLE", start)
+
+    return result.to_dict(
+        orient="records"
+    )
 
 @router.get("/chart")
 def expanded_chart(
@@ -235,3 +298,43 @@ def expanded_chart(
     )
 
     return result
+
+@router.get("/pods_new")
+def pods_new(
+    org_id: str = Query(...),
+    filters: dict = Depends(get_filters),
+):
+    start = time.perf_counter()
+
+    active_pods_df = load_active_pods(org_id)
+
+    df = filter_table(
+        active_pods_df,
+        **filters,
+    )
+
+    selected_years = convert_selected_years(
+        filters.get("year")
+    )
+
+    selected_months = convert_selected_months(
+        filters.get("month_year")
+    )
+
+    result = calculate_monthly_active_pods_new(
+        df,
+        selected_years=selected_years,
+        selected_months=selected_months,
+        include_current_month=True,
+    )
+
+    result = prep_monthly_graph(
+        result,
+        "active_pods",
+    )
+
+    result = clean_for_json(result)
+
+    log_timing("PODS NEW", start)
+
+    return result.to_dict(orient="records")
