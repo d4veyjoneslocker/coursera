@@ -1,5 +1,7 @@
 import os
 from dotenv import load_dotenv
+from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from backend.serving.routes.overview import router as overview_router
@@ -10,16 +12,42 @@ from backend.serving.routes.exports import router as exports_router
 from backend.serving.routes.insights import router as insights_router
 from backend.serving.routes.email import router as email_router
 from backend.serving.routes.insights_new import router as insights_new
-from backend.data_pipeline.table_loader import clear_table_cache
+from backend.data_pipeline.table_loader import clear_table_cache, load_org_tables
 from backend.serving.routes.business_analysis import router as business_analysis
 from backend.serving.routes.free_trial import router as free_trial
 from backend.serving.routes.onboarding import router as onboarding
 from backend.serving.routes.business_review import router as business_review
-from backend.serving.routes.inventory.inventory import router as inventory
+from backend.serving.routes.inventory.inventory import (router as inventory, _load_cached_inventory_assessments)
 
 load_dotenv()
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+
+    BASE_DATA_DIR = Path("backend/data")
+    org_id = "67a96381-5014-4a9b-bfe8-a14e6da5affe"
+
+    try:
+        _load_cached_inventory_assessments(
+            org_dir=BASE_DATA_DIR / org_id,
+            org_id=org_id,
+        )
+
+        print(
+            f"🔥 INVENTORY CACHE WARMED: {org_id}",
+            flush=True,
+        )
+
+    except Exception as exc:
+        print(
+            f"⚠️ INVENTORY CACHE WARM FAILED "
+            f"for {org_id}: {repr(exc)}",
+            flush=True,
+        )
+
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -66,10 +94,41 @@ def clear_cache(x_refresh_secret: str | None = Header(default=None)):
 
     return {"message": "cache cleared"}
 
-
    
+@app.post("/admin/warm-cache")
+def warm_cache(x_refresh_secret: str | None = Header(default=None)):
+
+    if x_refresh_secret != ADMIN_REFRESH_SECRET:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    org_ids = [
+        "default_org",
+    ]
+
+    warmed = []
+
+    for org_id in org_ids:
+        load_org_tables(org_id)
+        warmed.append(org_id)
+
+    return {
+        "message": "cache warmed",
+        "organizations": warmed,
+    }
 
 
+@app.post("/admin/reload-cache")
+def reload_cache(
+    org_id: str,
+    x_refresh_secret: str | None = Header(default=None),
+):
+    if x_refresh_secret != ADMIN_REFRESH_SECRET:
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
+    clear_table_cache(org_id)
+    load_org_tables(org_id)
 
-
+    return {
+        "message": "cache cleared and warmed",
+        "org_id": org_id,
+    }

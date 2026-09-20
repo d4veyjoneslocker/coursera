@@ -95,8 +95,25 @@ def calculate_avg_skus_per_store(df, grain):
     return result
 
 
-def resolve_period(period, year):
+def resolve_period(period, year=None):
     period = period.upper()
+
+    # Rolling periods ending at last completed month
+    if period.startswith("L") and period.endswith("M"):
+        months = int(period[1:-1])
+
+        end = get_current_period(include_current_month=False)
+        start = end - (months - 1)
+
+        return {
+            "label": label_period(start, end),
+            "start": start,
+            "end": end,
+        }
+
+    # Calendar periods require a year
+    if year is None:
+        raise ValueError(f"year is required for period: {period}")
 
     period_map = {
         "Q1": (1, 3),
@@ -196,3 +213,39 @@ def label_period(start, end):
         return f"FY {start.year}"
 
     return f"{start.strftime('%b %Y')}–{end.strftime('%b %Y')}"
+
+def get_period_completeness(
+    df,
+    start,
+    end,
+    group_cols=None,
+):
+    group_cols = group_cols or []
+
+    period_df = filter_to_period(df, start, end)
+
+    expected_months = len(
+        pd.period_range(
+            start=start,
+            end=end,
+            freq="M",
+        )
+    )
+
+    if group_cols:
+        completeness = (
+            period_df
+            .groupby(group_cols, dropna=False)["month_year"]
+            .nunique()
+            .reset_index(name="months_present")
+        )
+
+        completeness["period_complete"] = (
+            completeness["months_present"] == expected_months
+        )
+
+        return completeness[group_cols + ["period_complete"]]
+
+    months_present = period_df["month_year"].nunique()
+
+    return months_present == expected_months

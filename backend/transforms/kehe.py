@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from backend.mappings.channel import channel_map
 from backend.transforms.set_distributor_data_types import set_data_types
-from backend.data_pipeline.pipeline_helpers import apply_sku_map
+from backend.data_pipeline.pipeline_helpers import apply_sku_map, extract_chain_store_number_full_pod
 
 def transform_kehe_full_pod_vendor(df, org_id):
 
@@ -76,6 +76,17 @@ def transform_kehe_full_pod_vendor(df, org_id):
         df["AddressBookNumber"]
     )
 
+    df["chain_store_number"] = (
+        df["customer_name"]
+        .apply(extract_chain_store_number_full_pod)
+        .astype("string")
+    )
+
+    df["chain_store_key"] = (
+        df["chain"].astype("string").str.strip().str.upper()
+        + "|"
+        + df["chain_store_number"]
+    )
 
     # Fix Sprouts addresses
 
@@ -99,8 +110,6 @@ def transform_kehe_full_pod_vendor(df, org_id):
         df["chain"] == "SPROUTS", "GROCERY",
         df["channel"]
     )
-
-
 
     # adding coded customer helper
 
@@ -127,6 +136,8 @@ def transform_kehe_full_pod_vendor(df, org_id):
     ["coded_customer", "sku", "month_year"], as_index=False
         ).agg({
             "customer_name": "first",
+            "chain_store_number": "first",
+            "chain_store_key": "first",
             "store_number": "first",
             "chain": "first",
             "street_address": "first",
@@ -161,6 +172,8 @@ def transform_kehe_full_pod_vendor(df, org_id):
             "pod_helper",
             "coded_customer",
             "customer_name",
+            "chain_store_key",
+            "chain_store_number",
             "store_number",
             "chain",
             "street_address",

@@ -80,6 +80,41 @@ def calculate_active_pods(
 
     return result[non_time_cols + ["active_pods"]]
 
+def calculate_active_pods_new(
+    active_pods_df,
+    group_cols=None,
+):
+    """
+    Calculate active PODs from the precomputed active_pods_df.
+
+    active_pods_df already contains one row per active
+    POD/month/filter-dimension combination.
+    """
+
+    if group_cols is None:
+        group_cols = []
+
+    if isinstance(group_cols, str):
+        group_cols = [group_cols]
+
+    if not group_cols:
+        return active_pods_df["pod_helper"].nunique()
+
+    result = (
+        active_pods_df
+        .groupby(
+            group_cols,
+            as_index=False,
+        )["pod_helper"]
+        .nunique()
+        .rename(
+            columns={
+                "pod_helper": "active_pods",
+            }
+        )
+    )
+
+    return result
 
 
 def calculate_vpo(

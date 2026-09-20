@@ -37,6 +37,8 @@ import KpiCard from "@/components/ui/charts/KpiCard"
 import { InsightsSection } from "@/components/InsightsSection"
 import ChartSection from "@/components/ui/charts/ChartSection"
 import {formatCompact, formatWhole, formatDecimal, formatPercent} from "@/lib/format"
+import LoadingScreen from "@/components/LoadingScreen"
+
 
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
@@ -52,10 +54,6 @@ const DEFAULT_THEME = {
   chip: "#EEF4F8",
   surface: "#FFFDF9",
 }
-
-
-
-
 
 const FILTER_KEYS = [
   "chain",
@@ -354,6 +352,8 @@ function PieChartCard({
 
 export default function Home() {
   const {org, skuColors} = useOrg()
+  const [insightsInitialLoading, setInsightsInitialLoading] = useState(true)
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
 
   const theme = useMemo(() => {
     return {
@@ -503,8 +503,14 @@ export default function Home() {
       setPodKpis(kpiData.pod_kpis ?? [])
       setSkuPieKpis(kpiData.avg_skus_per_store.skus_per_store ?? null)
       setChannelPieKpis(kpiData.count_channel.channel_count ?? null)
+
     } catch (error) {
       console.error("Failed to load overview page data:", error)
+
+    } finally {
+      if (requestId === latestRequestRef.current) {
+        setIsInitialLoading(false)
+      }
     }
   }
 
@@ -567,7 +573,14 @@ export default function Home() {
   )
 
   return (
-    <main className="min-h-screen p-8" style={{ backgroundColor: theme.bg }}>
+    <>
+      {(isInitialLoading || insightsInitialLoading) && (
+        <div className="fixed inset-0 z-[9999]">
+          <LoadingScreen mode="results" />
+        </div>
+      )}
+
+      <main className="min-h-screen p-8" style={{ backgroundColor: theme.bg }}>
       <div className="mx-auto max-w-7xl space-y-8">
         <DashboardHeader
           activePage="dashboard"
@@ -614,9 +627,10 @@ export default function Home() {
           filters={filters} 
           endpoint="overview"
           brandPrimary={DEFAULT_THEME.primary_color}
-          brandPrimaryBg="#EAF3F9"       // soft primary_color bg (lighter version)
+          brandPrimaryBg="#EAF3F9"
           brandSecondary={DEFAULT_THEME.secondary_color}
-          brandSecondaryBg="#FFF4E3"     // soft gold bg
+          brandSecondaryBg="#FFF4E3"
+          onInitialLoadComplete={() => setInsightsInitialLoading(false)}
         />
         
         <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">
@@ -954,5 +968,6 @@ export default function Home() {
         </div>
       </div>
     </main>
+  </>
   )
 }
