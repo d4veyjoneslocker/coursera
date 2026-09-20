@@ -23,7 +23,6 @@ load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 LIFESPAN STARTED", flush=True)
 
     BASE_DATA_DIR = Path("backend/data")
     org_id = "67a96381-5014-4a9b-bfe8-a14e6da5affe"

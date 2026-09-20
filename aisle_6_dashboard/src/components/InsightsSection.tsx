@@ -21,6 +21,7 @@ type InsightsSectionProps = {
   brandPrimaryBg?: string
   brandSecondary?: string
   brandSecondaryBg?: string
+  onInitialLoadComplete?: () => void
 }
 
 const theme = {
@@ -261,6 +262,7 @@ export function InsightsSection({
   brandPrimaryBg = "#EAF3F9",
   brandSecondary = "#F7B045",
   brandSecondaryBg = "#FFF4E3",
+  onInitialLoadComplete,
 }: InsightsSectionProps) {
   const [insights, setInsights] = useState<Insight[]>([])
   const [loading, setLoading] = useState(false)
@@ -309,9 +311,10 @@ export function InsightsSection({
         console.error("Failed to fetch insights:", err)
         setInsights([])
       } finally {
-          if (requestId === latestInsightRequestRef.current) {
-            setLoading(false)
-          }
+        if (requestId === latestInsightRequestRef.current) {
+          setLoading(false)
+          onInitialLoadComplete?.()
+        }
       }
     }
 
