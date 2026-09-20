@@ -23,6 +23,8 @@ load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print("🚀 LIFESPAN STARTED", flush=True)
+
     BASE_DATA_DIR = Path("backend/data")
     org_id = "67a96381-5014-4a9b-bfe8-a14e6da5affe"
 
@@ -31,12 +33,17 @@ async def lifespan(app: FastAPI):
             org_dir=BASE_DATA_DIR / org_id,
             org_id=org_id,
         )
-        print(f"🔥 INVENTORY CACHE WARMED: {org_id}")
+
+        print(
+            f"🔥 INVENTORY CACHE WARMED: {org_id}",
+            flush=True,
+        )
 
     except Exception as exc:
         print(
             f"⚠️ INVENTORY CACHE WARM FAILED "
-            f"for {org_id}: {exc}"
+            f"for {org_id}: {repr(exc)}",
+            flush=True,
         )
 
     yield
