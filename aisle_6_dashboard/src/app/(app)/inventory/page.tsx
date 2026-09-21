@@ -16,6 +16,7 @@ import {
   Truck,
 } from "lucide-react"
 import LoadingScreen from "@/components/LoadingScreen"
+import DashboardHeader from "@/components/ui/DashboardHeader"
 import SkuInventoryCard, {
   type OverviewInventorySku,
 } from "@/components/inventory/SkuInventoryCard"
@@ -741,30 +742,64 @@ export default function InventoryPage() {
   }
 
   if (loading) {
-    return <LoadingScreen mode="inventory-overview" />
+    return (
+      <main className="min-h-screen bg-[#F6F2EA]">
+        <DashboardHeader
+          activePage="inventory"
+          dataThrough={undefined}
+          isStale={false}
+        />
+
+        <div className="ml-[238px] min-h-screen">
+          <LoadingScreen mode="inventory-overview" />
+        </div>
+      </main>
+    )
   }
 
     if (error || !data) {
       return (
-        <div className="min-h-screen bg-[#F6F2EA] px-6 py-10">
-          <div className="mx-auto max-w-7xl">
-            <div className="rounded-[26px] border border-[#F0C8BE] bg-[#FFF7F4] p-6">
-              <div className="flex items-start gap-3">
-                <CircleAlert className="mt-0.5 h-5 w-5 text-[#C8795A]" />
-                <div>
-                  <div className="font-semibold text-[#343332]">Inventory planning could not load</div>
-                  <div className="mt-1 text-sm text-[#8A8179]">{error ?? "No inventory data was returned."}</div>
+        <main className="min-h-screen bg-[#F6F2EA]">
+          <DashboardHeader
+            activePage="inventory"
+            dataThrough={undefined}
+            isStale={false}
+          />
+
+          <div className="ml-[238px] min-h-screen px-6 py-10">
+            <div className="mx-auto max-w-7xl">
+              <div className="rounded-[26px] border border-[#F0C8BE] bg-[#FFF7F4] p-6">
+                <div className="flex items-start gap-3">
+                  <CircleAlert className="mt-0.5 h-5 w-5 text-[#C8795A]" />
+
+                  <div>
+                    <div className="font-semibold text-[#343332]">
+                      Inventory planning could not load
+                    </div>
+
+                    <div className="mt-1 text-sm text-[#8A8179]">
+                      {error ?? "No inventory data was returned."}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </main>
       )
     }
 
   return (
-    <main className="min-h-screen bg-[#F6F2EA] p-6 md:p-8">
-      <div className="mx-auto max-w-7xl space-y-8">
+    <main className="min-h-screen bg-[#F6F2EA]">
+      <DashboardHeader
+        activePage="inventory"
+        dataThrough={data.as_of_date}
+        isStale={false}
+        onDataRefresh={loadInventory}
+      />
+
+      <div className="ml-[238px] min-h-screen p-6 md:p-8">
+        <div className="mx-auto max-w-7xl space-y-8">
         <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9A93B0]">Inventory</div>
@@ -922,6 +957,7 @@ export default function InventoryPage() {
           </div>
         </section>
       </div>
-    </main>
-  )
+    </div>
+  </main>
+)
 }

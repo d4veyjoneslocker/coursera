@@ -391,25 +391,26 @@ export default function EmailPreviewPage() {
     )
   }
 
-  if (!data) {
-    return <LoadingScreen mode="results"/>
-  }
 
-  const sections = Array.isArray(data.sections)
+  const sections = Array.isArray(data?.sections)
     ? data.sections
     : []
 
-  return (
-    <main className="min-h-screen bg-[#F6F2EA] p-8">
-      <div className="mx-auto max-w-7xl space-y-8">
-        <DashboardHeader
-          activePage="insights"
-          dataThrough="August 2026"
-          isStale={false}
-        />
+ return (
+    <main className="min-h-screen bg-[#F6F2EA]">
+      <DashboardHeader
+        activePage="insights"
+        dataThrough="August 2026"
+        isStale={false}
+      />
 
-        <div className="px-6 py-2">
-          <div className="mx-auto max-w-5xl space-y-8">
+      <div className="ml-[238px] min-h-screen p-8">
+        {!data ? (
+          <LoadingScreen mode="results" />
+        ) : (
+          <div className="mx-auto max-w-7xl space-y-8">
+            <div className="px-6 py-2">
+              <div className="mx-auto max-w-5xl space-y-8">
 
             {/* TEMP DISABLED
 
@@ -847,6 +848,11 @@ export default function EmailPreviewPage() {
           </div>
         </div>
       </div>
-    </main>
-  )
+
+      )}
+
+    </div>
+
+  </main>
+)
 }

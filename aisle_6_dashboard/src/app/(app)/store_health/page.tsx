@@ -432,19 +432,24 @@ export default function StoresPage() {
   )
 
   return (
-    <main className="min-h-screen p-8" style={{ backgroundColor: theme.bg }}>
-      <div className="mx-auto max-w-7xl space-y-8">
-        <DashboardHeader
-          activePage="stores"
-          dataThrough={dataThrough}
-          isStale={isStale}
-          onDataRefresh={async () => {
-            await fetchStatus()
-            await loadData()
-          }}
-        />
+    <main
+      className="min-h-screen"
+      style={{ backgroundColor: theme.bg }}
+    >
+      <DashboardHeader
+        activePage="stores"
+        dataThrough={dataThrough}
+        isStale={isStale}
+        onDataRefresh={async () => {
+          await fetchStatus()
+          await loadData()
+        }}
+      />
 
-        <FilterBar
+      <div className="ml-[238px] min-h-screen p-8">
+        <div className="mx-auto max-w-7xl space-y-8">
+
+          <FilterBar
           filters={filters}
           setFilters={setFilters}
           filterOptions={filterOptions}
@@ -754,6 +759,7 @@ export default function StoresPage() {
           </div>
         </div>
       </div>
-    </main>
-  )
+    </div>
+  </main>
+)
 }
