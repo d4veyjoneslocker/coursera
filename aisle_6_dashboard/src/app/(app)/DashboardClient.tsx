@@ -580,8 +580,10 @@ export default function Home() {
         </div>
       )}
 
-      <main className="min-h-screen p-8" style={{ backgroundColor: theme.bg }}>
-      <div className="mx-auto max-w-7xl space-y-8">
+      <main
+        className="min-h-screen"
+        style={{ backgroundColor: theme.bg }}
+      >
         <DashboardHeader
           activePage="dashboard"
           dataThrough={dataThrough}
@@ -591,6 +593,9 @@ export default function Home() {
             await loadData()
           }}
         />
+
+        <div className="ml-[238px] min-h-screen p-8">
+          <div className="mx-auto max-w-7xl space-y-8">
 
 
         <FilterBar
@@ -967,7 +972,6 @@ export default function Home() {
           </div>
         </div>
       </div>
-    </main>
-  </>
-  )
-}
+    </div>
+  </main>
+</>)}

@@ -5,7 +5,6 @@ import {
   useMemo,
   useState,
 } from "react"
-import { useRouter } from "next/navigation"
 import {
   Boxes,
   ChevronRight,
@@ -15,6 +14,7 @@ import {
   Search,
   Truck,
   Warehouse,
+  X,
 } from "lucide-react"
 
 import {
@@ -27,7 +27,9 @@ import DcNetworkMap, {
 } from "@/components/inventory/DcNetworkMap"
 
 import LoadingScreen from "@/components/LoadingScreen"
+import DashboardHeader from "@/components/ui/DashboardHeader"
 import { useOrg } from "@/components/OrgContext"
+import DcDetailContent from "@/components/inventory/DcDetailContent"
 
 const theme = {
   primary: "#9A93B0",
@@ -404,7 +406,6 @@ function InventoryStateBar({
 }
 
 export default function DcNetworkPage() {
-  const router = useRouter()
   const { org } = useOrg()
 
   const [data, setData] =
@@ -420,6 +421,9 @@ export default function DcNetworkPage() {
 
   const [filter, setFilter] =
     useState<DistributorFilter>("ALL")
+
+  const [selectedDc, setSelectedDc] =
+    useState<DcRow | null>(null)
 
   const [search, setSearch] =
     useState("")
@@ -560,63 +564,79 @@ const mapDistributionCenters =
   }, [data])
 
   function openDc(row: DcRow) {
-    router.push(
-      `/inventory/${encodeURIComponent(
-        row.distributor.toLowerCase()
-      )}/${encodeURIComponent(
-        row.dc.toLowerCase()
-      )}`
-    )
+    setSelectedDc(row)
   }
 
   if (loading) {
-    return <LoadingScreen mode="dc-network" />
+    return (
+      <main
+        className="min-h-screen"
+        style={{ background: theme.bg }}
+      >
+        <DashboardHeader
+          activePage="inventory-dashboard"
+          dataThrough={undefined}
+          isStale={false}
+        />
+
+        <div className="ml-[238px] min-h-screen">
+          <LoadingScreen mode="dc-network" />
+        </div>
+      </main>
+    )
   }
 
   if (error || !data) {
     return (
-      <div
-        className="min-h-screen px-6 py-10"
-        style={{
-          background: theme.bg,
-        }}
+      <main
+        className="min-h-screen"
+        style={{ background: theme.bg }}
       >
-        <div className="mx-auto max-w-[1500px]">
-          <Card
-            className="rounded-[28px] border shadow-sm"
-            style={{
-              background:
-                theme.surface,
-              borderColor:
-                theme.line,
-            }}
-          >
-            <CardContent className="p-8">
-              <div
-                className="font-medium"
-                style={{
-                  color:
-                    theme.charcoal,
-                }}
-              >
-                {error ??
-                  "DC network unavailable."}
-              </div>
-            </CardContent>
-          </Card>
+        <DashboardHeader
+          activePage="inventory-dashboard"
+          dataThrough={undefined}
+          isStale={false}
+        />
+
+        <div className="ml-[238px] min-h-screen px-6 py-10">
+          <div className="mx-auto max-w-[1500px]">
+            <Card
+              className="rounded-[28px] border shadow-sm"
+              style={{
+                background: theme.surface,
+                borderColor: theme.line,
+              }}
+            >
+              <CardContent className="p-8">
+                <div
+                  className="font-medium"
+                  style={{
+                    color: theme.charcoal,
+                  }}
+                >
+                  {error ?? "DC network unavailable."}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
+      </main>
     )
   }
 
   return (
-    <div
-      className="min-h-screen px-5 py-7 md:px-8 md:py-9"
-      style={{
-        background: theme.bg,
-      }}
+    <main
+      className="min-h-screen"
+      style={{ background: theme.bg }}
     >
-      <div className="mx-auto max-w-[1500px] space-y-5">
+      <DashboardHeader
+        activePage="inventory-dashboard"
+        dataThrough={data.as_of_date ?? undefined}
+        isStale={false}
+      />
+
+      <div className="ml-[238px] min-h-screen px-5 py-7 md:px-8 md:py-9">
+        <div className="mx-auto max-w-[1500px] space-y-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <div
@@ -1150,5 +1170,39 @@ const mapDistributionCenters =
         </Card>
       </div>
     </div>
-  )
+
+    {/* DC DETAIL MODAL */}
+    {selectedDc && (
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 p-5"
+        onMouseDown={() => setSelectedDc(null)}
+      >
+        <div
+          className="relative h-[92vh] w-[94vw] max-w-[1550px] overflow-hidden rounded-[30px] border border-[#E5DDD0] bg-[#F6F2EA] shadow-2xl"
+          onMouseDown={(event) => {
+            event.stopPropagation()
+          }}
+        >
+          {/* CLOSE BUTTON */}
+          <button
+            type="button"
+            onClick={() => setSelectedDc(null)}
+            className="absolute right-5 top-5 z-50 flex h-10 w-10 items-center justify-center rounded-full border border-[#E5DDD0] bg-white text-[#705C4F] shadow-sm transition hover:bg-[#FCFAF6]"
+            aria-label="Close distribution center"
+          >
+            <X className="h-5 w-5" />
+          </button>
+
+          {/* DC DETAIL CONTENT */}
+          <div className="h-full overflow-y-auto">
+            <DcDetailContent
+              distributor={selectedDc.distributor}
+              dcCode={selectedDc.dc}
+            />
+          </div>
+        </div>
+      </div>
+    )}
+  </main>
+)
 }
