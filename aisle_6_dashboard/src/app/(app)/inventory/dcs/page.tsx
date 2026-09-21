@@ -526,18 +526,33 @@ export default function DcNetworkPage() {
               .includes(searchValue)
           )
         })
-        .sort((a, b) => {
-          const distributorCompare =
-            a.distributor.localeCompare(
-              b.distributor
-            )
+    .sort((a, b) => {
+      // 1. More OOS SKUs = more severe
+      if (a.skus_oos !== b.skus_oos) {
+        return b.skus_oos - a.skus_oos
+      }
 
-          if (distributorCompare !== 0) {
-            return distributorCompare
-          }
+      // 2. More SKUs below 3 WOH = more severe
+      if (a.skus_below_3_woh !== b.skus_below_3_woh) {
+        return b.skus_below_3_woh - a.skus_below_3_woh
+      }
 
-          return a.dc.localeCompare(b.dc)
-        })
+      // 3. More SKUs at 3–4 WOH = more severe
+      if (a.skus_3_to_4_woh !== b.skus_3_to_4_woh) {
+        return b.skus_3_to_4_woh - a.skus_3_to_4_woh
+      }
+
+      // 4. Lower overall WOH = more severe
+      const aWoh = a.weeks_on_hand ?? Infinity
+      const bWoh = b.weeks_on_hand ?? Infinity
+
+      if (aWoh !== bWoh) {
+        return aWoh - bWoh
+      }
+
+      // 5. Final tiebreaker: DC name
+      return a.dc.localeCompare(b.dc)
+    })
     }, [data, filter, search])
 
 const mapDistributionCenters =
