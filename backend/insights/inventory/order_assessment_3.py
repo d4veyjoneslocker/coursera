@@ -1037,13 +1037,16 @@ def calculate_required_intervention(
             velocity * required_coverage_weeks
         )
 
+        raw_recommended_cases = max(
+            target_cases_at_delivery
+            - projected_cases_at_delivery,
+            0,
+        )
+
         recommended_cases = int(
-            np.ceil(
-                max(
-                    target_cases_at_delivery
-                    - projected_cases_at_delivery,
-                    0,
-                )
+            max(
+                15,
+                np.floor(raw_recommended_cases / 15 + 0.5) * 15,
             )
         )
 
