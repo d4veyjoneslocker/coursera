@@ -272,3 +272,83 @@ def transform_kehe_order_projections(
     ).reset_index(drop=True)
 
     return df
+
+def build_kehe_open_purchase_orders(
+    inventory_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Convert KeHE's aggregate QuantityOnPurchaseOrder into the
+    canonical purchase_orders format used by the inventory engine.
+
+    KeHE does not currently provide individual PO dates, so the
+    assessment engine will estimate receipt as:
+
+        report_date + planning_lead_time_days
+    """
+
+    columns = [
+        "distributor",
+        "dc",
+        "sku",
+        "open_quantity_cases",
+        "po_status",
+        "po_create_date",
+        "delivery_appointment_date",
+        "revised_eta_date",
+        "original_eta_date",
+    ]
+
+    if inventory_df is None or inventory_df.empty:
+        return pd.DataFrame(columns=columns)
+
+    df = inventory_df.copy()
+
+    # KeHE only
+    df = df[
+        df["distributor"]
+        .astype(str)
+        .str.upper()
+        .eq("KEHE")
+    ].copy()
+
+    if df.empty:
+        return pd.DataFrame(columns=columns)
+
+    df["report_date"] = pd.to_datetime(
+        df["report_date"],
+        errors="coerce",
+    )
+
+    # Use the latest inventory snapshot for each DC × SKU.
+    df = (
+        df.sort_values("report_date")
+        .groupby(
+            ["distributor", "dc", "sku"],
+            as_index=False,
+        )
+        .tail(1)
+        .copy()
+    )
+
+    df["open_quantity_cases"] = pd.to_numeric(
+        df["quantity_on_purchase_order_cases"],
+        errors="coerce",
+    )
+
+    # Only create a confirmed PO event where KeHE says
+    # there is actually inventory currently on PO.
+    df = df[
+        df["open_quantity_cases"].fillna(0) > 0
+    ].copy()
+
+    df["po_status"] = "OPEN"
+
+    # KeHE does not provide PO-level dates in this report.
+    # Leaving these blank intentionally triggers the existing
+    # report_date + lead_time fallback in order_assessment_3.py.
+    df["po_create_date"] = pd.NaT
+    df["delivery_appointment_date"] = pd.NaT
+    df["revised_eta_date"] = pd.NaT
+    df["original_eta_date"] = pd.NaT
+
+    return df[columns].reset_index(drop=True)

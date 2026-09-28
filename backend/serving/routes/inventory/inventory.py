@@ -18,7 +18,7 @@ from backend.metrics.inventory.replenishment_metrics import (
     resolve_replenishment_lead_time,
 )
 from backend.transforms.inventory.kehe import (
-    transform_kehe_order_projections,
+    transform_kehe_order_projections, build_kehe_open_purchase_orders
 )
 from backend.transforms.inventory.unfi import (
     transform_unfi_projected_orders,
@@ -258,6 +258,23 @@ def _load_inventory_inputs(
             .str.upper()
             .eq("OPEN")
         ].copy()
+
+    # ---------------------------------------------------------
+    # KeHE confirmed/open PO quantity
+    # ---------------------------------------------------------
+
+    kehe_purchase_orders = build_kehe_open_purchase_orders(
+        inventory_history
+    )
+
+    if not kehe_purchase_orders.empty:
+        purchase_orders = pd.concat(
+            [
+                purchase_orders,
+                kehe_purchase_orders,
+            ],
+            ignore_index=True,
+        )
 
     # ------------------------------------------------------------------
     # Distributor projected / expected orders
