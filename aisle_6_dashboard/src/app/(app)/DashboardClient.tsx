@@ -71,6 +71,8 @@ const DATA_ENDPOINTS = {
   buyers: "overview/buyers",
   velocity: "overview/velocity",
   pods: "overview/pods",
+  reorderRate: "store_health/reorders",
+  fillRate: "overview/fill_rate",
   skuMix: "overview/skus",
   channelMix: "overview/channels",
   chainTable: "overview/chain_table",
@@ -402,6 +404,8 @@ export default function Home() {
   const [buyersData, setBuyersData] = useState<MetricRow[]>([])
   const [velocityData, setVelocityData] = useState<MetricRow[]>([])
   const [podsData, setPodsData] = useState<MetricRow[]>([])
+  const [reorderData, setReorderData] = useState<MetricRow[]>([])
+  const [fillRateData, setFillRateData] = useState<MetricRow[]>([])
   const [skuPieData, setSkuPieData] = useState<PieRow[]>([])
   const [channelPieData, setChannelPieData] = useState<PieRow[]>([])
   const [chainTableData, setChainTableData] = useState<any[]>([])
@@ -441,6 +445,8 @@ export default function Home() {
         buyers: buildApiUrl(DATA_ENDPOINTS.buyers, filters, org.id),
         velocity: buildApiUrl(DATA_ENDPOINTS.velocity, filters, org.id),
         pods: buildApiUrl(DATA_ENDPOINTS.pods, filters, org.id),
+        reorderRate: buildApiUrl(DATA_ENDPOINTS.reorderRate, filters, org.id),
+        fillRate: buildApiUrl(DATA_ENDPOINTS.fillRate, filters, org.id),
         skuMix: buildApiUrl(DATA_ENDPOINTS.skuMix, filters, org.id),
         channelMix: buildApiUrl(DATA_ENDPOINTS.channelMix, filters, org.id),
         chainTable: buildApiUrl(DATA_ENDPOINTS.chainTable, filters, org.id),
@@ -491,6 +497,8 @@ export default function Home() {
       setBuyersData(Array.isArray(results.buyers) ? results.buyers : [])
       setVelocityData(Array.isArray(results.velocity) ? results.velocity : [])
       setPodsData(Array.isArray(results.pods) ? results.pods : [])
+      setReorderData(Array.isArray(results.reorderRate) ? results.reorderRate : [])
+      setFillRateData(Array.isArray(results.fillRate) ? results.fillRate : [])
       setSkuPieData(Array.isArray(results.skuMix) ? results.skuMix : [])
       setChannelPieData(Array.isArray(results.channelMix) ? results.channelMix : [])
       setChainTableData(Array.isArray(results.chainTable) ? results.chainTable : [])
@@ -695,6 +703,33 @@ export default function Home() {
           />
         </div>
 
+        <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">
+          <ChartSection
+            sectionLabel="Reorder Rate"
+            data={reorderData}
+            kpis={[]}
+            accentColor={theme.secondary_color}
+            theme={theme}
+            metricKey="reorder_rate"
+            orgId={org?.id ?? null}
+            filters={filters}
+            chartType="line"
+            valueFormatter={(v) => formatPercent(v)}
+          />
+
+          <ChartSection
+            sectionLabel="Fill Rate"
+            data={fillRateData}
+            kpis={[]}
+            accentColor={theme.primary_color}
+            theme={theme}
+            metricKey="fill_rate"
+            orgId={org?.id ?? null}
+            filters={filters}
+            chartType="line"
+            valueFormatter={(v) => formatPercent(v)}
+          />
+        </div>
         <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">
           <Card
             className="rounded-[28px] shadow-sm"

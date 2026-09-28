@@ -29,8 +29,6 @@ const DEFAULT_THEME = {
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
 const DATA_ENDPOINTS = {
-  buyers: "store_health/buyers",
-  reorderGraph: "store_health/reorders",
   statusPie: "store_health/status",
   channels: "store_health/channels",
   storeTable: "store_health/store_performance",
@@ -243,13 +241,9 @@ export default function StoresPage() {
 
   const latestRequestRef = useRef(0)
 
-  const [barOneData, setBarOneData] = useState<MetricRow[]>([])
-  const [barTwoData, setBarTwoData] = useState<MetricRow[]>([])
   const [pieData, setPieData] = useState<PieRow[]>([])
   const [channelMix, setChannelMix] = useState<PieRow[]>([])
   const [storeTableData, setStoreTableData] = useState<any[]>([])
-  const [buyersKpis, setBuyersKpis] = useState<any[]>([])
-  const [reorderKpis, setReorderKpis] = useState<any[]>([])
   const [channelPieKpis, setChannelPieKpis] = useState<{
     key: string
     title: string
@@ -305,8 +299,6 @@ export default function StoresPage() {
         )
 
         const dataRequests = {
-          buyers: buildApiUrl(DATA_ENDPOINTS.buyers, filters, org.id),
-          reorderGraph: buildApiUrl(DATA_ENDPOINTS.reorderGraph, filters, org.id),
           statusPie: buildApiUrl(DATA_ENDPOINTS.statusPie, filters, org.id),
           channels: buildApiUrl(DATA_ENDPOINTS.channels, filters, org.id),
           storeTable: buildApiUrl(DATA_ENDPOINTS.storeTable, filters, org.id),
@@ -342,9 +334,6 @@ export default function StoresPage() {
           status: Array.isArray(results.status) ? results.status : [],
         })
 
-        setBarOneData(Array.isArray(results.buyers) ? results.buyers : [])
-        setBarTwoData(Array.isArray(results.reorderGraph) ? results.reorderGraph : [])
-
         setPieData(
           results.statusPie && !Array.isArray(results.statusPie)
             ? Object.entries(results.statusPie).map(([name, value]) => ({
@@ -359,8 +348,6 @@ export default function StoresPage() {
 
         const kpiData = results.kpis ?? {}
 
-        setBuyersKpis(kpiData.buying_kpis ?? [])
-        setReorderKpis(kpiData.reorder_kpis ?? [])
         setChannelPieKpis(kpiData.count_channel?.channel_count ?? null)
 
         const totalBuyersKpi = Array.isArray(kpiData.buying_kpis)
@@ -475,26 +462,6 @@ export default function StoresPage() {
         />
 
         <InsightsSection orgId={org?.id ?? null} filters={filters} endpoint="store-health"/>
-
-        <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">
-          <ChartSection
-            sectionLabel="BUYING STORES"
-            data={barOneData}
-            kpis={buyersKpis}
-            accentColor={theme.primary_color}
-            theme={theme}
-          />
-
-          <ChartSection
-            sectionLabel="REORDER RATE"
-            data={barTwoData}
-            kpis={reorderKpis}
-            accentColor={theme.secondary_color}
-            theme={theme}
-            chartType="line"
-            valueFormatter={(v) => `${formatPercent(v)}`}
-          />
-        </div>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <Card
