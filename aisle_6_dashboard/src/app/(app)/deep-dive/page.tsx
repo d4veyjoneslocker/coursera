@@ -355,21 +355,6 @@ export default function EmailPreviewPage() {
         const json = await res.json()
         setData(json)
 
-        const snapshotUrl =
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}` +
-          `/email/deep-dive-snapshot?org_id=${org.id}`
-
-        const snapshotRes = await fetch(snapshotUrl)
-
-        if (!snapshotRes.ok) {
-          throw new Error(
-            `Snapshot request failed: ${snapshotRes.status}`
-          )
-        }
-
-        const snapshotJson = await snapshotRes.json()
-
-        setSnapshotCards(snapshotJson.cards ?? [])
       } catch (err: any) {
         console.error(err)
         setError(err.message)
