@@ -26,7 +26,7 @@ type ChartSectionProps = {
   chartType?: "bar" | "line"
   info?: React.ReactNode
 
-  metricKey: "units" | "buyers" | "velocity" | "pods"
+  metricKey: "units" | "buyers" | "velocity" | "pods" | "reorder_rate" | "fill_rate"
   orgId: string | null
   filters: Record<string, string[]>
 }

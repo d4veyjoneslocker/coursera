@@ -29,7 +29,7 @@ type ExpandedChartModalProps = {
   valueFormatter?: (value: number) => string
   chartType?: "bar" | "line"
 
-  metricKey: "units" | "buyers" | "velocity" | "pods"
+  metricKey: "units" | "buyers" | "velocity" | "pods" | "reorder_rate" | "fill_rate"
   orgId: string | null
   filters: Record<string, string[]>
 }
