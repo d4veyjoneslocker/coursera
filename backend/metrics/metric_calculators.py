@@ -150,6 +150,20 @@ def calculate_store_reorder_rate(active_pods_df, group_cols=None):
         store_month["could_reorder"]
     ].copy()
 
+    # TEMP DEBUG
+    sept = eligible[
+        eligible["month_year"] == pd.Period("2026-09", freq="M")
+    ]
+
+    if not sept.empty:
+        print("\n=== SEPTEMBER REORDER DEBUG ===")
+        print("eligible store-months:", len(sept))
+        print("ordered=True:", sept["ordered"].sum())
+        print("ordered=False:", (~sept["ordered"]).sum())
+        print("\nordered value counts:")
+        print(sept["ordered"].value_counts(dropna=False))
+        print("===============================\n")
+
     if group_cols:
         result = (
             eligible
