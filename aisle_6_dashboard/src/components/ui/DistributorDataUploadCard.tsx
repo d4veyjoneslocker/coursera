@@ -8,6 +8,7 @@ type Distributor = "kehe" | "unfi"
 type DistributorDataUploadCardProps = {
   distributor: Distributor
   apiBaseUrl: string
+  uploadMode?: "free-trial" | "standard"
   onUploadSuccess?: () => void
 }
 
@@ -140,6 +141,7 @@ const unfiGuideSteps: ExportGuideStep[] = [
 export default function DistributorDataUploadCard({
   distributor,
   apiBaseUrl,
+  uploadMode = "standard",
   onUploadSuccess,
 }: DistributorDataUploadCardProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -271,7 +273,10 @@ export default function DistributorDataUploadCard({
 
         formData.append("org_id", org.id)
 
-        url = `${apiBaseUrl}/free-trial/upload/kehe`
+        url =
+          uploadMode === "free-trial"
+            ? `${apiBaseUrl}/free-trial/upload/kehe`
+            : `${apiBaseUrl}/upload/kehe`
       }
 
       // =====================================================
@@ -290,7 +295,10 @@ export default function DistributorDataUploadCard({
           )
         }
 
-        url = `${apiBaseUrl}/free-trial/upload/unfi`
+        url =
+          uploadMode === "free-trial"
+            ? `${apiBaseUrl}/free-trial/upload/unfi`
+            : `${apiBaseUrl}/upload/unfi`
       }
 
       const res = await fetch(url, {

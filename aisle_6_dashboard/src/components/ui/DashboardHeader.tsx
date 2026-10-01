@@ -1282,6 +1282,7 @@ export default function DashboardHeader({
                   apiBaseUrl={
                     API_BASE_URL
                   }
+                  uploadMode="standard"
                   onUploadSuccess={() => {
                     void onDataRefresh?.()
                   }}
