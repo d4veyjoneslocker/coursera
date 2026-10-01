@@ -76,8 +76,8 @@ def clean_group_cols_new(group_cols):
     return group_cols or []
 
 def get_current_period(include_current_month=False):
-    today = pd.Timestamp.today()
-    current_period = pd.Period(today, freq="M")
+    today = pd.Timestamp.now(tz="America/New_York")
+    current_period = pd.Period(today.tz_localize(None), freq="M")
 
     if not include_current_month:
         current_period -= 1
