@@ -1,13 +1,15 @@
 import pandas as pd
+
 from backend.insights.diagnostics import get_root_cause_concentration, describe_root_cause_signal
-from backend.metrics.metric_growth_rates import calculate_reorder_rate_3m
+from backend.metrics.metric_callers import calculate_metric
+from backend.metrics.metric_helpers import filter_to_period
 from backend.insights.insights_helper import get_last_full_month
 from backend.insights.insights_helper import format_pct, format_number, format_float, build_filter_context
-from backend.metrics.metric_calculators import calculate_store_table_vpo, calculate_revenue, calculate_units
+from backend.metrics.metric_calculators import calculate_velocity, calculate_revenue, calculate_units
+
 
 def _build_chain_store_status_table(df: pd.DataFrame) -> pd.DataFrame:
-    # pulls 
-
+    # pulls
     """
     Creates one row per chain x store with the status fields needed for
     chain struggling analysis.
@@ -122,10 +124,12 @@ def _attach_latest_order_context(
 
     return result
 
+
 def _attach_chain_reorder_retention_context(
     chain_table: pd.DataFrame,
     df: pd.DataFrame,
     df_all_time: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
 ) -> pd.DataFrame:
     """
     Adds chain-level reorder-rate deterioration context.
@@ -136,19 +140,32 @@ def _attach_chain_reorder_retention_context(
     current_month = get_last_full_month()
     prior_month = current_month - 6
 
-    reorder = calculate_reorder_rate_3m(df_filtered=df, df_full=df_all_time, group_cols=["chain"],)
+    current_start = current_month - 2
+    prior_start = prior_month - 2
 
-    current_reorder = (
-        reorder[reorder["month_year"] == current_month]
-        .rename(columns={"reorder_rate_3m": "reorder_rate_3m_current"})
-        [["chain", "reorder_rate_3m_current"]]
-    )
+    current_df = filter_to_period(df, current_start, current_month)
+    current_active_pods = filter_to_period(active_pods_df, current_start, current_month)
 
-    prior_reorder = (
-        reorder[reorder["month_year"] == prior_month]
-        .rename(columns={"reorder_rate_3m": "reorder_rate_3m_prior_6m"})
-        [["chain", "reorder_rate_3m_prior_6m"]]
-    )
+    prior_df = filter_to_period(df_all_time, prior_start, prior_month)
+    prior_active_pods = filter_to_period(active_pods_df, prior_start, prior_month)
+
+    current_reorder = calculate_metric(
+        metric_name="reorder_rate",
+        df_filtered=current_df,
+        active_pods_df=current_active_pods,
+        group_cols=["chain"],
+    ).rename(columns={"value": "reorder_rate_3m_current"})[
+        ["chain", "reorder_rate_3m_current"]
+    ]
+
+    prior_reorder = calculate_metric(
+        metric_name="reorder_rate",
+        df_filtered=prior_df,
+        active_pods_df=prior_active_pods,
+        group_cols=["chain"],
+    ).rename(columns={"value": "reorder_rate_3m_prior_6m"})[
+        ["chain", "reorder_rate_3m_prior_6m"]
+    ]
 
     reorder_context = current_reorder.merge(
         prior_reorder,
@@ -156,7 +173,10 @@ def _attach_chain_reorder_retention_context(
         how="left",
     )
 
-    reorder_context["reorder_rate_3m_change_6m"] = (reorder_context["reorder_rate_3m_current"] - reorder_context["reorder_rate_3m_prior_6m"])
+    reorder_context["reorder_rate_3m_change_6m"] = (
+        reorder_context["reorder_rate_3m_current"]
+        - reorder_context["reorder_rate_3m_prior_6m"]
+    )
 
     return chain_table.merge(
         reorder_context,
@@ -207,6 +227,7 @@ def _attach_chain_root_cause_context(
 def build_chain_struggling_table(
     df: pd.DataFrame,
     df_all_time: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
 ) -> pd.DataFrame:
     """
     Builds the analytical table for the chain struggling insight.
@@ -216,8 +237,6 @@ def build_chain_struggling_table(
     - narrative metrics
     - CTA/store-list alignment
     """
-
-    
     store_status = _build_chain_store_status_table(df)
 
     chain_table = _calculate_chain_struggling_rates(store_status)
@@ -231,6 +250,7 @@ def build_chain_struggling_table(
         chain_table=chain_table,
         df=df,
         df_all_time=df_all_time,
+        active_pods_df=active_pods_df,
     )
 
     chain_table = _attach_chain_root_cause_context(
@@ -239,6 +259,7 @@ def build_chain_struggling_table(
     )
 
     return chain_table
+
 
 def analyze_chain_struggling(
     table: pd.DataFrame,
@@ -297,6 +318,7 @@ def analyze_chain_struggling(
 
     return table.head(limit)
 
+
 def normalize_chain_struggling_data(
     table: pd.DataFrame,
 ) -> list[dict] | dict | None:
@@ -310,62 +332,47 @@ def normalize_chain_struggling_data(
     results = []
 
     for _, row in table.iterrows():
-
         result = {
             "chain": row["chain"],
-
             "struggling_stores": int(row["struggling_stores"]),
             "total_stores": int(row["total_stores"]),
-
             "struggling_pct": float(row["struggling_pct"]),
             "overall_struggling_pct": float(row["overall_struggling_pct"]),
             "vs_avg": float(row["vs_avg"]),
-
             "last_month_purchased": row.get("last_month_purchased"),
-
             "latest_order_store_count": int(
                 row.get("latest_order_store_count", 0) or 0
             ),
-
             "reorder_rate_3m_current": row.get(
                 "reorder_rate_3m_current"
             ),
-
             "reorder_rate_3m_prior_6m": row.get(
                 "reorder_rate_3m_prior_6m"
             ),
-
             "reorder_rate_3m_change_6m": row.get(
                 "reorder_rate_3m_change_6m"
             ),
-
             "root_cause": row.get("root_cause"),
             "root_cause_text": row.get("root_cause_text"),
-
             "metrics": {
                 "struggling_stores": int(row["struggling_stores"]),
                 "total_stores": int(row["total_stores"]),
                 "struggling_pct": float(row["struggling_pct"]),
                 "overall_struggling_pct": float(row["overall_struggling_pct"]),
                 "vs_avg": float(row["vs_avg"]),
-
                 "latest_order_store_count": int(
                     row.get("latest_order_store_count", 0) or 0
                 ),
-
                 "reorder_rate_3m_current": row.get(
                     "reorder_rate_3m_current"
                 ),
-
                 "reorder_rate_3m_prior_6m": row.get(
                     "reorder_rate_3m_prior_6m"
                 ),
-
                 "reorder_rate_3m_change_6m": row.get(
                     "reorder_rate_3m_change_6m"
                 ),
             },
-
             "entities": {
                 "chain": row["chain"],
             },
@@ -377,6 +384,7 @@ def normalize_chain_struggling_data(
         return results[0]
 
     return results
+
 
 def describe_chain_struggling(data, filters=None):
     if data is None:
@@ -415,29 +423,20 @@ def describe_chain_struggling(data, filters=None):
     )
 
     # FORMAT METRICS
-
     struggling_pct_fmt = format_pct(struggling_pct)
-
     vs_avg_fmt = format_pct(vs_avg, signed=True)
-
     struggling_stores_fmt = format_number(struggling_stores)
-
     total_stores_fmt = format_number(total_stores)
-
     latest_order_store_count_fmt = format_number(latest_order_store_count)
-
     reorder_current_fmt = format_pct(reorder_current)
-
     reorder_prior_fmt = format_pct(reorder_prior)
 
     # HEADLINE
-
     headline = (
         f"Retailer engagement may be weakening at {chain}."
     )
 
     # SUMMARY
-
     summary = (
         f"{chain} has {struggling_pct_fmt} of stores marked "
         f"as struggling{context_str}, "
@@ -445,43 +444,35 @@ def describe_chain_struggling(data, filters=None):
     )
 
     # SUMMARY PARTS
-
     parts = [
         {
             "type": "chip",
             "value": chain,
             "tone": "neutral",
         },
-
         {
             "type": "text",
             "value": " has ",
         },
-
         {
             "type": "chip",
             "value": struggling_pct_fmt,
             "tone": "negative",
         },
-
         {
             "type": "text",
             "value": " of stores marked as struggling",
         },
-
         *context_parts,
-
         {
             "type": "text",
             "value": ", ",
         },
-
         {
             "type": "chip",
             "value": f"{vs_avg_fmt} pts",
             "tone": "negative",
         },
-
         {
             "type": "text",
             "value": " vs your overall average.",
@@ -489,7 +480,6 @@ def describe_chain_struggling(data, filters=None):
     ]
 
     # DESCRIPTION BLOCKS
-
     intro_block = {
         "type": "text",
         "value": (
@@ -515,7 +505,6 @@ def describe_chain_struggling(data, filters=None):
     latest_order_block = None
 
     if pd.notna(latest_month):
-
         latest_month_display = (
             latest_month.to_timestamp().strftime("%B %Y")
             if hasattr(latest_month, "to_timestamp")
@@ -538,19 +527,19 @@ def describe_chain_struggling(data, filters=None):
     }
 
     key_points = [
-    (
-        f"{struggling_stores_fmt} of {total_stores_fmt} stores in "
-        f"{chain} are currently marked as struggling, representing "
-        f"{struggling_pct_fmt} of the chain's store base."
-    ),
-    (
-        f"This is {vs_avg_fmt} pts above your overall average, "
-        f"suggesting the issue is concentrated within this retailer "
-        f"rather than spread evenly across the business."
-    ),]
+        (
+            f"{struggling_stores_fmt} of {total_stores_fmt} stores in "
+            f"{chain} are currently marked as struggling, representing "
+            f"{struggling_pct_fmt} of the chain's store base."
+        ),
+        (
+            f"This is {vs_avg_fmt} pts above your overall average, "
+            f"suggesting the issue is concentrated within this retailer "
+            f"rather than spread evenly across the business."
+        ),
+    ]
 
     # OPTIONAL BLOCK CONDITIONS
-
     include_reorder_block = (
         reorder_current is not None
         and reorder_prior is not None
@@ -571,18 +560,14 @@ def describe_chain_struggling(data, filters=None):
     )
 
     # ASSEMBLE DESCRIPTION
-
     description = [
         intro_block,
-
         reorder_block
         if include_reorder_block
         else None,
-
         latest_order_block
         if include_latest_order_block
         else None,
-
         root_cause_block
         if include_root_cause_block
         else None,
@@ -613,9 +598,10 @@ def describe_chain_struggling(data, filters=None):
         "key_points": key_points,
     }
 
+
 def create_chain_struggling_store_list(
     df: pd.DataFrame,
-    df_all_time: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
     chain: str,
 ) -> pd.DataFrame:
     """
@@ -661,7 +647,7 @@ def create_chain_struggling_store_list(
 
     revenue = calculate_revenue(df, grain)
     units = calculate_units(df, grain)
-    vpo = calculate_store_table_vpo(df_all_time, group_cols=grain)
+    vpo = calculate_velocity(df, active_pods_df, group_cols=grain)
 
     result = (
         table[["coded_customer", "chain", "status"]]
@@ -704,14 +690,17 @@ def create_chain_struggling_store_list(
         )
     )
 
+
 def build_chain_struggling_insight(
     df: pd.DataFrame,
     df_all_time: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
     filters=None,
 ):
     table = build_chain_struggling_table(
         df=df,
         df_all_time=df_all_time,
+        active_pods_df=active_pods_df,
     )
 
     analyzed = analyze_chain_struggling(table)
@@ -739,15 +728,11 @@ def build_chain_struggling_insight(
         insights.append({
             "type": "chain_struggling",
             "section": "at_risk",
-
             **description,
-
             "metrics": item["metrics"],
             "entities": item["entities"],
-
             "chain": chain,
             "struggling_pct": item["struggling_pct"],
-
             "drilldown": {
                 "label": "View struggling stores",
                 "href": f"/insights/struggling_stores?chain={chain}",

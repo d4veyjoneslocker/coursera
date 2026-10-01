@@ -1,6 +1,6 @@
 "use client"
 
-import { useOrg } from "@/components/OrgContext"
+import { OrgProvider, useOrg } from "@/components/OrgContext"
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { Card, CardContent } from "@/components/ui/card"
@@ -38,6 +38,8 @@ import { InsightsSection } from "@/components/InsightsSection"
 import ChartSection from "@/components/ui/charts/ChartSection"
 import {formatCompact, formatWhole, formatDecimal, formatPercent} from "@/lib/format"
 import LoadingScreen from "@/components/LoadingScreen"
+import { formatNumber } from "@/components/ui/charts/chartUtils"
+import { PieChartCard } from "@/components/ui/charts/ChartCards"
 
 
 
@@ -67,11 +69,7 @@ const FILTER_KEYS = [
 ] as const
 
 const DATA_ENDPOINTS = {
-  units: "overview/units",
-  buyers: "overview/buyers",
-  velocity: "overview/velocity",
-  pods: "overview/pods",
-  reorderRate: "store_health/reorders",
+  chart: "overview/chart",
   fillRate: "overview/fill_rate",
   skuMix: "overview/skus",
   channelMix: "overview/channels",
@@ -187,6 +185,15 @@ function buildApiUrl(
   return `${API_BASE_URL}/${endpoint}?${params.toString()}`
 }
 
+function buildChartUrl(
+  metric: "units" | "buyers" | "velocity" | "pods" | "reorders",
+  filters: Record<string, string[]>,
+  orgId: string
+) {
+  const url = buildApiUrl(DATA_ENDPOINTS.chart, filters, orgId)
+  return `${url}&metric=${metric}&view=default`
+}
+
 function buildFilterUrl(
   columnName: string,
   filters: Record<string, string[]>,
@@ -222,139 +229,9 @@ function formatLastUpdated(value?: string | null) {
 }
 
 
-
-function PieChartCard({
-  data,
-  colorMap,
-  centerValue,
-  centerLabel,
-  theme,
-}: {
-  data: PieRow[]
-  colorMap: Record<string, string>
-  centerValue?: number | string
-  centerLabel?: string
-  theme: typeof DEFAULT_THEME
-}) {
-  const safeData = Array.isArray(data) ? data : []
-
-  const total = safeData.reduce((sum, row) => sum + row.value, 0)
-
-  const displayValue =
-    centerValue !== undefined ? centerValue : formatDecimal(total)
-
-  const centerLines = splitCenterLabel(centerLabel ?? "TOTAL")
-
-  const pieCx = "51%"
-  const pieCy = "50%"
-
-  return (
-    <div className="flex w-full justify-center">
-      <div className="flex items-center gap-2">
-        <div className="h-[220px] w-[220px] shrink-0">
-          <ChartContainer config={chartConfig} className="h-full w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <ChartTooltip
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null
-
-                    const chartData = payload[0].payload
-
-                    return (
-                      <div
-                        className="rounded-[12px] border px-3 py-2 shadow-sm"
-                        style={{
-                          backgroundColor: "#FFFEFB",
-                          borderColor: "#E5DDD0",
-                        }}
-                      >
-                        <div
-                          className="text-sm font-semibold"
-                          style={{ color: theme.charcoal }}
-                        >
-                          {chartData.name}
-                        </div>
-
-                        <div
-                          className="mt-1 text-sm"
-                          style={{ color: "#7A746B" }}
-                        >
-                          {Math.round(Number(chartData.value) * 100)}%
-                        </div>
-                      </div>
-                    )
-                  }}
-                />
-
-                <Pie
-                  data={safeData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx={pieCx}
-                  cy={pieCy}
-                  innerRadius={52}
-                  outerRadius={85}
-                  paddingAngle={2}
-                  stroke="none"
-                >
-                  {safeData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={colorMap[entry.name] || "#D1D5DB"}
-                    />
-                  ))}
-                </Pie>
-
-                <text
-                  x={pieCx}
-                  y={pieCy}
-                  textAnchor="middle"
-                  fill={theme.accent_color}
-                  fontSize={11}
-                  fontWeight={500}
-                  letterSpacing="0.12em"
-                >
-                  {centerLines.map((line, index) => (
-                    <tspan
-                      key={index}
-                      x={pieCx}
-                      dy={index === 0 ? -12 : 12}
-                    >
-                      {line}
-                    </tspan>
-                  ))}
-                </text>
-
-                <text
-                  x={pieCx}
-                  y={pieCy}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fill={theme.charcoal}
-                  fontSize={22}
-                  fontWeight={600}
-                  dy={22}
-                >
-                  {formatDecimal(Number(displayValue))}
-                </text>
-              </PieChart>
-            </ResponsiveContainer>
-          </ChartContainer>
-        </div>
-
-        <div className="shrink-0">
-          <CustomLegend data={safeData} colorMap={colorMap} />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-
 export default function Home() {
   const {org, skuColors} = useOrg()
-  const [insightsInitialLoading, setInsightsInitialLoading] = useState(true)
+  /*const [insightsInitialLoading, setInsightsInitialLoading] = useState(true)*/
   const [isInitialLoading, setIsInitialLoading] = useState(true)
 
   const theme = useMemo(() => {
@@ -441,11 +318,11 @@ export default function Home() {
       )
 
       const dataRequests = {
-        units: buildApiUrl(DATA_ENDPOINTS.units, filters, org.id),
-        buyers: buildApiUrl(DATA_ENDPOINTS.buyers, filters, org.id),
-        velocity: buildApiUrl(DATA_ENDPOINTS.velocity, filters, org.id),
-        pods: buildApiUrl(DATA_ENDPOINTS.pods, filters, org.id),
-        reorderRate: buildApiUrl(DATA_ENDPOINTS.reorderRate, filters, org.id),
+        units: buildChartUrl("units", filters, org.id),
+        buyers: buildChartUrl("buyers", filters, org.id),
+        velocity: buildChartUrl("velocity", filters, org.id),
+        pods: buildChartUrl("pods", filters, org.id),
+        reorderRate: buildChartUrl("reorders", filters, org.id),
         fillRate: buildApiUrl(DATA_ENDPOINTS.fillRate, filters, org.id),
         skuMix: buildApiUrl(DATA_ENDPOINTS.skuMix, filters, org.id),
         channelMix: buildApiUrl(DATA_ENDPOINTS.channelMix, filters, org.id),
@@ -505,9 +382,9 @@ export default function Home() {
 
       const kpiData = results.kpis ?? {}
 
-      setUnitsKpis(kpiData.unit_kpis ?? [])
-      setBuyersKpis(kpiData.buying_kpis ?? [])
-      setVelocityKpis(kpiData.vpo_kpis ?? [])
+      setUnitsKpis(kpiData.units_kpis ?? [])
+      setBuyersKpis(kpiData.buyers_kpis ?? [])
+      setVelocityKpis(kpiData.velocity_kpis ?? [])
       setPodKpis(kpiData.pod_kpis ?? [])
       setSkuPieKpis(kpiData.avg_skus_per_store.skus_per_store ?? null)
       setChannelPieKpis(kpiData.count_channel.channel_count ?? null)
@@ -582,7 +459,7 @@ export default function Home() {
 
   return (
     <>
-      {(isInitialLoading || insightsInitialLoading) && (
+      {(isInitialLoading) && (
         <div className="fixed inset-0 z-[9999]">
           <LoadingScreen mode="results" />
         </div>
@@ -635,6 +512,7 @@ export default function Home() {
           theme = {theme}
         />
 
+        {/* TEMPORARILY DISABLED — old insights architecture
         <InsightsSection 
           orgId={org?.id ?? null} 
           filters={filters} 
@@ -645,6 +523,7 @@ export default function Home() {
           brandSecondaryBg="#FFF4E3"
           onInitialLoadComplete={() => setInsightsInitialLoading(false)}
         />
+        */}
         
         <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">
           <ChartSection
@@ -710,7 +589,7 @@ export default function Home() {
             kpis={[]}
             accentColor={theme.secondary_color}
             theme={theme}
-            metricKey="reorder_rate"
+            metricKey="reorders"
             orgId={org?.id ?? null}
             filters={filters}
             chartType="line"
@@ -807,6 +686,7 @@ export default function Home() {
                     centerValue={channelPieKpis?.value}
                     centerLabel={channelPieKpis?.title}
                     theme={theme}
+                    centerValueFormatter={formatCompact}
                   />
                 </div>
               </div>

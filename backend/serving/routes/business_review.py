@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 
 from backend.insights.business_review.business_review import run_business_review
 from backend.insights.business_review.compose_business_review import compose_business_review
-from backend.data_pipeline.table_loader import load_org_tables
+from backend.data_pipeline.table_loader import load_org_tables, load_active_pods
 from backend.serving.api_helpers import clean_object_for_json
 
 
@@ -17,6 +17,7 @@ def get_business_review(
         org_id: str = Query(...),
 ):
     features_df = load_org_tables(org_id)
+    active_pods_df = load_active_pods(org_id)
 
     # ---------------------------------------------------------
     # Main review
@@ -25,6 +26,7 @@ def get_business_review(
 
     main = run_business_review(
         features_df=features_df,
+        active_pods_df=active_pods_df,
         period=period,
         year=year,
         comparison=comparison,
@@ -40,6 +42,7 @@ def get_business_review(
     if period.upper() == "H1":
         within_period = run_business_review(
             features_df=features_df,
+            active_pods_df=active_pods_df,
             period="Q2",
             year=year,
             comparison="PP",
@@ -48,6 +51,7 @@ def get_business_review(
     elif period.upper() == "H2":
         within_period = run_business_review(
             features_df=features_df,
+            active_pods_df=active_pods_df,
             period="Q4",
             year=year,
             comparison="PP",
@@ -61,6 +65,7 @@ def get_business_review(
         review=main["review"],
         narrative_tree=main["narrative_tree"],
         df=main["df_narrative"],
+        active_pods_df=active_pods_df,
         current_period=main["current_period"],
         prior_period=main["prior_period"],
         within_period=within_period,

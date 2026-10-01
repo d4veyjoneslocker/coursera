@@ -2,13 +2,13 @@ import math
 import time
 import pandas as pd
 
-from backend.metrics.metric_calculators import calculate_vpo, _calculate_store_vpo_fast
-
+from backend.metrics.metric_calculators import calculate_velocity
 
 def compose_business_review(
     review,
     narrative_tree,
     df,
+    active_pods_df,
     current_period,
     prior_period,
     within_period=None,
@@ -90,6 +90,7 @@ def compose_business_review(
 
     stores = _build_store_summary(
         df=df,
+        active_pods_df=active_pods_df,
         current_start=current_start,
         current_end=current_end,
         prior_start=prior_start,
@@ -820,6 +821,7 @@ def _entity_metric_payload(row, metric):
 
 def _build_store_summary(
     df,
+    active_pods_df,
     current_start,
     current_end,
     prior_start,
@@ -858,6 +860,16 @@ def _build_store_summary(
     prior_df = df[
         (df["month_year"] >= prior_start)
         & (df["month_year"] <= prior_end)
+    ].copy()
+
+    current_active_pods_df = active_pods_df[
+        (active_pods_df["month_year"] >= current_start)
+        & (active_pods_df["month_year"] <= current_end)
+    ].copy()
+
+    prior_active_pods_df = active_pods_df[
+        (active_pods_df["month_year"] >= prior_start)
+        & (active_pods_df["month_year"] <= prior_end)
     ].copy()
 
     timings["filter_periods"] = time.perf_counter() - t
@@ -931,20 +943,28 @@ def _build_store_summary(
     # ------------------------------------------------------------------
     # Months
     # ------------------------------------------------------------------
-    current_vpo = _calculate_store_vpo_fast(
+# ------------------------------------------------------------------
+# Velocity
+# ------------------------------------------------------------------
+
+    t = time.perf_counter()
+
+    velocity_group_cols = ["coded_customer"]
+
+    current_vpo = calculate_velocity(
         df_filtered=current_df,
-        group_cols=group_cols,
-        start_period=current_start,
-        end_period=current_end,
-        value_name="velocity_current",
+        active_pods_df=current_active_pods_df,
+        group_cols=velocity_group_cols,
+    ).rename(
+        columns={"value": "velocity_current"}
     )
 
-    prior_vpo = _calculate_store_vpo_fast(
+    prior_vpo = calculate_velocity(
         df_filtered=prior_df,
-        group_cols=group_cols,
-        start_period=prior_start,
-        end_period=prior_end,
-        value_name="velocity_comparison",
+        active_pods_df=prior_active_pods_df,
+        group_cols=velocity_group_cols,
+    ).rename(
+        columns={"value": "velocity_comparison"}
     )
 
     timings["prior_vpo"] = time.perf_counter() - t
@@ -957,7 +977,7 @@ def _build_store_summary(
     if not current_vpo.empty:
         stores = stores.merge(
             current_vpo,
-            on=group_cols,
+            on="coded_customer",
             how="left",
         )
     else:
@@ -966,7 +986,7 @@ def _build_store_summary(
     if not prior_vpo.empty:
         stores = stores.merge(
             prior_vpo,
-            on=group_cols,
+            on="coded_customer",
             how="left",
         )
     else:
@@ -1579,7 +1599,7 @@ def _calculate_grouped_vpo(
             columns=group_cols + [value_name]
         )
 
-    result = calculate_vpo(
+    result = calculate_velocity(
         df_filtered=df_filtered,
         df_full=df_full,
         group_cols=group_cols,
@@ -1704,3 +1724,54 @@ def _store_label(row):
             return row[key]
 
     return "Store"
+
+if __name__ == "__main__":
+    import time
+
+    from backend.data_pipeline.table_loader import (
+        load_org_tables,
+        load_active_pods,
+    )
+
+    org_id = "default_org"
+
+    print("\nLoading data...")
+
+    df = load_org_tables(org_id)
+    active_pods_df = load_active_pods(org_id)
+
+    print(f"features_df rows: {len(df):,}")
+    print(f"active_pods_df rows: {len(active_pods_df):,}")
+
+    # Use the latest 3 completed months in the data,
+    # compared with the preceding 3 months.
+    latest_month = df["month_year"].max()
+
+    current_end = latest_month
+    current_start = current_end - 2
+
+    prior_end = current_start - 1
+    prior_start = prior_end - 2
+
+    print(f"\nCurrent:    {current_start} -> {current_end}")
+    print(f"Comparison: {prior_start} -> {prior_end}")
+
+    start = time.perf_counter()
+
+    result = _build_store_summary(
+        df=df,
+        active_pods_df=active_pods_df,
+        current_start=current_start,
+        current_end=current_end,
+        prior_start=prior_start,
+        prior_end=prior_end,
+        top_n=10,
+    )
+
+    elapsed = time.perf_counter() - start
+
+    print(f"\n🔥 TOTAL _build_store_summary TIME: {elapsed:.3f}s")
+
+    print("\nResult counts:")
+    for key, rows in result.items():
+        print(f"{key:15s}: {len(rows):,}")

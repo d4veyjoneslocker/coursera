@@ -48,6 +48,10 @@ def _build_launch_event_table(
 
     table = monthly.merge(first_purchase, on=grain, how="left")
 
+    # Exclude store × SKU combinations that have never recorded a positive purchase.
+    # They do not have a launch event to evaluate.
+    table = table[table["launch_month"].notna()].copy()
+
     # Determines months since launch and calculates it as an int
     table["months_after_launch"] = (table["month_year"] - table["launch_month"]).apply(lambda x: x.n)
 

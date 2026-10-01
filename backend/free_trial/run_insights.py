@@ -5,7 +5,7 @@ from backend.insights.insights_metadata import INSIGHT_REQUIREMENTS
 INSIGHT_RUNNERS = {
     "chain_struggling": {
         "function": insight.build_chain_struggling_insight,
-        "args": ["df", "df_all_time", "filters"],
+        "args": ["df", "df_all_time", "active_pods_df", "filters"],
     },
 
     "dropoff_sku": {
@@ -25,7 +25,7 @@ INSIGHT_RUNNERS = {
 
     "distribution_opportunity": {
         "function": insight.build_void_opportunity_insight,
-        "args": ["df", "df_all_time"],
+        "args": ["df", "df_all_time", "active_pods_df"],
     },
 }
 
@@ -40,12 +40,14 @@ def get_available_insights(available_months: int) -> list[str]:
 def run_available_insights(
     df,
     df_all_time,
+    active_pods_df,
     available_months: int,
     filters=None,
 ):
     context = {
         "df": df,
         "df_all_time": df_all_time,
+        "active_pods_df": active_pods_df,
         "filters": filters,
     }
 

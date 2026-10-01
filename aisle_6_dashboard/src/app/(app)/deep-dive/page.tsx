@@ -342,8 +342,8 @@ export default function EmailPreviewPage() {
       try {
         const url =
           `${process.env.NEXT_PUBLIC_API_BASE_URL}` +
-          `/email/weekly-digest?org_id=${org.id}`
-
+          `/insights_new/weekly_digest?org_id=${org.id}`
+          
         const res = await fetch(url)
 
         if (!res.ok) {
@@ -451,7 +451,9 @@ export default function EmailPreviewPage() {
 
                   {/* SECTION CONTENT */}
 
-                  {(section.insights ?? []).length === 0 ? (
+                  {section.key === "what_changed" ? (
+                    <BusinessNarrativeSummary orgId={org.id} />
+                  ) : (section.insights ?? []).length === 0 ? (
                     <div
                       className="rounded-2xl border px-5 py-4 text-[13px]"
                       style={{

@@ -4,11 +4,10 @@ from pathlib import Path
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query, Depends
 from backend.deep_dive.digest_builder import build_weekly_digest
-from backend.data_pipeline.table_loader import load_org_tables
+from backend.data_pipeline.table_loader import load_org_tables, load_active_pods
 from backend.filters.filters import get_filters
-from backend.deep_dive.deep_dive_kpis import build_deep_dive_kpis
 from backend.serving.api_helpers import clean_for_json
-from backend.metrics.metric_calculators import calculate_vpo
+from backend.metrics.metric_callers import calculate_metric
 
 router = APIRouter(prefix="/email", tags=["Email"])
 
@@ -19,40 +18,61 @@ def get_weekly_digest(
     filters: dict = Depends(get_filters),
 ):
     features_df = load_org_tables(org_id)
+    active_pods_df = load_active_pods(org_id)
 
-    digest = build_weekly_digest(features_df)
+    digest = build_weekly_digest(
+        features_df,
+        active_pods_df,
+    )
 
     return digest
 
-@router.get("/deep-dive-snapshot")
-def get_deep_dive_snapshot(
-    org_id: str = Query(...),
-    filters: dict = Depends(get_filters),
-):
-    features_df = load_org_tables(org_id)
-
-    if features_df is None or features_df.empty:
-        raise HTTPException(status_code=404, detail="No data found")
-
-    snapshot = build_deep_dive_kpis(features_df)
-
-    return snapshot
 
 @router.get("/sku_rankings")
 def get_sku_rankings(
     org_id: str,
-    ):
+):
     df = load_org_tables(org_id)
+    active_pods_df = load_active_pods(org_id)
+
+    df["month_year"] = pd.PeriodIndex(df["month_year"], freq="M")
+    active_pods_df["month_year"] = pd.PeriodIndex(
+        active_pods_df["month_year"],
+        freq="M",
+    )
+
+    current_month = pd.Timestamp.today().to_period("M")
+    df = df[df["month_year"] != current_month].copy()
 
     last_full_month = df["month_year"].max()
-    current = df[df["month_year"] == last_full_month].copy()
+
+    current = df[
+        df["month_year"] == last_full_month
+    ].copy()
+
+    current_active_pods = active_pods_df[
+        active_pods_df["month_year"] == last_full_month
+    ].copy()
 
     table = (
-    current.groupby("sku", as_index=False)
+        current.groupby("sku", as_index=False)
         .agg(
             units=("units", "sum"),
             active_stores=("coded_customer", "nunique"),
         )
+    )
+
+    velocity = calculate_metric(
+        metric_name="velocity",
+        df_filtered=current,
+        active_pods_df=current_active_pods,
+        group_cols=["sku"],
+    ).rename(columns={"value": "vpo"})
+
+    table = table.merge(
+        velocity,
+        on="sku",
+        how="left",
     )
 
     total_units = table["units"].sum()
@@ -60,8 +80,6 @@ def get_sku_rankings(
     table["unit_share"] = (
         table["units"] / total_units
     )
-
-    table["vpo"] = (table["units"] / (table["active_stores"] / 4)) / 5 
 
     table = table.sort_values(
         "units",
@@ -71,7 +89,7 @@ def get_sku_rankings(
     table["rank"] = range(1, len(table) + 1)
 
     return {
-        "title": "SKU Rankings - May",
+        "title": f"SKU Rankings - {last_full_month}",
         "subtitle": f"SKU performance ranked by units sold in {last_full_month}.",
         "columns": [
             {"key": "rank", "label": "Rank", "align": "right", "format": "number", "width": "80px"},
@@ -84,6 +102,7 @@ def get_sku_rankings(
         "table_width": "max-w-4xl",
         "rows": clean_for_json(table).to_dict("records"),
     }
+
 
 @router.get("/new_store_distribution/stores")
 def get_new_store_distribution_stores(
@@ -159,6 +178,7 @@ def get_new_store_distribution_stores(
         "table_width": "max-w-7xl",
         "rows": clean_for_json(result).to_dict("records"),
     }
+
 
 @router.get("/sku_state_expansion/stores")
 def get_sku_state_expansion_stores(

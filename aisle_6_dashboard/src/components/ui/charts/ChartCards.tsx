@@ -573,3 +573,115 @@ export function YoYBarChartCard({
     </div>
   )
 }
+
+export function YoYLineChartCard({
+  data,
+  accentColor,
+  theme,
+  valueFormatter = formatCompact,
+  className = "h-full",
+}: {
+  data: YoYMetricRow[]
+  accentColor: string
+  theme: Theme
+  valueFormatter?: (value: number) => string
+  className?: string
+}) {
+  const currentYear = data?.[0]?.current_year
+  const priorYear = data?.[0]?.prior_year
+
+  return (
+    <div className="h-full w-full">
+      <ChartContainer
+        config={chartConfig}
+        className={`${className} h-full w-full`}
+      >
+        <LineChart
+          data={data}
+          margin={{ top: 24, right: 24, left: -10, bottom: 0 }}
+        >
+          <CartesianGrid
+            vertical={false}
+            stroke={theme.line}
+            strokeDasharray="3 3"
+          />
+
+          <XAxis
+            dataKey="month"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={10}
+          />
+
+          <YAxis
+            tickFormatter={valueFormatter}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={10}
+            width={50}
+          />
+
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                formatter={(value, name) => {
+                  const label =
+                    name === "current_value"
+                      ? String(currentYear)
+                      : String(priorYear)
+
+                  return [
+                    valueFormatter(Number(value)),
+                    label,
+                  ]
+                }}
+              />
+            }
+          />
+
+          <Line
+            type="monotone"
+            dataKey="prior_value"
+            name={String(priorYear)}
+            stroke={lightenHex(accentColor, "88")}
+            strokeWidth={3}
+            connectNulls={false}
+            dot={{
+              r: 4,
+              fill: lightenHex(accentColor, "88"),
+              stroke: theme.surface,
+              strokeWidth: 2,
+            }}
+            activeDot={{
+              r: 5,
+              fill: theme.surface,
+              stroke: lightenHex(accentColor, "88"),
+              strokeWidth: 2,
+            }}
+          />
+
+          <Line
+            type="monotone"
+            dataKey="current_value"
+            name={String(currentYear)}
+            stroke={accentColor}
+            strokeWidth={3}
+            connectNulls={false}
+            dot={{
+              r: 4,
+              fill: accentColor,
+              stroke: theme.surface,
+              strokeWidth: 2,
+            }}
+            activeDot={{
+              r: 5,
+              fill: theme.surface,
+              stroke: accentColor,
+              strokeWidth: 2,
+            }}
+          />
+        </LineChart>
+      </ChartContainer>
+    </div>
+  )
+}

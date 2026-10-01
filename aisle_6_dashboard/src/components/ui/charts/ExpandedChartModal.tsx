@@ -1,7 +1,7 @@
 "use client"
 
 import KpiCard from "./KpiCard"
-import { BarChartCard, LineChartCard, YoYBarChartCard } from "./ChartCards"
+import { BarChartCard, LineChartCard, YoYBarChartCard, YoYLineChartCard } from "./ChartCards"
 import type { MetricRow, KpiItem } from "./chartTypes"
 import { formatNumber } from "./chartUtils"
 import { useEffect, useState } from "react"
@@ -29,7 +29,7 @@ type ExpandedChartModalProps = {
   valueFormatter?: (value: number) => string
   chartType?: "bar" | "line"
 
-  metricKey: "units" | "buyers" | "velocity" | "pods" | "reorder_rate" | "fill_rate"
+  metricKey: "units" | "buyers" | "velocity" | "pods" | "reorders" | "fill_rate"
   orgId: string | null
   filters: Record<string, string[]>
 }
@@ -160,28 +160,28 @@ export default function ExpandedChartModal({
                       : "h-full"
                   }
                 >
-                  {chartType === "line" ? (
-                    <LineChartCard
-                        data={chartData}
-                        accentColor={accentColor}
-                        theme={theme}
-                        valueFormatter={valueFormatter}
-                    />
-                    ) : expandedView === "yoy" ? (
+                  {expandedView === "yoy" ? (
                     <YoYBarChartCard
-                        data={chartData}
-                        accentColor={accentColor}
-                        valueFormatter={valueFormatter}
-                        className="h-full"
+                      data={chartData}
+                      accentColor={accentColor}
+                      valueFormatter={valueFormatter}
+                      className="h-full"
                     />
-                    ) : (
+                  ) : chartType === "line" ? (
+                    <LineChartCard
+                      data={chartData}
+                      accentColor={accentColor}
+                      theme={theme}
+                      valueFormatter={valueFormatter}
+                    />
+                  ) : (
                     <BarChartCard
-                        data={chartData}
-                        accentColor={accentColor}
-                        valueFormatter={valueFormatter}
-                        className="h-full"
+                      data={chartData}
+                      accentColor={accentColor}
+                      valueFormatter={valueFormatter}
+                      className="h-full"
                     />
-                    )}
+                  )}
                 </div>
               </div>
             </div>

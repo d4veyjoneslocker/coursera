@@ -3,16 +3,7 @@
 import pandas as pd
 
 from backend.insights.insights_helper import build_filter_context, format_number, format_pct, get_last_full_month
-from backend.metrics.monthly_metric_calculators import calculate_monthly_units
-from backend.metrics.metric_growth_rates import (
-    add_abs_change_columns,
-    add_additive_metric_3m,
-    add_pct_change_columns,
-    add_prior_month_columns,
-    calculate_reorder_rate_3m,
-    calculate_vpo_3m,
-    calculate_buying_stores_3m,
-)
+from backend.metrics.metric_callers import compare_metric
 
 
 CHANNEL_COL = "channel"
@@ -28,7 +19,10 @@ MIN_VELOCITY_OUTPERFORMANCE_PCT = 0.15
 MIN_REORDER_RATE_FLOOR = 0.25
 MIN_UNIT_SHARE_GAIN_TO_MENTION = 0.03
 
-def build_overperforming_channel_momentum_table(df: pd.DataFrame) -> pd.DataFrame:
+def build_overperforming_channel_momentum_table(
+    df: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
+) -> pd.DataFrame:
     """
     Builds one row per channel showing return on distribution:
     unit share vs store share, supported by 3m velocity and reorder behavior.
@@ -39,78 +33,190 @@ def build_overperforming_channel_momentum_table(df: pd.DataFrame) -> pd.DataFram
     if df is None or df.empty or CHANNEL_COL not in df.columns:
         return pd.DataFrame()
 
-    last_full_month = get_last_full_month()
-    group_cols = [CHANNEL_COL, "month_year"]
-    total_group_cols = ["month_year"]
-
     table = df[~df[CHANNEL_COL].isin(EXCLUDED_CHANNELS)].copy()
 
     if table.empty:
         return pd.DataFrame()
-    
-    table["month_year"] = pd.PeriodIndex(table["month_year"], freq="M")
 
-    units = calculate_monthly_units(df=table, group_cols=group_cols)
-    units = add_additive_metric_3m(units, group_cols=group_cols, metric="units")
-    units = add_prior_month_columns(units, group_cols=group_cols, metric="units", l3m=True)
-    units = add_pct_change_columns(units, metric="units", l3m=True)
-    units = add_abs_change_columns(units, metric="units", l3m=True)
+    active_pods_table = active_pods_df[
+        ~active_pods_df[CHANNEL_COL].isin(EXCLUDED_CHANNELS)
+    ].copy()
 
-    velocity = calculate_vpo_3m(df_filtered=table, df_full=table, group_cols=group_cols)
-    velocity = add_prior_month_columns(velocity, group_cols=group_cols, metric="vpo", l3m=True)
-    velocity = add_pct_change_columns(velocity, metric="vpo", l3m=True)
-    velocity = add_abs_change_columns(velocity, metric="vpo", l3m=True)
-
-    reorder_df = table.copy()
-    reorder_df["month_year"] = pd.PeriodIndex(reorder_df["month_year"], freq="M")
-
-    reorder = calculate_reorder_rate_3m(
-        df_filtered=reorder_df,
-        df_full=reorder_df,
-        group_cols=group_cols,
+    units = compare_metric(
+        df=table,
+        df_full=table,
+        active_pods_df=active_pods_table,
+        metric_name="units",
+        period="L3M",
+        comparison="PP",
+        group_cols=[CHANNEL_COL],
     )
 
-    reorder["month_year"] = pd.PeriodIndex(reorder["month_year"], freq="M")
-    reorder = add_prior_month_columns(reorder, group_cols=group_cols, metric="reorder_rate", l3m=True)
-    reorder = add_pct_change_columns(reorder, metric="reorder_rate", l3m=True)
-    reorder = add_abs_change_columns(reorder, metric="reorder_rate", l3m=True)
+    velocity = compare_metric(
+        df=table,
+        df_full=table,
+        active_pods_df=active_pods_table,
+        metric_name="velocity",
+        period="L3M",
+        comparison="PP",
+        group_cols=[CHANNEL_COL],
+    )
 
-    stores = calculate_buying_stores_3m(df=table, group_cols=group_cols)
-    stores = add_prior_month_columns(stores, group_cols=group_cols, metric="buying_stores", l3m=True)
-    stores = add_pct_change_columns(stores, metric="buying_stores", l3m=True)
-    stores = add_abs_change_columns(stores, metric="buying_stores", l3m=True)
+    reorder = compare_metric(
+        df=table,
+        df_full=table,
+        active_pods_df=active_pods_table,
+        metric_name="reorder_rate",
+        period="L3M",
+        comparison="PP",
+        group_cols=[CHANNEL_COL],
+    )
 
-    result = units[units["month_year"] == last_full_month][[CHANNEL_COL, "units_3m", "units_l3m", "units_l3m_pct", "units_l3m_abs"]].rename(columns={"units_3m": "recent_3m_units", "units_l3m": "prior_3m_units", "units_l3m_pct": "unit_growth_pct", "units_l3m_abs": "unit_growth_abs"})
-    result = result.merge(velocity[velocity["month_year"] == last_full_month][[CHANNEL_COL, "vpo_3m", "vpo_l3m", "vpo_l3m_pct", "vpo_l3m_abs"]].rename(columns={"vpo_3m": "recent_3m_velocity", "vpo_l3m": "prior_3m_velocity", "vpo_l3m_pct": "velocity_growth_pct", "vpo_l3m_abs": "velocity_growth_abs"}), on=CHANNEL_COL, how="outer")
-    result = result.merge(reorder[reorder["month_year"] == last_full_month][[CHANNEL_COL, "reorder_rate_3m", "reorder_rate_l3m", "reorder_rate_l3m_pct", "reorder_rate_l3m_abs"]].rename(columns={"reorder_rate_3m": "recent_3m_reorder_rate", "reorder_rate_l3m": "prior_3m_reorder_rate", "reorder_rate_l3m_pct": "reorder_rate_growth_pct", "reorder_rate_l3m_abs": "reorder_rate_growth_abs"}), on=CHANNEL_COL, how="outer")
-    result = result.merge(stores[stores["month_year"] == last_full_month][[CHANNEL_COL, "buying_stores_3m", "buying_stores_l3m", "buying_stores_l3m_pct", "buying_stores_l3m_abs"]].rename(columns={"buying_stores_3m": "recent_3m_stores", "buying_stores_l3m": "prior_3m_stores", "buying_stores_l3m_pct": "store_growth_pct", "buying_stores_l3m_abs": "store_growth_abs"}), on=CHANNEL_COL, how="outer")
+    stores = compare_metric(
+        df=table,
+        df_full=table,
+        active_pods_df=active_pods_table,
+        metric_name="buying_stores",
+        period="L3M",
+        comparison="PP",
+        group_cols=[CHANNEL_COL],
+    )
 
-    result = result.fillna({"recent_3m_units": 0, "prior_3m_units": 0, "recent_3m_stores": 0, "prior_3m_stores": 0})
+    result = units[
+        [
+            CHANNEL_COL,
+            "value_current",
+            "value_comparison",
+            "pct_change",
+            "abs_change",
+        ]
+    ].rename(
+        columns={
+            "value_current": "recent_3m_units",
+            "value_comparison": "prior_3m_units",
+            "pct_change": "unit_growth_pct",
+            "abs_change": "unit_growth_abs",
+        }
+    )
 
-    total_units = calculate_monthly_units(df=table, group_cols=total_group_cols)
-    total_units = add_additive_metric_3m(total_units, group_cols=total_group_cols, metric="units")
-    total_units = add_prior_month_columns(total_units, group_cols=total_group_cols, metric="units", l3m=True)
+    result = result.merge(
+        velocity[
+            [
+                CHANNEL_COL,
+                "value_current",
+                "value_comparison",
+                "pct_change",
+                "abs_change",
+            ]
+        ].rename(
+            columns={
+                "value_current": "recent_3m_velocity",
+                "value_comparison": "prior_3m_velocity",
+                "pct_change": "velocity_growth_pct",
+                "abs_change": "velocity_growth_abs",
+            }
+        ),
+        on=CHANNEL_COL,
+        how="outer",
+    )
 
-    total_velocity = calculate_vpo_3m(df_filtered=table, df_full=table, group_cols=total_group_cols)
-    total_velocity = add_prior_month_columns(total_velocity, group_cols=total_group_cols, metric="vpo", l3m=True)
+    result = result.merge(
+        reorder[
+            [
+                CHANNEL_COL,
+                "value_current",
+                "value_comparison",
+                "pct_change",
+                "abs_change",
+            ]
+        ].rename(
+            columns={
+                "value_current": "recent_3m_reorder_rate",
+                "value_comparison": "prior_3m_reorder_rate",
+                "pct_change": "reorder_rate_growth_pct",
+                "abs_change": "reorder_rate_growth_abs",
+            }
+        ),
+        on=CHANNEL_COL,
+        how="outer",
+    )
 
-    total_reorder = calculate_reorder_rate_3m(df_filtered=table, df_full=table, group_cols=total_group_cols)
-    total_reorder = add_prior_month_columns(total_reorder, group_cols=total_group_cols, metric="reorder_rate", l3m=True)
+    result = result.merge(
+        stores[
+            [
+                CHANNEL_COL,
+                "value_current",
+                "value_comparison",
+                "pct_change",
+                "abs_change",
+            ]
+        ].rename(
+            columns={
+                "value_current": "recent_3m_stores",
+                "value_comparison": "prior_3m_stores",
+                "pct_change": "store_growth_pct",
+                "abs_change": "store_growth_abs",
+            }
+        ),
+        on=CHANNEL_COL,
+        how="outer",
+    )
 
-    total_stores = calculate_buying_stores_3m(df=table, group_cols=total_group_cols)
-    total_stores = add_prior_month_columns(total_stores, group_cols=total_group_cols, metric="buying_stores", l3m=True)
+    result = result.fillna(
+        {
+            "recent_3m_units": 0,
+            "prior_3m_units": 0,
+            "recent_3m_stores": 0,
+            "prior_3m_stores": 0,
+        }
+    )
 
-    total_units_row = total_units[total_units["month_year"] == last_full_month]
-    total_velocity_row = total_velocity[total_velocity["month_year"] == last_full_month]
-    total_reorder_row = total_reorder[total_reorder["month_year"] == last_full_month]
-    total_stores_row = total_stores[total_stores["month_year"] == last_full_month]
+    total_units = compare_metric(
+        df=table,
+        df_full=table,
+        active_pods_df=active_pods_table,
+        metric_name="units",
+        period="L3M",
+        comparison="PP",
+        group_cols=[],
+    )
 
-    total_recent_units = total_units_row["units_3m"].iloc[0] if not total_units_row.empty else 0
-    total_prior_units = total_units_row["units_l3m"].iloc[0] if not total_units_row.empty else 0
-    total_recent_stores = total_stores_row["buying_stores_3m"].iloc[0] if not total_stores_row.empty else 0
-    total_prior_stores = total_stores_row["buying_stores_l3m"].iloc[0] if not total_stores_row.empty else 0
-    total_recent_velocity = total_velocity_row["vpo_3m"].iloc[0] if not total_velocity_row.empty else pd.NA
-    total_recent_reorder_rate = total_reorder_row["reorder_rate_3m"].iloc[0] if not total_reorder_row.empty else pd.NA
+    total_velocity = compare_metric(
+        df=table,
+        df_full=table,
+        active_pods_df=active_pods_table,
+        metric_name="velocity",
+        period="L3M",
+        comparison="PP",
+        group_cols=[],
+    )
+
+    total_reorder = compare_metric(
+        df=table,
+        df_full=table,
+        active_pods_df=active_pods_table,
+        metric_name="reorder_rate",
+        period="L3M",
+        comparison="PP",
+        group_cols=[],
+    )
+
+    total_stores = compare_metric(
+        df=table,
+        df_full=table,
+        active_pods_df=active_pods_table,
+        metric_name="buying_stores",
+        period="L3M",
+        comparison="PP",
+        group_cols=[],
+    )
+
+    total_recent_units = total_units["value_current"].iloc[0] if not total_units.empty else 0
+    total_prior_units = total_units["value_comparison"].iloc[0] if not total_units.empty else 0
+    total_recent_stores = total_stores["value_current"].iloc[0] if not total_stores.empty else 0
+    total_prior_stores = total_stores["value_comparison"].iloc[0] if not total_stores.empty else 0
+    total_recent_velocity = total_velocity["value_current"].iloc[0] if not total_velocity.empty else pd.NA
+    total_recent_reorder_rate = total_reorder["value_current"].iloc[0] if not total_reorder.empty else pd.NA
 
     result["recent_unit_share"] = result["recent_3m_units"] / total_recent_units if total_recent_units else pd.NA
     result["prior_unit_share"] = result["prior_3m_units"] / total_prior_units if total_prior_units else pd.NA
@@ -126,8 +232,18 @@ def build_overperforming_channel_momentum_table(df: pd.DataFrame) -> pd.DataFram
 
     result["total_recent_3m_velocity"] = total_recent_velocity
     result["total_recent_3m_reorder_rate"] = total_recent_reorder_rate
-    result["velocity_outperformance_pct"] = (result["recent_3m_velocity"] / total_recent_velocity - 1) if pd.notna(total_recent_velocity) and total_recent_velocity != 0 else pd.NA
-    result["reorder_rate_outperformance_abs"] = result["recent_3m_reorder_rate"] - total_recent_reorder_rate if pd.notna(total_recent_reorder_rate) else pd.NA
+
+    result["velocity_outperformance_pct"] = (
+        result["recent_3m_velocity"] / total_recent_velocity - 1
+        if pd.notna(total_recent_velocity) and total_recent_velocity != 0
+        else pd.NA
+    )
+
+    result["reorder_rate_outperformance_abs"] = (
+        result["recent_3m_reorder_rate"] - total_recent_reorder_rate
+        if pd.notna(total_recent_reorder_rate)
+        else pd.NA
+    )
 
     return result
 
@@ -369,8 +485,17 @@ def get_overperforming_channel_momentum_drilldown_config(channel: str):
         ],
     }
 
-def build_overperforming_channel_momentum_insight(df: pd.DataFrame, filters=None, limit: int = DEFAULT_LIMIT):
-    table = build_overperforming_channel_momentum_table(df)
+def build_overperforming_channel_momentum_insight(
+    df: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
+    filters=None,
+    limit: int = DEFAULT_LIMIT,
+):
+    table = build_overperforming_channel_momentum_table(
+        df=df,
+        active_pods_df=active_pods_df,
+    )
+
     analyzed = analyze_overperforming_channel_momentum(table, limit=limit)
     data = normalize_overperforming_channel_momentum_data(analyzed)
     description = describe_overperforming_channel_momentum(data=data, filters=filters)
@@ -386,5 +511,7 @@ def build_overperforming_channel_momentum_insight(df: pd.DataFrame, filters=None
         **description,
         "metrics": item["metrics"],
         "entities": item["entities"],
-        "drilldown": get_overperforming_channel_momentum_drilldown_config(channel=item["channel"]),
+        "drilldown": get_overperforming_channel_momentum_drilldown_config(
+            channel=item["channel"]
+        ),
     }

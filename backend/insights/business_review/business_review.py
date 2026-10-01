@@ -6,21 +6,14 @@ from backend.metrics.metric_helpers import resolve_period_comparison
 
 from backend.insights.business_narrative.build_business_explanation_tree import build_business_explanation_tree
 from backend.insights.business_narrative.select_tree_branches import build_shown_nodes
-from backend.insights.business_narrative.narrate_business_explanation import (
-    narrate_shown_node,
-    NarrativeInputs,
-)
-
-from backend.metrics.metric_comparisons import compare_metric
-from backend.insights.business_review.business_review_helpers import (
-    metric_summary,
-    dataframe_to_records,
-)
-
+from backend.insights.business_narrative.narrate_business_explanation import narrate_shown_node, NarrativeInputs
+from backend.metrics.metric_callers import compare_metric
+from backend.insights.business_review.business_review_helpers import metric_summary, dataframe_to_records
 
 def build_business_review(
     df,
     df_full,
+    active_pods_df,
     period,
     year,
     comparison,
@@ -28,6 +21,7 @@ def build_business_review(
     common_args = {
         "df": df,
         "df_full": df_full,
+        "active_pods_df": active_pods_df,
         "period": period,
         "year": year,
         "comparison": comparison,
@@ -38,35 +32,35 @@ def build_business_review(
         "units": metric_summary(
             compare_metric(
                 **common_args,
-                metric="units",
+                metric_name="units",
                 group_cols=[],
             )
         ),
         "buying_stores": metric_summary(
             compare_metric(
                 **common_args,
-                metric="buying_stores",
+                metric_name="buying_stores",
                 group_cols=[],
             )
         ),
         "active_pods": metric_summary(
             compare_metric(
                 **common_args,
-                metric="active_pods",
+                metric_name="active_pods",
                 group_cols=[],
             )
         ),
         "velocity": metric_summary(
             compare_metric(
                 **common_args,
-                metric="velocity",
+                metric_name="velocity",
                 group_cols=[],
             )
         ),
         "reorder_rate": metric_summary(
             compare_metric(
                 **common_args,
-                metric="reorder_rate",
+                metric_name="reorder_rate",
                 group_cols=[],
             )
         ),
@@ -76,22 +70,22 @@ def build_business_review(
     chains = {
         "units": compare_metric(
             **common_args,
-            metric="units",
+            metric_name="units",
             group_cols=["chain"],
         ),
         "active_pods": compare_metric(
             **common_args,
-            metric="active_pods",
+            metric_name="active_pods",
             group_cols=["chain"],
         ),
         "velocity": compare_metric(
             **common_args,
-            metric="velocity",
+            metric_name="velocity",
             group_cols=["chain"],
         ),
         "reorder_rate": compare_metric(
             **common_args,
-            metric="reorder_rate",
+            metric_name="reorder_rate",
             group_cols=["chain"],
         ),
     }
@@ -100,12 +94,12 @@ def build_business_review(
     skus = {
         "units": compare_metric(
             **common_args,
-            metric="units",
+            metric_name="units",
             group_cols=["sku"],
         ),
         "velocity": compare_metric(
             **common_args,
-            metric="velocity",
+            metric_name="velocity",
             group_cols=["sku"],
         ),
     }
@@ -127,8 +121,10 @@ def build_business_review(
         },
     }
 
+
 def run_business_review(
     features_df,
+    active_pods_df,
     period,
     year,
     comparison,
@@ -147,6 +143,7 @@ def run_business_review(
     review = build_business_review(
         df=features_df,
         df_full=features_df,
+        active_pods_df=active_pods_df,
         period=period,
         year=year,
         comparison=comparison,
@@ -177,6 +174,7 @@ def run_business_review(
 
     tree = build_business_explanation_tree(
         df=df_narrative,
+        active_pods_df=active_pods_df,
         current_start=current_start,
         current_end=current_end,
         prior_start=prior_start,
@@ -210,7 +208,7 @@ def run_business_review(
             asdict(node) if is_dataclass(node) else node
             for node in narrative_tree
         ]
-        
+
     return {
         "current_period": current_period,
         "prior_period": prior_period,

@@ -1224,6 +1224,7 @@ export default function FreeTrialUploadPage() {
           <DistributorDataUploadCard
             distributor="kehe"
             apiBaseUrl={apiBaseUrl}
+            uploadMode="free-trial"
             onUploadSuccess={refreshKeheCoverage}
           />
         </div>
@@ -1465,6 +1466,7 @@ export default function FreeTrialUploadPage() {
                     <DistributorDataUploadCard
                       distributor="unfi"
                       apiBaseUrl={apiBaseUrl}
+                      uploadMode="free-trial"
                       onUploadSuccess={refreshUnfiCoverage}
                     />
                   </div>

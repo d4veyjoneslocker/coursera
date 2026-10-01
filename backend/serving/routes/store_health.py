@@ -1,21 +1,69 @@
-import time
+from pathlib import Path
+
 import pandas as pd
-from fastapi import (FastAPI, APIRouter, Depends, Query)
+from fastapi import APIRouter, Depends, Query
+
+from backend.data_pipeline.table_loader import load_org_tables, load_active_pods
 from backend.filters.filter_table import filter_table
 from backend.filters.filters import get_filters, generate_filter_api
-from backend.data_pipeline.table_loader import load_org_tables
-from backend.metrics.monthly_metric_calculators import calculate_monthly_buying_stores, calculate_monthly_reorder_rate
-from backend.metrics.metric_tables import store_performance, kpi_monthly_table, status_counts_dict
-from backend.metrics.metric_calculators import calculate_units
-from backend.metrics.kpis.store_health_kpis import buying_kpis, reorder_kpis, count_channels
-from backend.serving.api_helpers import clean_for_json, prep_monthly_graph, remove_time_filters, filter_table
-from backend.metrics.metric_spine_builders import build_spine
-
+from backend.metrics.metric_tables import store_performance, status_counts_dict
+from backend.serving.api_helpers import clean_for_json
 
 
 router = APIRouter(prefix="/store_health", tags=["Store Health"])
 
-#Filters
+
+BASE_DATA_DIR = Path("backend/data")
+
+
+# =============================================================================
+# HELPERS
+# =============================================================================
+
+
+def _add_store_coordinates(
+    stores: pd.DataFrame,
+    coordinates_path: Path,
+) -> pd.DataFrame:
+    """
+    Add store latitude / longitude from the existing store coordinate map.
+
+    Coordinates are display metadata, not store-performance metrics, so they
+    are joined at the API layer rather than calculated in store_performance().
+    """
+
+    if not coordinates_path.exists():
+        stores = stores.copy()
+        stores["latitude"] = None
+        stores["longitude"] = None
+        return stores
+
+    coordinates = pd.read_csv(coordinates_path)
+
+    coordinates = (
+        coordinates[
+            [
+                "coded_customer",
+                "latitude",
+                "longitude",
+            ]
+        ]
+        .drop_duplicates(
+            subset=["coded_customer"]
+        )
+    )
+
+    return stores.merge(
+        coordinates,
+        on="coded_customer",
+        how="left",
+    )
+
+
+# =============================================================================
+# FILTERS
+# =============================================================================
+
 
 @router.get("/filters")
 def get_filter_options(
@@ -26,119 +74,91 @@ def get_filter_options(
     dc: list[str] | None = Query(None),
     channel: list[str] | None = Query(None),
     state: list[str] | None = Query(None),
-    status: list[str] | None = Query(None)
+    status: list[str] | None = Query(None),
 ):
-
     filters = {
         "chain": chain,
         "distributor": distributor,
         "dc": dc,
         "channel": channel,
         "state": state,
-        "status": status
+        "status": status,
     }
+
     features_df = load_org_tables(org_id)
 
     filters.pop(column_name, None)
 
-    df = filter_table(features_df, **filters)
+    df = filter_table(
+        features_df,
+        **filters,
+    )
 
-    return generate_filter_api(df, column_name)
-
-#KPIs
-
-@router.get("/kpis")
-def kpis(org_id: str = Query(...), filters: dict = Depends(get_filters)):
-    features_df = load_org_tables(org_id)
-    df = filter_table(features_df, **filters)
-
-    non_time_filters=remove_time_filters(filters)
-    df_all_time = filter_table(features_df, **non_time_filters)
-
-    monthly_table = kpi_monthly_table(df, df_all_time)
-
-    kpis = {
-        "buying_kpis": buying_kpis(monthly_table, df),
-        "reorder_kpis": reorder_kpis(monthly_table, df_all_time, df),
-        "count_channel": count_channels(df)
-    }
-
-    return kpis
+    return generate_filter_api(
+        df,
+        column_name,
+    )
 
 
-#BUYERS
-
-@router.get("/buyers")
-def buying_stores(org_id: str = Query(...), filters: dict = Depends(get_filters)):
-    features_df = load_org_tables(org_id)
-    df = filter_table(features_df, **filters)
-
-    result = calculate_monthly_buying_stores(df, include_current_month=True)
-
-    result = prep_monthly_graph(result,"buying_stores")
-    result = clean_for_json(result)
-
-    return result.to_dict(orient="records")
+# =============================================================================
+# STATUS
+# =============================================================================
 
 
-
-@router.get("/reorders")
-def reorders(org_id: str = Query(...), filters: dict = Depends(get_filters)):
-    features_df = load_org_tables(org_id)
-    df = filter_table(features_df, **filters)
-
-    non_time_filters=remove_time_filters(filters)
-    df_all_time = filter_table(features_df, **non_time_filters)
-
-    result = calculate_monthly_reorder_rate(df, df_all_time)
-
-    current_month = pd.Timestamp.today().to_period("M")
-    result = result[result["month_year"] != current_month]
-
-    result = prep_monthly_graph(result,"reorder_rate")
-    result = clean_for_json(result)
-
-    return result.to_dict(orient="records")
-
-#CHANNELS
-
-@router.get("/channels")
-def channels(org_id: str = Query(...), filters: dict = Depends(get_filters)):
-    features_df = load_org_tables(org_id)
-    df = filter_table(features_df, **filters)
-
-    result = calculate_units(df, ["channel"]).sort_values("units", ascending=False)
-
-    total_units = calculate_units(df)
-
-    result["value"] = result["units"]/total_units
-    result["name"] = result["channel"]
-    
-    result = result[["name","value"]]
-
-    return result.to_dict(orient="records")
-
-#STATUS TABLE
 @router.get("/status")
-def status(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+def status(
+    org_id: str = Query(...),
+    filters: dict = Depends(get_filters),
+):
     features_df = load_org_tables(org_id)
-    df = filter_table(features_df, **filters)
 
+    df = filter_table(
+        features_df,
+        **filters,
+    )
 
     return status_counts_dict(df)
 
 
-#STORE PERFORMANCE TABLE 
+# =============================================================================
+# STORE PERFORMANCE
+# =============================================================================
+
 
 @router.get("/store_performance")
-def store_performance_table(org_id: str = Query(...), filters: dict = Depends(get_filters)):
+def store_performance_table(
+    org_id: str = Query(...),
+    filters: dict = Depends(get_filters),
+):
     features_df = load_org_tables(org_id)
-    df = filter_table(features_df, **filters)
+    active_pods_df = load_active_pods(org_id)
 
-    non_time_filters=remove_time_filters(filters)
-    df_all_time = filter_table(features_df, **non_time_filters)
+    df = filter_table(
+        features_df,
+        **filters,
+    )
 
-    result = store_performance(df, df_all_time)
+    active_pods_df = filter_table(
+        active_pods_df,
+        **filters,
+    )
+
+    result = store_performance(
+        df=df,
+        active_pods_df=active_pods_df,
+    )
+
+    coordinates_path = (
+        BASE_DATA_DIR
+        / org_id
+        / "maps"
+        / "store_coordinates.csv"
+    )
+
+    result = _add_store_coordinates(
+        stores=result,
+        coordinates_path=coordinates_path,
+    )
 
     result = clean_for_json(result)
 

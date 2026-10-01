@@ -1,14 +1,18 @@
 import pandas as pd
-from backend.insights.insights_helper import format_pct, format_number, format_float
-from backend.metrics.metric_growth_rates import calculate_vpo_3m, calculate_buying_stores_3m, add_additive_metric_3m, pct_change
-from backend.metrics.monthly_metric_calculators import calculate_monthly_units
+from backend.metrics.metric_callers import compare_metric
+from backend.metrics.metric_helpers import pct_change
+from backend.insights.insights_helper import format_pct,format_float, format_number
 
 
-def build_void_opportunity_table(df, df_all_time):
+def build_void_opportunity_table(df, df_all_time, active_pods_df):
 
     # Build table with 3M VPO, 3M buying stores, and 3M units by chain/SKU/channel
     # Only return the results for the latest full month
-    latest = _build_latest_void_candidate_metrics(df, df_all_time)
+    latest = _build_latest_void_candidate_metrics(
+        df=df,
+        df_all_time=df_all_time,
+        active_pods_df=active_pods_df,
+    )
 
     if latest.empty:
         return latest
@@ -38,34 +42,74 @@ def build_void_opportunity_table(df, df_all_time):
         universe_df=windows["universe_12m_df"],
     )
 
-def _build_latest_void_candidate_metrics(df, df_all_time):
+def _build_latest_void_candidate_metrics(
+    df,
+    df_all_time,
+    active_pods_df,
+):
     grain = ["channel", "sku", "chain"]
 
-    monthly_vpo = calculate_vpo_3m(df, df_all_time, grain)
-    buying_stores = calculate_buying_stores_3m(df, grain)
-    units = calculate_monthly_units(df, grain)
-
-    monthly = (
-        monthly_vpo
-        .merge(
-            buying_stores[grain + ["month_year", "buying_stores_3m"]],
-            on=grain + ["month_year"],
-            how="left",
-        )
-        .merge(units, on=grain + ["month_year"], how="left")
+    velocity = compare_metric(
+        df=df,
+        df_full=df_all_time,
+        active_pods_df=active_pods_df,
+        metric_name="velocity",
+        period="L3M",
+        comparison="PP",
+        group_cols=grain,
     )
 
-    monthly = add_additive_metric_3m(monthly, grain, "units")
+    buying_stores = compare_metric(
+        df=df,
+        df_full=df_all_time,
+        active_pods_df=active_pods_df,
+        metric_name="buying_stores",
+        period="L3M",
+        comparison="PP",
+        group_cols=grain,
+    )
 
-    current_month = pd.Timestamp.today().to_period("M")
-    monthly = monthly[monthly["month_year"] != current_month]
+    units = compare_metric(
+        df=df,
+        df_full=df_all_time,
+        active_pods_df=active_pods_df,
+        metric_name="units",
+        period="L3M",
+        comparison="PP",
+        group_cols=grain,
+    )
 
-    if monthly.empty:
-        return monthly
+    latest = velocity[
+        grain + ["value_current"]
+    ].rename(
+        columns={
+            "value_current": "vpo_3m",
+        }
+    )
 
-    latest_month = monthly["month_year"].max()
+    latest = latest.merge(
+        buying_stores[
+            grain + ["value_current"]
+        ].rename(
+            columns={
+                "value_current": "buying_stores_3m",
+            }
+        ),
+        on=grain,
+        how="outer",
+    )
 
-    latest = monthly[monthly["month_year"] == latest_month].copy()
+    latest = latest.merge(
+        units[
+            grain + ["value_current"]
+        ].rename(
+            columns={
+                "value_current": "units_3m",
+            }
+        ),
+        on=grain,
+        how="outer",
+    )
 
     latest = latest.dropna(
         subset=[
@@ -82,7 +126,7 @@ def _build_latest_void_candidate_metrics(df, df_all_time):
 
 
 def _get_void_opportunity_windows(df, latest):
-    latest_month = latest["month_year"].max()
+    latest_month = pd.Timestamp.today().to_period("M") - 1
 
     recent_3m = pd.period_range(latest_month - 2, latest_month, freq="M")
     carrying_months = pd.period_range(latest_month - 5, latest_month, freq="M")
@@ -278,7 +322,6 @@ def _finalize_void_opportunity_table(latest, explanation, universe_df):
             "channel",
             "sku",
             "chain",
-            "month_year",
             "vpo_3m",
             "buying_stores_3m",
             "carrying_stores",
@@ -834,8 +877,12 @@ def create_void_opportunity_store_list(df, chain, sku, channel):
         ascending=False,
     )
 
-def build_void_opportunity_insight(df, df_all_time):
-    table = build_void_opportunity_table(df, df_all_time)
+def build_void_opportunity_insight(df, df_all_time, active_pods_df):
+    table = build_void_opportunity_table(
+        df=df,
+        df_all_time=df_all_time,
+        active_pods_df=active_pods_df,
+    )
 
     analyzed = analyze_void_opportunity(table)
 

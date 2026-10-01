@@ -94,7 +94,7 @@ export type OverviewInventorySku = {
 type SkuInventoryCardProps = {
   sku: OverviewInventorySku
   skuColor: string
-  orgId?: string
+  orgId: string
 }
 
 function formatNumber(
@@ -284,7 +284,7 @@ function getPoDisplay(
 export default function SkuInventoryCard({
   sku,
   skuColor,
-  orgId = "default_org",
+  orgId,
 }: SkuInventoryCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [assessment, setAssessment] =

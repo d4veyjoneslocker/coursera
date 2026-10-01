@@ -6,26 +6,26 @@ from backend.insights.insights_helper import (
     format_pct,
 )
 
-from backend.insights.diagnostics import (
-    calculate_units_growth_decomposition_3m,
-)
+from backend.insights.diagnostics import calculate_units_growth_decomposition
 
 
 def _get_top_driver(
     df: pd.DataFrame,
-    df_all_time: pd.DataFrame,
+    df_full: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
     group_col: str,
     impact_col: str,
-    include_current_month: bool = False,
+    end_month=None,
 ) -> dict | None:
     if group_col not in df.columns:
         return None
 
-    table = calculate_units_growth_decomposition_3m(
-        df_filtered=df,
-        df_full=df_all_time,
-        group_cols=[group_col, "month_year"],
-        include_current_month=include_current_month,
+    table = calculate_units_growth_decomposition(
+        df=df,
+        df_full=df_full,
+        active_pods_df=active_pods_df,
+        group_cols=[group_col],
+        end_month=end_month,
     )
 
     if table is None or table.empty or impact_col not in table.columns:
@@ -43,17 +43,14 @@ def _get_top_driver(
     # Distribution-specific diagnostics
     if impact_col == "distribution_impact":
         table["pod_opportunity_change"] = (
-            table["active_pods_current"]
-            - table["active_pods_prior"]
+            table["active_pod_opportunities_current"]
+            - table["active_pod_opportunities_prior"]
         )
 
-        total_pod_opportunity_change = (
-            table["pod_opportunity_change"].sum()
-        )
+        total_pod_opportunity_change = table["pod_opportunity_change"].sum()
 
         table["share_of_pod_opportunity_change"] = (
-            table["pod_opportunity_change"]
-            / total_pod_opportunity_change
+            table["pod_opportunity_change"] / total_pod_opportunity_change
             if total_pod_opportunity_change != 0
             else None
         )
@@ -94,33 +91,37 @@ def _get_top_driver(
 
 def get_sales_change_driver_breakdown(
     df: pd.DataFrame,
-    df_all_time: pd.DataFrame,
-    include_current_month: bool = False,
+    df_full: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
+    end_month=None,
     min_sku_share: float = 0.50,
     min_sku_pod_change: float = 10,
 ) -> dict:
     top_chain_distribution = _get_top_driver(
         df=df,
-        df_all_time=df_all_time,
+        df_full=df_full,
+        active_pods_df=active_pods_df,
         group_col="chain",
         impact_col="distribution_impact",
-        include_current_month=include_current_month,
+        end_month=end_month,
     )
 
     top_chain_velocity = _get_top_driver(
         df=df,
-        df_all_time=df_all_time,
+        df_full=df_full,
+        active_pods_df=active_pods_df,
         group_col="chain",
         impact_col="velocity_impact",
-        include_current_month=include_current_month,
+        end_month=end_month,
     )
 
     top_sku_distribution = _get_top_driver(
         df=df,
-        df_all_time=df_all_time,
+        df_full=df_full,
+        active_pods_df=active_pods_df,
         group_col="sku",
         impact_col="distribution_impact",
-        include_current_month=include_current_month,
+        end_month=end_month,
     )
 
     include_sku_distribution = (
@@ -141,17 +142,18 @@ def get_sales_change_driver_breakdown(
         ),
     }
 
-
 def build_sales_change_driver_table(
     df: pd.DataFrame,
-    df_all_time: pd.DataFrame,
-    include_current_month: bool = False,
+    df_full: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
+    end_month=None,
 ) -> pd.DataFrame:
-    return calculate_units_growth_decomposition_3m(
-        df_filtered=df,
-        df_full=df_all_time,
-        group_cols=["month_year"],
-        include_current_month=include_current_month,
+    return calculate_units_growth_decomposition(
+        df=df,
+        df_full=df_full,
+        active_pods_df=active_pods_df,
+        group_cols=[],
+        end_month=end_month,
     )
 
 
@@ -190,8 +192,9 @@ def analyze_sales_change_driver(
 def normalize_sales_change_driver_data(
     table: pd.DataFrame,
     df: pd.DataFrame,
-    df_all_time: pd.DataFrame,
-    include_current_month: bool = False,
+    df_full: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
+    end_month=None,
 ) -> dict | None:
     if table is None or table.empty:
         return None
@@ -210,8 +213,9 @@ def normalize_sales_change_driver_data(
 
     driver_breakdown = get_sales_change_driver_breakdown(
         df=df,
-        df_all_time=df_all_time,
-        include_current_month=include_current_month,
+        df_full=df_full,
+        active_pods_df=active_pods_df,
+        end_month=end_month,
     )
 
     return {
@@ -220,8 +224,8 @@ def normalize_sales_change_driver_data(
         "total_change": total_change,
         "unit_change_pct": unit_change_pct,
 
-        "active_pods_current": row.get("active_pods_current"),
-        "active_pods_prior": row.get("active_pods_prior"),
+        "active_pod_opportunities_current": row.get("active_pod_opportunities_current"),
+        "active_pod_opportunities_prior": row.get("active_pod_opportunities_prior"),
         "vpo_current": row.get("vpo_current"),
         "vpo_prior": row.get("vpo_prior"),
 
@@ -421,14 +425,16 @@ def describe_sales_change_driver(
 
 def build_sales_change_driver_insight(
     df: pd.DataFrame,
-    df_all_time: pd.DataFrame,
+    df_full: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
     filters=None,
-    include_current_month: bool = False,
+    end_month=None,
 ):
     table = build_sales_change_driver_table(
         df=df,
-        df_all_time=df_all_time,
-        include_current_month=include_current_month,
+        df_full=df_full,
+        active_pods_df=active_pods_df,
+        end_month=end_month,
     )
 
     analyzed = analyze_sales_change_driver(table=table)
@@ -436,8 +442,9 @@ def build_sales_change_driver_insight(
     data = normalize_sales_change_driver_data(
         table=analyzed,
         df=df,
-        df_all_time=df_all_time,
-        include_current_month=include_current_month,
+        df_full=df_full,
+        active_pods_df=active_pods_df,
+        end_month=end_month,
     )
 
     description = describe_sales_change_driver(
@@ -452,9 +459,7 @@ def build_sales_change_driver_insight(
         "type": "sales_change_driver",
         "section": "what_changed",
         "priority": 10,
-
         **description,
-
         "metrics": data["metrics"],
         "entities": data["entities"],
     }

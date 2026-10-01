@@ -5,23 +5,14 @@ from dataclasses import asdict
 from fastapi import APIRouter, HTTPException, Depends, Query
 
 from backend.context.build_business_context import detect_retailer_launches
-from backend.data_pipeline.table_loader import load_org_tables
+from backend.data_pipeline.table_loader import load_org_tables, load_active_pods
 from backend.insights.insights_helper import get_last_full_month
 from backend.serving.api_helpers import clean_object_for_json
 
-from backend.insights.business_narrative.build_business_explanation_tree import (
-    build_business_explanation_tree,
-)
-from backend.insights.business_narrative.select_tree_branches import (
-    build_shown_nodes,
-)
-from backend.insights.business_narrative.narrate_business_explanation import (
-    narrate_shown_node,
-    NarrativeInputs,
-)
-
+from backend.insights.business_narrative.build_business_explanation_tree import build_business_explanation_tree
+from backend.insights.business_narrative.select_tree_branches import build_shown_nodes
+from backend.insights.business_narrative.narrate_business_explanation import narrate_shown_node, NarrativeInputs
 from backend.metrics.features import calculate_store_sku_lifecycle
-
 from backend.filters.filter_table import filter_table
 from backend.filters.filters import get_filters, generate_filter_api
 
@@ -45,7 +36,10 @@ def get_filter_options(
     month_year: list[str] | None = Query(None),
     state: list[str] | None = Query(None),
 ):
-    features_df = load_org_tables(org_id)
+    features_df = load_org_tables(
+    org_id=org_id,
+)
+
 
     filters = {
         "chain": chain,
@@ -94,16 +88,38 @@ def get_business_explanation_tree(
 ):
     try:
         # ---------------------------------------------------------
-        # Load + filter data
+        # Load data
         # ---------------------------------------------------------
 
         features_df = load_org_tables(
             org_id=org_id,
         )
 
+        active_pods_df = load_active_pods(
+            org_id=org_id,
+        )
+
+        # ---------------------------------------------------------
+        # Apply non-time filters
+        #
+        # Keep full history because the explanation tree needs
+        # both the current and comparison periods.
+        # ---------------------------------------------------------
+
+        non_time_filters = {
+            key: value
+            for key, value in filters.items()
+            if key not in {"year", "month_year"}
+        }
+
         df = filter_table(
             features_df,
-            **filters,
+            **non_time_filters,
+        )
+
+        active_pods_filtered = filter_table(
+            active_pods_df,
+            **non_time_filters,
         )
 
         if df is None or df.empty:
@@ -124,9 +140,6 @@ def get_business_explanation_tree(
 
         # ---------------------------------------------------------
         # Lifecycle
-        #
-        # Build lifecycle from full history rather than
-        # user-filtered history.
         # ---------------------------------------------------------
 
         features_as_of = features_df[
@@ -141,8 +154,6 @@ def get_business_explanation_tree(
 
         # ---------------------------------------------------------
         # Analysis dataframe
-        #
-        # This still respects the user's filters.
         # ---------------------------------------------------------
 
         df_as_of = df[
@@ -174,6 +185,7 @@ def get_business_explanation_tree(
 
         tree = build_business_explanation_tree(
             df=df_as_of,
+            active_pods_df=active_pods_filtered,
             current_start=current_start,
             current_end=current_end,
             prior_start=prior_start,
@@ -249,12 +261,19 @@ def get_business_explanation_tree(
 
     except HTTPException:
         raise
-
+    
     except Exception as e:
+        import traceback
+
+        print("❌ BUSINESS EXPLANATION TREE FAILED")
+        print(f"ERROR TYPE: {type(e).__name__}")
+        print(f"ERROR: {e}")
+        traceback.print_exc()
+
         raise HTTPException(
             status_code=500,
             detail=(
                 "Business explanation tree failed: "
-                f"{str(e)}"
+                f"{type(e).__name__}: {str(e)}"
             ),
         )

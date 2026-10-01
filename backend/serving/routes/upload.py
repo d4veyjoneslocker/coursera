@@ -1,5 +1,6 @@
 import pandas as pd
 from io import StringIO
+from pathlib import Path
 
 from fastapi import APIRouter, UploadFile, File, HTTPException
 
@@ -14,6 +15,7 @@ from backend.storage.local_cleanup import delete_local_org_data
 from backend.supabase.storage import (
     get_supabase_client,
     upload_file,
+    download_file,
 )
 
 
@@ -239,7 +241,14 @@ async def upload_kehe(
         # DO NOT upload features_df yet.
         # =================================================
 
-        features_df, features_path = save_base_tables(
+        (
+            features_df,
+            active_pods_df,
+            fill_rate_df,
+            features_path,
+            active_pods_path,
+            fill_rate_path,
+        ) = save_base_tables(
             output_dir=f"backend/data/{org_id}",
             org_id=org_id,
             upload=False,
@@ -371,6 +380,31 @@ async def upload_kehe(
 
         print("✅ features_df published")
 
+        upload_file(
+            local_path=str(
+                active_pods_path
+            ),
+            org_id=org_id,
+            remote_path=(
+                "processed/active_pods_df.parquet"
+            ),
+        )
+
+        print("✅ active_pods_df published")
+
+
+        upload_file(
+            local_path=str(
+                fill_rate_path
+            ),
+            org_id=org_id,
+            remote_path=(
+                "processed/fill_rate_df.parquet"
+            ),
+        )
+
+        print("✅ fill_rate_df published")
+
         # =================================================
         # Record uploaded month coverage
         #
@@ -472,4 +506,229 @@ def get_kehe_uploaded_months(
                 "Could not determine uploaded KeHE "
                 f"months: {str(e)}"
             ),
+        )
+
+@router.post("/kehe/fill-rate")
+async def upload_kehe_fill_rate(
+    org_id: str,
+    files: list[UploadFile] = File(...),
+):
+    if not files:
+        raise HTTPException(
+            status_code=400,
+            detail="No fill-rate files were uploaded.",
+        )
+
+    try:
+        source_path = (
+            Path(f"backend/data/{org_id}")
+            / "processed_sources"
+            / "kehe_fill_rate.parquet"
+        )
+
+        source_path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        # ---------------------------------------------
+        # Load existing canonical source if it exists
+        # ---------------------------------------------
+
+        existing_df = None
+
+        try:
+            download_file(
+                org_id,
+                "processed_sources/kehe_fill_rate.parquet",
+                str(source_path),
+            )
+
+            existing_df = pd.read_parquet(source_path)
+
+            print(
+                f"✅ Loaded existing fill-rate source: "
+                f"{len(existing_df):,} rows"
+            )
+
+        except Exception:
+            print("ℹ️ No existing KeHE fill-rate source found.")
+
+        # ---------------------------------------------
+        # Read new monthly files
+        # ---------------------------------------------
+
+        new_frames = []
+
+        for file in files:
+            if not file.filename:
+                raise HTTPException(
+                    status_code=400,
+                    detail="A file has no filename.",
+                )
+
+            if not file.filename.lower().endswith(".csv"):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{file.filename} is not a CSV file.",
+                )
+
+            contents = await file.read()
+
+            if not contents:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{file.filename} is empty.",
+                )
+
+            df = pd.read_csv(
+                StringIO(contents.decode("utf-8")),
+                dtype=str,
+            )
+
+            # Same convention as your old combine script:
+            # "KeHE Fill Rate - August 2026.csv"
+            month_text = (
+                Path(file.filename)
+                .stem
+                .split(" - ")[-1]
+            )
+
+            try:
+                month_year = pd.Period(
+                    pd.to_datetime(
+                        month_text,
+                        format="%B %Y",
+                    ),
+                    freq="M",
+                )
+            except Exception:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Could not determine month from "
+                        f"{file.filename}."
+                    ),
+                )
+
+            df["month_year"] = month_year
+
+            new_frames.append(df)
+
+        new_df = pd.concat(
+            new_frames,
+            ignore_index=True,
+        )
+
+        uploaded_months = set(
+            new_df["month_year"].unique()
+        )
+
+        # ---------------------------------------------
+        # Replace uploaded months rather than duplicate
+        # ---------------------------------------------
+
+        if existing_df is not None and not existing_df.empty:
+            existing_df["month_year"] = pd.PeriodIndex(
+                existing_df["month_year"],
+                freq="M",
+            )
+
+            existing_df = existing_df[
+                ~existing_df["month_year"].isin(uploaded_months)
+            ]
+
+            combined_df = pd.concat(
+                [existing_df, new_df],
+                ignore_index=True,
+            )
+
+        else:
+            combined_df = new_df
+
+        combined_df = (
+            combined_df
+            .sort_values("month_year")
+            .reset_index(drop=True)
+        )
+
+        # ---------------------------------------------
+        # Save candidate source locally
+        # ---------------------------------------------
+
+        combined_df.to_parquet(
+            source_path,
+            index=False,
+        )
+
+        print(
+            f"✅ KeHE fill-rate source built: "
+            f"{len(combined_df):,} rows"
+        )
+
+        # ---------------------------------------------
+        # Rebuild derived tables using fresh source
+        # ---------------------------------------------
+
+        (
+            features_df,
+            active_pods_df,
+            fill_rate_df,
+            features_path,
+            active_pods_path,
+            fill_rate_path,
+        ) = save_base_tables(
+            output_dir=f"backend/data/{org_id}",
+            org_id=org_id,
+            upload=False,
+            refresh_sources={"kehe", "unfi"},
+        )
+
+        # ---------------------------------------------
+        # Commit only after rebuild succeeds
+        # ---------------------------------------------
+
+        upload_file(
+            local_path=str(source_path),
+            org_id=org_id,
+            remote_path="processed_sources/kehe_fill_rate.parquet",
+        )
+
+        upload_file(
+            local_path=str(features_path),
+            org_id=org_id,
+            remote_path="processed/features_df.parquet",
+        )
+
+        upload_file(
+            local_path=str(active_pods_path),
+            org_id=org_id,
+            remote_path="processed/active_pods_df.parquet",
+        )
+
+        upload_file(
+            local_path=str(fill_rate_path),
+            org_id=org_id,
+            remote_path="processed/fill_rate_df.parquet",
+        )
+
+        clear_table_cache(org_id)
+        delete_local_org_data(org_id)
+
+        return {
+            "status": "success",
+            "message": (
+                f"{len(files)} KeHE fill-rate file"
+                f"{'' if len(files) == 1 else 's'} "
+                "uploaded successfully."
+            ),
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Fill-rate upload failed: {str(e)}",
         )

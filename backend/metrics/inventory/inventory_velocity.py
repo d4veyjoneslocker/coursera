@@ -6,11 +6,13 @@ pd.set_option("display.width", None)
 pd.set_option("display.max_colwidth", None)
 
 from backend.metrics.features import calculate_store_sku_lifecycle
-from backend.metrics.metric_calculators import _calculate_store_vpo_fast
+from backend.metrics.metric_callers import calculate_metric
+from backend.metrics.metric_helpers import filter_to_period
 
 
 def calculate_dc_weekly_velocity(
     features_df: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
     overrides_df: pd.DataFrame | None = None,
     store_col: str = "coded_customer",
     month_col: str = "month_year",
@@ -88,13 +90,22 @@ def calculate_dc_weekly_velocity(
         & df_complete[month_col].between(current_start, complete_end)
     ].copy()
 
-    mature_vpo = _calculate_store_vpo_fast(
-        mature_df,
-        group_cols=store_keys,
-        start_period=current_start,
-        end_period=complete_end,
-        value_name="planning_vpo",
+    mature_active_pods = active_pods_df[
+        active_pods_df["pod_helper"].isin(mature_df["pod_helper"])
+    ].copy()
+
+    mature_active_pods = filter_to_period(
+        mature_active_pods,
+        current_start,
+        complete_end,
     )
+
+    mature_vpo = calculate_metric(
+        metric_name="velocity",
+        df_filtered=mature_df,
+        active_pods_df=mature_active_pods,
+        group_cols=store_keys,
+    ).rename(columns={"value": "planning_vpo"})
 
     mature_vpo["planning_vpo_source"] = "mature_l3m"
 
@@ -132,13 +143,22 @@ def calculate_dc_weekly_velocity(
             ramping_group[month_col].between(start_period, complete_end)
         ].copy()
 
-        result = _calculate_store_vpo_fast(
-            ramping_group,
-            group_cols=store_keys,
-            start_period=start_period,
-            end_period=complete_end,
-            value_name="planning_vpo",
+        ramping_active_pods = active_pods_df[
+            active_pods_df["pod_helper"].isin(ramping_group["pod_helper"])
+        ].copy()
+
+        ramping_active_pods = filter_to_period(
+            ramping_active_pods,
+            start_period,
+            complete_end,
         )
+
+        result = calculate_metric(
+            metric_name="velocity",
+            df_filtered=ramping_group,
+            active_pods_df=ramping_active_pods,
+            group_cols=store_keys,
+        ).rename(columns={"value": "planning_vpo"})
 
         ramping_results.append(result)
 
