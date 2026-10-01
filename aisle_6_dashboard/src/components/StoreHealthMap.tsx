@@ -224,145 +224,81 @@ export default function StoreHealthMap({
             hoveredStore.latitude != null &&
             hoveredStore.longitude != null && (
               <Popup
-                latitude={Number(
-                  hoveredStore.latitude
-                )}
-                longitude={Number(
-                  hoveredStore.longitude
-                )}
-                anchor="bottom"
+                latitude={Number(hoveredStore.latitude)}
+                longitude={Number(hoveredStore.longitude)}
+                anchor="left"
                 offset={12}
                 closeButton={false}
                 closeOnClick={false}
-                className="store-health-popup"
+                className="dc-store-popup"
               >
                 <div
-                  onMouseEnter={() =>
-                    setHoveredStore(hoveredStore)
-                  }
-                  onMouseLeave={() =>
-                    setHoveredStore(null)
-                  }
-                  className="min-w-[240px] p-1"
+                  onMouseEnter={() => setHoveredStore(hoveredStore)}
+                  onMouseLeave={() => setHoveredStore(null)}
+                  className="min-w-[220px] px-1 py-1"
                 >
-                  <div className="mb-3">
-                    <div className="text-sm font-semibold text-[#343332]">
-                      {hoveredStore.coded_customer ??
-                        "Store"}
-                    </div>
-
-                    {hoveredStore.chain && (
-                      <div className="mt-0.5 text-xs text-[#705C4F]">
-                        {hoveredStore.chain}
-                      </div>
-                    )}
-                  </div>
-
-
-                  <div className="mb-3">
-                    <span
-                      className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium"
+                  <div className="flex items-start gap-2">
+                    <div
+                      className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
                       style={{
-                        color: getStatusColor(
-                          hoveredStore.status
-                        ),
-                        backgroundColor: `${getStatusColor(
-                          hoveredStore.status
-                        )}18`,
+                        background: "#F3ECE6",
+                        color: getStatusColor(hoveredStore.status),
                       }}
                     >
-                      <CheckCircle
-                        size={13}
-                        weight="fill"
-                      />
+                      <MapPin size={15} weight="duotone" />
+                    </div>
 
-                      {hoveredStore.status ??
-                        "Unknown"}
-                    </span>
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-[#343332]">
+                        {hoveredStore.coded_customer ?? "Store"}
+                      </div>
+
+                      <div className="mt-0.5 text-[11px] text-[#705C4F]">
+                        {[
+                          hoveredStore.chain,
+                          hoveredStore.status,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </div>
+                    </div>
                   </div>
-
-
-                  <div className="space-y-2 border-t border-[#EEE5D8] pt-3">
-                    <MetricRow
-                      icon={
-                        <TrendUp
-                          size={15}
-                          weight="duotone"
-                        />
-                      }
-                      label="VPO"
-                      value={formatVpo(
-                        hoveredStore.vpo
-                      )}
-                    />
-
-                    <MetricRow
-                      icon={
-                        <ShoppingCart
-                          size={15}
-                          weight="duotone"
-                        />
-                      }
-                      label="Units"
-                      value={formatNumber(
-                        hoveredStore.units
-                      )}
-                    />
-
-                    <MetricRow
-                      icon={
-                        <Package
-                          size={15}
-                          weight="duotone"
-                        />
-                      }
-                      label="SKUs Selling"
-                      value={formatNumber(
-                        hoveredStore.skus_selling
-                      )}
-                    />
-
-                    <MetricRow
-                      icon={
-                        <ShoppingCart
-                          size={15}
-                          weight="duotone"
-                        />
-                      }
-                      label="Reorders"
-                      value={formatNumber(
-                        hoveredStore.reorders
-                      )}
-                    />
-                  </div>
-
 
                   <div className="mt-3 space-y-2 border-t border-[#EEE5D8] pt-3">
                     <MetricRow
-                      icon={
-                        <Warehouse
-                          size={15}
-                          weight="duotone"
-                        />
-                      }
-                      label="Distributor"
-                      value={
-                        hoveredStore.distributor ??
-                        "—"
-                      }
+                      icon={<TrendUp size={15} weight="duotone" />}
+                      label="VPO"
+                      value={formatVpo(hoveredStore.vpo)}
                     />
 
                     <MetricRow
-                      icon={
-                        <MapPin
-                          size={15}
-                          weight="duotone"
-                        />
-                      }
+                      icon={<ShoppingCart size={15} weight="duotone" />}
+                      label="Units"
+                      value={formatNumber(hoveredStore.units)}
+                    />
+
+                    <MetricRow
+                      icon={<Package size={15} weight="duotone" />}
+                      label="SKUs Selling"
+                      value={formatNumber(hoveredStore.skus_selling)}
+                    />
+
+                    <MetricRow
+                      icon={<ShoppingCart size={15} weight="duotone" />}
+                      label="Reorders"
+                      value={formatNumber(hoveredStore.reorders)}
+                    />
+
+                    <MetricRow
+                      icon={<Warehouse size={15} weight="duotone" />}
+                      label="Distributor"
+                      value={hoveredStore.distributor ?? "—"}
+                    />
+
+                    <MetricRow
+                      icon={<MapPin size={15} weight="duotone" />}
                       label="DC"
-                      value={
-                        hoveredStore.dc ?? "—"
-                      }
+                      value={hoveredStore.dc ?? "—"}
                     />
                   </div>
                 </div>
