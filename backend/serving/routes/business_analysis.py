@@ -261,12 +261,19 @@ def get_business_explanation_tree(
 
     except HTTPException:
         raise
-
+    
     except Exception as e:
+        import traceback
+
+        print("❌ BUSINESS EXPLANATION TREE FAILED")
+        print(f"ERROR TYPE: {type(e).__name__}")
+        print(f"ERROR: {e}")
+        traceback.print_exc()
+
         raise HTTPException(
             status_code=500,
             detail=(
                 "Business explanation tree failed: "
-                f"{str(e)}"
+                f"{type(e).__name__}: {str(e)}"
             ),
         )
