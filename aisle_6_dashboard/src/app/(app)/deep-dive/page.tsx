@@ -342,8 +342,8 @@ export default function EmailPreviewPage() {
       try {
         const url =
           `${process.env.NEXT_PUBLIC_API_BASE_URL}` +
-          `/email/weekly-digest?org_id=${org.id}`
-
+          `/insights_new/weekly_digest?org_id=${org.id}`
+          
         const res = await fetch(url)
 
         if (!res.ok) {
