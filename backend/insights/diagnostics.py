@@ -114,6 +114,8 @@ def get_overindexed_concentration(
     if not signals:
         return None
     return sorted(signals, key=lambda x: x["overindex_pts"], reverse=True)[0]
+
+
 def get_root_cause_concentration(
     affected_df: pd.DataFrame,
     universe_df: pd.DataFrame | None = None,
@@ -157,6 +159,8 @@ def get_root_cause_concentration(
         return None
     # pick strongest signal
     return max(signals, key=lambda x: x.get("overindex_pts", x["pct"]))
+
+
 def describe_root_cause_signal(signal):
     """
     Turns a concentration signal into plain-English explanation.
