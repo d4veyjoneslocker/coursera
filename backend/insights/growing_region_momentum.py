@@ -1,11 +1,7 @@
 import pandas as pd
 
 from backend.insights.insights_helper import build_filter_context, format_float, format_number, format_pct, get_last_full_month
-
-# TODO: Replace these imports with your actual helper paths/names if different.
-# These should be your existing app-standard metric functions.
-from backend.metrics.monthly_metric_calculators import calculate_monthly_units
-from backend.metrics.metric_growth_rates import add_abs_change_columns, add_additive_metric_3m, add_pct_change_columns, add_prior_month_columns, calculate_reorder_rate_3m, calculate_vpo_3m
+from backend.metrics.metric_callers import compare_metric
 
 
 REGION_COL = "state"
@@ -25,64 +21,148 @@ MIN_DRIVER_SHARE = 0.50
 MIN_DRIVER_UNIT_GROWTH = 25
 
 
-def build_growing_region_momentum_table(df: pd.DataFrame) -> pd.DataFrame:
+def build_growing_region_momentum_table(df: pd.DataFrame, active_pods_df: pd.DataFrame) -> pd.DataFrame:
     """
     Builds one row per state for the latest full 3-month period vs the prior 3-month period.
 
     Assumes the dataframe has already been cleaned/normalized before it reaches the insight layer.
-    Uses the existing l3m helper flow for units_3m, vpo_3m, and reorder_rate_3m comparisons.
+    Uses the canonical metric comparison layer for units, velocity, and reorder rate.
     """
 
     if df is None or df.empty or REGION_COL not in df.columns:
         return pd.DataFrame()
 
-    last_full_month = get_last_full_month()
-    group_cols = [REGION_COL, "month_year"]
-    total_group_cols = ["month_year"]
+    units = compare_metric(
+        df=df,
+        df_full=df,
+        active_pods_df=active_pods_df,
+        metric_name="units",
+        period="L3M",
+        comparison="PP",
+        group_cols=[REGION_COL],
+    )
 
-    units = calculate_monthly_units(df=df, group_cols=group_cols)
-    units = add_additive_metric_3m(units, group_cols=group_cols, metric="units")
-    units = add_prior_month_columns(units, group_cols=group_cols, metric="units", l3m=True)
-    units = add_pct_change_columns(units, metric="units", l3m=True)
-    units = add_abs_change_columns(units, metric="units", l3m=True)
+    velocity = compare_metric(
+        df=df,
+        df_full=df,
+        active_pods_df=active_pods_df,
+        metric_name="velocity",
+        period="L3M",
+        comparison="PP",
+        group_cols=[REGION_COL],
+    )
 
-    velocity = calculate_vpo_3m(df_filtered=df, df_full=df, group_cols=group_cols)
-    velocity = add_prior_month_columns(velocity, group_cols=group_cols, metric="vpo", l3m=True)
-    velocity = add_pct_change_columns(velocity, metric="vpo", l3m=True)
-    velocity = add_abs_change_columns(velocity, metric="vpo", l3m=True)
+    reorder = compare_metric(
+        df=df,
+        df_full=df,
+        active_pods_df=active_pods_df,
+        metric_name="reorder_rate",
+        period="L3M",
+        comparison="PP",
+        group_cols=[REGION_COL],
+    )
 
-    reorder = calculate_reorder_rate_3m(df_filtered=df, df_full=df, group_cols=group_cols)
-    reorder = add_prior_month_columns(reorder, group_cols=group_cols, metric="reorder_rate", l3m=True)
-    reorder = add_pct_change_columns(reorder, metric="reorder_rate", l3m=True)
-    reorder = add_abs_change_columns(reorder, metric="reorder_rate", l3m=True)
+    result = units[
+        [
+            REGION_COL,
+            "value_current",
+            "value_comparison",
+            "pct_change",
+            "abs_change",
+        ]
+    ].rename(
+        columns={
+            "value_current": "recent_3m_units",
+            "value_comparison": "prior_3m_units",
+            "pct_change": "unit_growth_pct",
+            "abs_change": "unit_growth_abs",
+        }
+    )
 
-    result = units[units["month_year"] == last_full_month][[REGION_COL, "units_3m", "units_l3m", "units_l3m_pct", "units_l3m_abs"]].rename(columns={"units_3m": "recent_3m_units", "units_l3m": "prior_3m_units", "units_l3m_pct": "unit_growth_pct", "units_l3m_abs": "unit_growth_abs"})
-    result = result.merge(velocity[velocity["month_year"] == last_full_month][[REGION_COL, "vpo_3m", "vpo_l3m", "vpo_l3m_pct", "vpo_l3m_abs"]].rename(columns={"vpo_3m": "recent_3m_velocity", "vpo_l3m": "prior_3m_velocity", "vpo_l3m_pct": "velocity_growth_pct", "vpo_l3m_abs": "velocity_growth_abs"}), on=REGION_COL, how="outer")
-    result = result.merge(reorder[reorder["month_year"] == last_full_month][[REGION_COL, "reorder_rate_3m", "reorder_rate_l3m", "reorder_rate_l3m_pct", "reorder_rate_l3m_abs"]].rename(columns={"reorder_rate_3m": "recent_3m_reorder_rate", "reorder_rate_l3m": "prior_3m_reorder_rate", "reorder_rate_l3m_pct": "reorder_rate_growth_pct", "reorder_rate_l3m_abs": "reorder_rate_growth_abs"}), on=REGION_COL, how="outer")
-    result = result.fillna({"recent_3m_units": 0, "prior_3m_units": 0})
+    result = result.merge(
+        velocity[
+            [
+                REGION_COL,
+                "value_current",
+                "value_comparison",
+                "pct_change",
+                "abs_change",
+            ]
+        ].rename(
+            columns={
+                "value_current": "recent_3m_velocity",
+                "value_comparison": "prior_3m_velocity",
+                "pct_change": "velocity_growth_pct",
+                "abs_change": "velocity_growth_abs",
+            }
+        ),
+        on=REGION_COL,
+        how="outer",
+    )
 
-    total_units = calculate_monthly_units(df=df, group_cols=total_group_cols)
-    total_units = add_additive_metric_3m(total_units, group_cols=total_group_cols, metric="units")
-    total_units = add_prior_month_columns(total_units, group_cols=total_group_cols, metric="units", l3m=True)
-    total_units = add_pct_change_columns(total_units, metric="units", l3m=True)
+    result = result.merge(
+        reorder[
+            [
+                REGION_COL,
+                "value_current",
+                "value_comparison",
+                "pct_change",
+                "abs_change",
+            ]
+        ].rename(
+            columns={
+                "value_current": "recent_3m_reorder_rate",
+                "value_comparison": "prior_3m_reorder_rate",
+                "pct_change": "reorder_rate_growth_pct",
+                "abs_change": "reorder_rate_growth_abs",
+            }
+        ),
+        on=REGION_COL,
+        how="outer",
+    )
 
-    total_velocity = calculate_vpo_3m(df_filtered=df, df_full=df, group_cols=total_group_cols)
-    total_velocity = add_prior_month_columns(total_velocity, group_cols=total_group_cols, metric="vpo", l3m=True)
-    total_velocity = add_pct_change_columns(total_velocity, metric="vpo", l3m=True)
+    result = result.fillna(
+        {
+            "recent_3m_units": 0,
+            "prior_3m_units": 0,
+        }
+    )
 
-    total_reorder = calculate_reorder_rate_3m(df_filtered=df, df_full=df, group_cols=total_group_cols)
-    total_reorder = add_prior_month_columns(total_reorder, group_cols=total_group_cols, metric="reorder_rate", l3m=True)
-    total_reorder = add_abs_change_columns(total_reorder, metric="reorder_rate", l3m=True)
+    total_units = compare_metric(
+        df=df,
+        df_full=df,
+        active_pods_df=active_pods_df,
+        metric_name="units",
+        period="L3M",
+        comparison="PP",
+        group_cols=[],
+    )
 
-    total_units_row = total_units[total_units["month_year"] == last_full_month]
-    total_velocity_row = total_velocity[total_velocity["month_year"] == last_full_month]
-    total_reorder_row = total_reorder[total_reorder["month_year"] == last_full_month]
+    total_velocity = compare_metric(
+        df=df,
+        df_full=df,
+        active_pods_df=active_pods_df,
+        metric_name="velocity",
+        period="L3M",
+        comparison="PP",
+        group_cols=[],
+    )
 
-    total_recent_units = total_units_row["units_3m"].iloc[0] if not total_units_row.empty else 0
-    total_prior_units = total_units_row["units_l3m"].iloc[0] if not total_units_row.empty else 0
-    total_unit_growth_pct = total_units_row["units_l3m_pct"].iloc[0] if not total_units_row.empty else pd.NA
-    total_velocity_growth_pct = total_velocity_row["vpo_l3m_pct"].iloc[0] if not total_velocity_row.empty else pd.NA
-    total_reorder_rate_growth_abs = total_reorder_row["reorder_rate_l3m_abs"].iloc[0] if not total_reorder_row.empty else pd.NA
+    total_reorder = compare_metric(
+        df=df,
+        df_full=df,
+        active_pods_df=active_pods_df,
+        metric_name="reorder_rate",
+        period="L3M",
+        comparison="PP",
+        group_cols=[],
+    )
+
+    total_recent_units = total_units["value_current"].iloc[0] if not total_units.empty else 0
+    total_prior_units = total_units["value_comparison"].iloc[0] if not total_units.empty else 0
+    total_unit_growth_pct = total_units["pct_change"].iloc[0] if not total_units.empty else pd.NA
+    total_velocity_growth_pct = total_velocity["pct_change"].iloc[0] if not total_velocity.empty else pd.NA
+    total_reorder_rate_growth_abs = total_reorder["abs_change"].iloc[0] if not total_reorder.empty else pd.NA
 
     result["recent_business_share"] = result["recent_3m_units"] / total_recent_units if total_recent_units else pd.NA
     result["prior_business_share"] = result["prior_3m_units"] / total_prior_units if total_prior_units else pd.NA
@@ -190,7 +270,6 @@ def normalize_growing_region_momentum_data(analyzed_table: pd.DataFrame, df: pd.
     return {"items": items, "metrics": items[0]["metrics"] if items else {}, "entities": items[0]["entities"] if items else {}}
 
 
-
 def describe_growing_region_momentum(data: dict | None, filters=None) -> dict | None:
     if data is None or not data.get("items"):
         return None
@@ -257,8 +336,10 @@ def describe_growing_region_momentum(data: dict | None, filters=None) -> dict | 
 
     #if item["growth_driver"] == "pods_and_velocity":
     #    description.append({"type": "text", "value": f"Growth is supported by both broader distribution and stronger velocity: active PODs increased by {format_number(item['pod_growth_abs'])} ({format_pct(item['pod_growth_pct'], signed=True)}), while velocity improved {velocity_growth_pct_fmt}."})
+
     if item["growth_driver"] == "velocity":
         description.append({"type": "text", "value": f"The gain appears primarily velocity-led, with velocity improving {velocity_growth_pct_fmt}."})
+
     #elif item["growth_driver"] == "pods":
     #    description.append({"type": "text", "value": f"The gain appears primarily distribution-led, with active PODs increasing by {format_number(item['pod_growth_abs'])} ({format_pct(item['pod_growth_pct'], signed=True)})."})
 
@@ -302,8 +383,9 @@ def create_growing_region_momentum_store_list(df: pd.DataFrame, analyzed_table: 
 
     return result
 
-def build_growing_region_momentum_insight(df: pd.DataFrame, filters=None, limit: int = DEFAULT_LIMIT):
-    table = build_growing_region_momentum_table(df)
+
+def build_growing_region_momentum_insight(df: pd.DataFrame, active_pods_df: pd.DataFrame, filters=None, limit: int = DEFAULT_LIMIT):
+    table = build_growing_region_momentum_table(df=df, active_pods_df=active_pods_df)
     analyzed = analyze_growing_region_momentum(table, limit=limit)
     data = normalize_growing_region_momentum_data(analyzed_table=analyzed, df=df)
     description = describe_growing_region_momentum(data=data, filters=filters)

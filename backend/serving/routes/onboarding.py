@@ -2,8 +2,6 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.onboarding.sku_reconciliation import get_reconciliation_payload, save_sku_reconciliation
-from backend.onboarding.sku_reconciliation import get_reconciliation_payload
-
 
 router = APIRouter(
     prefix="/onboarding",

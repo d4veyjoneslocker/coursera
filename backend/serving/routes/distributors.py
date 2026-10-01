@@ -65,6 +65,7 @@ def refresh_unfi(org_id: str = Query(...)):
         save_base_tables(
             output_dir=f"backend/data/{org_id}",
             org_id=org_id,
+            refresh_sources={"unfi"}
         )
 
         clear_table_cache(org_id)

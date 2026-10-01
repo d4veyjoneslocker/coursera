@@ -1,7 +1,10 @@
 from pathlib import Path
+from datetime import datetime, timezone
 import pandas as pd
 
 from backend.metrics.features import add_features
+from backend.metrics.fill_rate.features import build_fill_rate_features
+from backend.transforms.fill_rate.kehe import transform_kehe_fill_rate
 from backend.data_pipeline.validate_data import validate_data
 from backend.data_pipeline.pipeline_helpers import get_source_file_paths
 from backend.supabase.storage import upload_file, download_file
@@ -81,6 +84,7 @@ def load_source(
 
 def build_active_pods_df(
     features_df: pd.DataFrame,
+    fill_rate_df: pd.DataFrame,
     active_months: int = 6,
 ) -> pd.DataFrame:
     """
@@ -96,6 +100,8 @@ def build_active_pods_df(
     membership_cols = [
         "month_year",
         "pod_helper",
+        "coded_customer",
+        "chain_store_key",
         "chain",
         "sku",
         "dc",
@@ -123,6 +129,63 @@ def build_active_pods_df(
 
     purchases = purchases.drop_duplicates()
 
+    # Actual POD purchase months.
+    # Used after expansion to determine whether an active POD
+    # actually ordered in each month.
+    order_months = (
+        purchases[
+            [
+                "month_year",
+                "pod_helper",
+            ]
+        ]
+        .drop_duplicates()
+        .assign(ordered=True)
+    )
+
+    # First actual purchase month for each POD.
+    # A POD can reorder in any month after this month.
+    first_purchase_month = (
+        purchases
+        .groupby(
+            "pod_helper",
+            as_index=False,
+        )["month_year"]
+        .min()
+        .rename(
+            columns={
+                "month_year": "first_purchase_month",
+            }
+        )
+    )
+
+    coverage_cols = [
+        "distributor",
+        "chain_store_key",
+        "sku",
+    ]
+
+    fill_rate_coverage = (
+        fill_rate_df[coverage_cols]
+        .dropna(subset=["chain_store_key", "sku"])
+        .drop_duplicates()
+        .assign(has_fill_rate_data=True)
+    )
+
+    purchases = purchases.merge(
+        fill_rate_coverage,
+        on=coverage_cols,
+        how="left",
+    )
+
+    purchases["has_fill_rate_data"] = (
+        purchases["has_fill_rate_data"]
+        .fillna(False)
+        .astype(bool)
+    )
+
+    purchases["source_month"] = purchases["month_year"]
+
     active_frames = []
 
     for offset in range(active_months):
@@ -148,6 +211,59 @@ def build_active_pods_df(
         .reset_index(drop=True)
     )
 
+    active_pods_df = (
+        active_pods_df
+        .sort_values(
+            [
+                "month_year",
+                "pod_helper",
+                "source_month",
+            ]
+        )
+        .drop_duplicates(
+            subset=[
+                "month_year",
+                "pod_helper",
+            ],
+            keep="last",
+        )
+        .drop(columns=["source_month"])
+        .sort_values("month_year")
+        .reset_index(drop=True)
+    )
+
+    # Add historical reorder state.
+    active_pods_df = active_pods_df.merge(
+        first_purchase_month,
+        on="pod_helper",
+        how="left",
+    )
+
+    active_pods_df["could_reorder"] = (
+        active_pods_df["month_year"]
+        > active_pods_df["first_purchase_month"]
+    )
+
+    active_pods_df = active_pods_df.drop(
+        columns=["first_purchase_month"]
+    )
+
+    # Add whether the POD actually ordered in this month.
+    active_pods_df = active_pods_df.merge(
+        order_months,
+        on=[
+            "month_year",
+            "pod_helper",
+        ],
+        how="left",
+    )
+
+    active_pods_df["ordered"] = (
+        active_pods_df["ordered"]
+        .fillna(False)
+        .astype(bool)
+    )
+
     # Add time dimensions so active_pods_df can use
     # the same filter_table logic as features_df.
     active_pods_df["year"] = (
@@ -163,6 +279,7 @@ def build_active_pods_df(
     )
 
     return active_pods_df
+
 
 def build_base_tables(
     org_id: str,
@@ -226,8 +343,34 @@ def build_base_tables(
             clean_df[col] = clean_df[col].astype(str)
 
     features_df = add_features(clean_df)
+
+    # -------------------------------------------------
+    # Build fill-rate table
+    # TEMPORARY: move source loading/transformation
+    # into the fill-rate pipeline later.
+    # -------------------------------------------------
+
+    fill_rate_path = (
+        Path(f"backend/data/{org_id}")
+        / "processed"
+        / "fill_rate"
+    )
+
+    fill_rate_raw = pd.read_parquet(fill_rate_path)
+
+    kehe_fill_rate_df = transform_kehe_fill_rate(
+        fill_rate_raw,
+        org_id=org_id,
+    )
+
+    fill_rate_df = build_fill_rate_features(
+        kehe_fill_rate_df=kehe_fill_rate_df,
+        features_df=features_df,
+    )
+
     active_pods_df = build_active_pods_df(
         features_df=features_df,
+        fill_rate_df=fill_rate_df,
         active_months=active_months,
     )
 
@@ -242,7 +385,7 @@ def build_base_tables(
     else:
         print("✅ Data validated")
 
-    return features_df, active_pods_df
+    return features_df, active_pods_df, fill_rate_df
 
 
 
@@ -265,7 +408,7 @@ def save_base_tables(
         validating and publishing it later.
     """
 
-    features_df, active_pods_df = build_base_tables(
+    features_df, active_pods_df, fill_rate_df = build_base_tables(
         org_id=org_id,
         refresh_sources=refresh_sources,
         active_months=active_months,
@@ -291,6 +434,7 @@ def save_base_tables(
 
     features_path = out / "features_df.parquet"
     active_pods_path = out / "active_pods_df.parquet"
+    fill_rate_path = out / "fill_rate_df.parquet"
 
     # -------------------------------------------------
     # Save locally
@@ -301,26 +445,43 @@ def save_base_tables(
         index=False,
     )
 
+    fill_rate_df.to_parquet(
+        fill_rate_path,
+        index=False,
+    )
+
     active_pods_df.to_parquet(
         active_pods_path,
         index=False,
     )
 
     print(f"✅ features_df saved to {features_path}")
+    print(f"✅ fill_rate_df saved to {fill_rate_path}")
     print(f"✅ active_pods_df saved to {active_pods_path}")
 
     # -------------------------------------------------
     # Upload to Supabase
     # -------------------------------------------------
 
+    # -------------------------------------------------
+# Upload to Supabase
+# -------------------------------------------------
+
     if upload:
         try:
             print("☁️ Uploading base tables to Supabase...")
 
+            # Current canonical files
             upload_file(
                 local_path=str(features_path),
                 org_id=org_id,
                 remote_path="processed/features_df.parquet",
+            )
+
+            upload_file(
+                local_path=str(fill_rate_path),
+                org_id=org_id,
+                remote_path="processed/fill_rate_df.parquet",
             )
 
             upload_file(
@@ -331,6 +492,30 @@ def save_base_tables(
 
             print("✅ base tables uploaded to Supabase")
 
+            # -------------------------------------------------
+            # Save immutable historical snapshot
+            # -------------------------------------------------
+
+            snapshot_at = datetime.now(timezone.utc).strftime(
+                "%Y-%m-%dT%H-%M-%SZ"
+            )
+
+            snapshot_dir = f"history/{snapshot_at}"
+
+            upload_file(
+                local_path=str(features_path),
+                org_id=org_id,
+                remote_path=f"{snapshot_dir}/features_df.parquet",
+            )
+
+            upload_file(
+                local_path=str(fill_rate_path),
+                org_id=org_id,
+                remote_path=f"{snapshot_dir}/fill_rate_df.parquet",
+            )
+
+            print(f"📸 historical snapshot saved: {snapshot_dir}")
+
         except Exception as e:
             print(
                 "⚠️ base table upload failed:",
@@ -340,14 +525,16 @@ def save_base_tables(
     return (
         features_df,
         active_pods_df,
+        fill_rate_df,
         features_path,
         active_pods_path,
+        fill_rate_path,
     )
 
 
 
 if __name__ == "__main__":
     save_base_tables(
-        output_dir="backend/data/67a96381-5014-4a9b-bfe8-a14e6da5affe",
-        org_id="67a96381-5014-4a9b-bfe8-a14e6da5affe",
+        output_dir="backend/data/default_org",
+        org_id="default_org",
     )

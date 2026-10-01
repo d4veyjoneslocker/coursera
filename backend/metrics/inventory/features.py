@@ -6,6 +6,7 @@ from backend.metrics.inventory.inventory_velocity import calculate_dc_weekly_vel
 
 def add_inventory_features(
     df: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
     features_df: pd.DataFrame,
     low_inventory_weeks: float = 4.0,
     target_inventory_weeks: float = 8.0,
@@ -34,7 +35,7 @@ def add_inventory_features(
     # -----------------------------
     # Sales-derived DC velocity
     # -----------------------------
-    dc_velocity = calculate_dc_weekly_velocity(features_df)
+    dc_velocity = calculate_dc_weekly_velocity(features_df, active_pods_df=active_pods_df)
 
     df = df.merge(
         dc_velocity,

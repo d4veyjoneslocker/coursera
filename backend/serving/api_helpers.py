@@ -5,12 +5,7 @@ from typing import Literal
 from backend.filters.filter_table import filter_table
 from backend.metrics.features import add_features
 
-from backend.metrics.monthly_metric_calculators import (
-    calculate_monthly_units,
-    calculate_monthly_active_pods,
-    calculate_monthly_buying_stores,
-    calculate_monthly_vpo,
-)
+from backend.metrics.metric_callers import calculate_monthly_metric
 
 def clean_for_json(df: pd.DataFrame) -> pd.DataFrame:
     # convert periods/dates first
@@ -35,6 +30,14 @@ def clean_object_for_json(value):
             clean_object_for_json(val)
             for val in value
         ]
+
+    if isinstance(value, np.integer):
+        return int(value)
+
+    if isinstance(value, np.floating):
+        if pd.isna(value) or np.isinf(value):
+            return None
+        return float(value)
 
     if isinstance(value, float):
         if pd.isna(value) or np.isinf(value):
@@ -77,71 +80,47 @@ def convert_selected_years(selected_years):
 
     return [int(y) for y in selected_years]
 
-ChartMetric = Literal["units", "buyers", "velocity", "pods"]
+ChartMetric = Literal[
+    "units",
+    "buyers",
+    "velocity",
+    "pods",
+    "reorders",
+    "fill_rate"
+]
 ChartView = Literal["default", "all_time", "yoy"]
 
 
 def _get_monthly_metric_table(
     metric: ChartMetric,
     df: pd.DataFrame,
-    features_df: pd.DataFrame,
-    filters: dict,
-    selected_years=None,
-    selected_months=None,
+    active_pods_df: pd.DataFrame,
 ):
-    if metric == "units":
-        result = calculate_monthly_units(
-            df,
-            selected_years=selected_years,
-            selected_months=selected_months,
-            include_current_month=True,
-        )
+    metric_map = {
+        "units": ("units", "units"),
+        "buyers": ("buying_stores", "buying_stores"),
+        "velocity": ("velocity", "vpo"),
+        "pods": ("active_pods", "active_pods"),
+        "reorders": ("reorder_rate", "reorder_rate"),
+        "fill_rate": ("fill_rate", "fill_rate"),
+    }
 
-        return result, "units"
+    if metric not in metric_map:
+        raise ValueError(f"Unsupported metric: {metric}")
 
-    if metric == "buyers":
-        result = calculate_monthly_buying_stores(
-            df,
-            selected_years=selected_years,
-            selected_months=selected_months,
-            include_current_month=True,
-        )
+    metric_name, value_col = metric_map[metric]
 
-        return result, "buying_stores"
+    result = calculate_monthly_metric(
+        metric_name=metric_name,
+        df_filtered=df,
+        active_pods_df=active_pods_df,
+    )
 
-    if metric == "velocity":
-        non_time_filters = remove_time_filters(filters)
+    result = result.rename(
+        columns={"value": value_col}
+    )
 
-        all_time_df = filter_table(features_df, **non_time_filters)
-
-        result = calculate_monthly_vpo(
-            df,
-            all_time_df,
-            selected_years=selected_years,
-            selected_months=selected_months,
-        )
-
-        return result, "vpo"
-
-    if metric == "pods":
-        pod_filters = filters.copy()
-
-        pod_filters.pop("year", None)
-        pod_filters.pop("month", None)
-        pod_filters.pop("month_year", None)
-
-        pod_df = filter_table(features_df, **pod_filters)
-
-        result = calculate_monthly_active_pods(
-            df,
-            pod_df,
-            selected_years=selected_years,
-            selected_months=selected_months,
-        )
-
-        return result, "active_pods"
-
-    raise ValueError(f"Unsupported metric: {metric}")
+    return result, value_col
 
 
 def _prep_all_time_chart(
@@ -217,36 +196,81 @@ def _prep_yoy_chart(
 
 def build_expanded_chart(
     features_df: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
     metric: ChartMetric,
     view: ChartView,
     filters: dict,
+    fill_rate_df: pd.DataFrame | None = None,
 ):
     if view == "all_time":
         chart_filters = remove_time_filters(filters)
 
-        selected_years = None
-        selected_months = None
+    elif view == "default":
+        chart_filters = filters.copy()
+
+        # If the user has not explicitly selected a time period,
+        # default the chart to the latest 12 months of actual sales data.
+        if (
+            not chart_filters.get("year")
+            and not chart_filters.get("month_year")
+        ):
+            latest_month = features_df["month_year"].max()
+
+            last_12_months = [
+                month.strftime("%Y-%m")
+                for month in pd.period_range(
+                    end=latest_month,
+                    periods=12,
+                    freq="M",
+                )
+            ]
+
+            chart_filters["month_year"] = last_12_months
 
     else:
         chart_filters = filters
 
-        selected_years = convert_selected_years(
-            filters.get("year")
+    # Fill rate lives in its own monthly dataset.
+    # All other expanded-chart metrics use the main feature dataset.
+    if metric == "fill_rate":
+        if fill_rate_df is None:
+            raise ValueError(
+                "fill_rate_df is required for fill_rate charts."
+            )
+
+        fill_rate_filters = {
+            key: value
+            for key, value in chart_filters.items()
+            if key in fill_rate_df.columns
+        }
+
+        df = filter_table(
+            fill_rate_df,
+            **fill_rate_filters,
+        )
+    else:
+        df = filter_table(
+            features_df,
+            **chart_filters,
         )
 
-        selected_months = convert_selected_months(
-            filters.get("month_year")
-        )
+    active_pods_filtered = filter_table(
+        active_pods_df,
+        **chart_filters,
+    )
 
-    df = filter_table(features_df, **chart_filters)
+    # Active PODs are forward-expanded, so historical charts
+    # should stop at the latest month with actual sales data.
+    latest_actual_month = features_df["month_year"].max()
+
+    active_pods_filtered = active_pods_filtered[
+        active_pods_filtered["month_year"] <= latest_actual_month
+    ].copy()
 
     result, value_col = _get_monthly_metric_table(
         metric=metric,
         df=df,
-        features_df=features_df,
-        filters=chart_filters,
-        selected_years=selected_years,
-        selected_months=selected_months,
+        active_pods_df=active_pods_filtered,
     )
 
     if view == "yoy":

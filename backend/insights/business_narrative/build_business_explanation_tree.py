@@ -9,8 +9,7 @@ from backend.insights.contribution_diagnostics import (
 )
 
 from backend.insights.business_narrative.business_narrative_helpers import compute_peer_comparison
-from backend.metrics.metric_growth_rates import calculate_vpo_3m
-
+from backend.metrics.metric_callers import compare_metric
 
 
 DEFAULT_DIMENSIONS = ["chain", "sku", "dc", "state"]
@@ -133,6 +132,7 @@ def filter_raw_to_scope(
 # counts. If it's inactive, it doesn't. 
 def compute_node_velocity(
     df: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
     scope: dict,
     current_end,
     prior_end,
@@ -157,47 +157,35 @@ def compute_node_velocity(
         df["pod_helper"].isin(mature_pods)
     ].copy()
 
-    if mature_history_df.empty:
+    mature_active_pods_df = active_pods_df[
+        active_pods_df["pod_helper"].isin(mature_pods)
+    ].copy()
+
+    if mature_history_df.empty or mature_active_pods_df.empty:
         return None, None, None
 
-    velocity = calculate_vpo_3m(
-        mature_df,
-        mature_history_df,
-        [],
+    velocity = compare_metric(
+        df=mature_history_df,
+        df_full=mature_history_df,
+        active_pods_df=mature_active_pods_df,
+        metric_name="velocity",
+        period="L3M",
+        comparison="PP",
+        group_cols=[],
     )
 
-    current_row = velocity[
-        velocity["month_year"] == current_end
-    ]
+    if velocity.empty:
+        return None, None, None
 
-    prior_row = velocity[
-        velocity["month_year"] == prior_end
-    ]
+    row = velocity.iloc[0]
 
-    rate_current = (
-        None
-        if current_row.empty
-        else current_row.iloc[0]["vpo_3m"]
-    )
+    rate_current = row["value_current"]
+    rate_prior = row["value_comparison"]
+    rate_change = row["pct_change"]
 
-    rate_prior = (
-        None
-        if prior_row.empty
-        else prior_row.iloc[0]["vpo_3m"]
-    )
-
-    if (
-        rate_current is None
-        or rate_prior is None
-        or pd.isna(rate_current)
-        or pd.isna(rate_prior)
-        or rate_prior == 0
-    ):
-        rate_change = None
-    else:
-        rate_change = (
-            rate_current - rate_prior
-        ) / rate_prior
+    rate_current = None if pd.isna(rate_current) else float(rate_current)
+    rate_prior = None if pd.isna(rate_prior) else float(rate_prior)
+    rate_change = None if pd.isna(rate_change) else float(rate_change)
 
     return (
         rate_current,
@@ -242,7 +230,7 @@ def _apply_ramping_metrics(node: ExplanationNode, df: pd.DataFrame, current_end)
         node.months_since_launch = float(np.median(months.values))
 
 
-def compute_node_metrics(node: ExplanationNode, df: pd.DataFrame, current_end, prior_end) -> None:
+def compute_node_metrics(node: ExplanationNode, df: pd.DataFrame, active_pods_df: pd.DataFrame, current_end, prior_end) -> None:
     """
     Stage-aware dispatch. Each driver_type gets ONLY its valid metric:
         new      -> nothing (units only)
@@ -254,6 +242,7 @@ def compute_node_metrics(node: ExplanationNode, df: pd.DataFrame, current_end, p
     if node.driver_type == "mature":
         rc, rp, rch = compute_node_velocity(
             df,
+            active_pods_df,
             node.scope,
             current_end,
             prior_end,
@@ -524,6 +513,7 @@ def build_children(
     candidates: list[dict],
     context_records: list[dict],
     df: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
     current_end,
     prior_end,
     top_n_support: int = 3,
@@ -609,6 +599,7 @@ def build_children(
         compute_node_metrics(
             node,
             df,
+            active_pods_df,
             current_end,
             prior_end,
         )
@@ -757,6 +748,7 @@ def expand_node(
     dimensions: list[str],
     context_records: list[dict],
     df: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
     current_end,
     prior_end,
     top_n_support: int = 3,
@@ -804,6 +796,7 @@ def expand_node(
         candidates=candidates,
         context_records=context_records,
         df=df,
+        active_pods_df=active_pods_df,
         current_end=current_end,
         prior_end=prior_end,
         top_n_support=top_n_support,
@@ -830,6 +823,7 @@ def expand_node(
             dimensions=dimensions,
             context_records=context_records,
             df=df,
+            active_pods_df=active_pods_df,
             current_end=current_end,
             prior_end=prior_end,
             top_n_support=top_n_support,
@@ -852,6 +846,7 @@ def build_root_node(
     contributions: pd.DataFrame,
     context_records: list[dict],
     df: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
     current_end,
     prior_end,
     magnitude_gate: float = 500,
@@ -912,7 +907,7 @@ def build_root_node(
             relationship=get_relationship(impact, total_change),
             depth=1,
         )
-        compute_node_metrics(driver, df, current_end, prior_end)
+        compute_node_metrics(driver, df, active_pods_df, current_end, prior_end)
         root.children.append(driver)
 
     # -----------------------------------------------------
@@ -936,6 +931,7 @@ def build_root_node(
 
 def build_business_explanation_tree(
     df: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
     current_start,
     current_end,
     prior_start,
@@ -1014,6 +1010,7 @@ def build_business_explanation_tree(
         contributions=contributions,
         context_records=context_records,
         df=df,
+        active_pods_df=active_pods_df,
         current_end=current_end,
         prior_end=prior_end,
         magnitude_gate=magnitude_gate,
@@ -1036,6 +1033,7 @@ def build_business_explanation_tree(
             dimensions=dimensions,
             context_records=context_records,
             df=df,
+            active_pods_df=active_pods_df,
             current_end=current_end,
             prior_end=prior_end,
             top_n_support=top_n_support,

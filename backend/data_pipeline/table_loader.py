@@ -11,6 +11,7 @@ DATA_ROOT = Path("backend/data").resolve()
 TABLE_CACHE: dict[str, pd.DataFrame] = {}
 ACTIVE_PODS_CACHE: dict[str, pd.DataFrame] = {}
 INVENTORY_ASSESSMENT_CACHE: dict[str, dict] = {}
+FILL_RATE_CACHE: dict[str, pd.DataFrame] = {}
 
 
 def get_org_path(org_id: str) -> Path:
@@ -71,6 +72,56 @@ def load_org_tables(org_id: str):
     TABLE_CACHE[org_id] = features_df
 
     return features_df
+
+def load_fill_rate_df(org_id: str):
+    """
+    Load the fill-rate fact table for an org.
+
+    Loaded lazily so requests that do not need fill-rate data
+    do not incur the cost of loading the table.
+    """
+
+    if org_id in FILL_RATE_CACHE:
+        print(
+            f"⚡ FILL RATE CACHE HIT: {org_id} | "
+            f"cached orgs: {list(FILL_RATE_CACHE.keys())}"
+        )
+        return FILL_RATE_CACHE[org_id]
+
+    print(
+        f"❌ FILL RATE CACHE MISS: {org_id} | "
+        f"cached orgs before load: "
+        f"{list(FILL_RATE_CACHE.keys())}"
+    )
+
+    org_path = get_org_path(org_id)
+    fill_rate_path = (
+        org_path / "fill_rate_df.parquet"
+    )
+
+    if not fill_rate_path.exists():
+        print(
+            f"⬇️ Downloading fill_rate_df for "
+            f"{org_id} from Supabase..."
+        )
+
+        download_file(
+            org_id=org_id,
+            remote_path="processed/fill_rate_df.parquet",
+            local_path=str(fill_rate_path),
+        )
+
+    fill_rate_df = pd.read_parquet(
+        fill_rate_path
+    )
+
+    print(
+        f"💾 LOADING FILL RATE FROM DISK: {org_id}"
+    )
+
+    FILL_RATE_CACHE[org_id] = fill_rate_df
+
+    return fill_rate_df
 
 
 def load_active_pods(org_id: str):
@@ -159,9 +210,11 @@ def clear_table_cache(
     if org_id is None:
         TABLE_CACHE.clear()
         ACTIVE_PODS_CACHE.clear()
+        FILL_RATE_CACHE.clear()
         INVENTORY_ASSESSMENT_CACHE.clear()
         return
-
+    
     TABLE_CACHE.pop(org_id, None)
     ACTIVE_PODS_CACHE.pop(org_id, None)
+    FILL_RATE_CACHE.pop(org_id, None)
     INVENTORY_ASSESSMENT_CACHE.pop(org_id, None)

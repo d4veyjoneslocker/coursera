@@ -1,9 +1,6 @@
 import numpy as np
 import pandas as pd
 
-from backend.metrics.metric_helpers import clean_group_cols
-
-
 NEW_STATUSES = {"New"}
 RAMPING_STATUSES = {"Ramping"}
 MATURE_STATUSES = {"Mature"}

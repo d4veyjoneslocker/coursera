@@ -13,7 +13,7 @@ from fastapi import (
 )
 
 from backend.free_trial.run_insights import run_available_insights
-from backend.data_pipeline.table_loader import load_org_tables
+from backend.data_pipeline.table_loader import load_org_tables, load_active_pods
 from backend.data_pipeline.kehe_pipeline import update_kehe_raw_master, update_kehe_processed_data
 from backend.data_pipeline.unfi_pipeline_upload import update_unfi_raw_master, update_unfi_processed_data
 from backend.data_pipeline.generate_tables import save_base_tables
@@ -710,12 +710,17 @@ def process_free_trial(
             f"{org_id}/processed"
         )
 
-        features_df, local_path = (
-            save_base_tables(
-                output_dir=output_dir,
-                org_id=org_id,
-                upload=True,
-            )
+        (
+            features_df,
+            active_pods_df,
+            fill_rate_df,
+            features_path,
+            active_pods_path,
+            fill_rate_path,
+        ) = save_base_tables(
+            output_dir=output_dir,
+            org_id=org_id,
+            upload=True,
         )
 
         if features_df.empty:
@@ -739,7 +744,7 @@ def process_free_trial(
 
         print(
             "Saved:",
-            local_path,
+            features_path,
         )
 
         print(
@@ -791,16 +796,11 @@ def process_free_trial(
 
 
 @router.get("/insights")
-def get_free_trial_insights(
-    org_id: str = Query(...),
-):
-    df = load_org_tables(
-        org_id
-    )
+def get_free_trial_insights(org_id: str = Query(...)):
+    df = load_org_tables(org_id)
+    active_pods_df = load_active_pods(org_id)
 
-    df_all_time = (
-        df.copy()
-    )
+    df_all_time = df.copy()
 
     available_months = (
         df[
@@ -813,23 +813,18 @@ def get_free_trial_insights(
         .shape[0]
     )
 
-    insights = (
-        run_available_insights(
-            df=df,
-            df_all_time=df_all_time,
-            available_months=available_months,
-            filters=None,
-        )
+    insights = run_available_insights(
+        df=df,
+        df_all_time=df_all_time,
+        active_pods_df=active_pods_df,
+        available_months=available_months,
+        filters=None,
     )
 
-    top_findings = (
-        insights[:5]
-    )
+    top_findings = insights[:5]
 
     return {
-        "available_months": (
-            available_months
-        ),
+        "available_months": available_months,
         "top_findings": clean_payload(
             top_findings
         ),

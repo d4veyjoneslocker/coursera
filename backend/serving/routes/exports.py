@@ -9,8 +9,7 @@ import pandas as pd
 from fastapi.responses import FileResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from datetime import datetime
-from backend.data_pipeline.table_loader import load_org_tables
-
+from backend.data_pipeline.table_loader import load_org_tables, load_active_pods
 
 from backend.exports.ai_ready.export_tables import (
     export_monthly_summary, 
@@ -29,6 +28,7 @@ EXPORT_DIR.mkdir(exist_ok=True)
 @router.get("/ai_package")
 def export_ai_package(org_id: str):
     features_df = load_org_tables(org_id)
+    active_pods_df = load_active_pods(org_id)
 
     df = features_df.copy()
 
@@ -42,10 +42,25 @@ def export_ai_package(org_id: str):
     # -------------------------
     # Build files
     # -------------------------
-    export_monthly_summary(df).to_csv(export_path / "monthly_summary.csv", index=False)
-    export_summary_by_grain(df, ["chain"]).to_csv(export_path / "chain_summary.csv", index=False)
-    export_summary_by_grain(df, ["sku"]).to_csv(export_path / "sku_summary.csv", index=False)
-    export_store_level_table(df, []).to_csv(export_path / "store_summary.csv", index=False)
+    export_monthly_summary(df, active_pods_df).to_csv(
+        export_path / "monthly_summary.csv",
+        index=False,
+    )
+
+    export_summary_by_grain(df, active_pods_df, ["chain"]).to_csv(
+        export_path / "chain_summary.csv",
+        index=False,
+    )
+
+    export_summary_by_grain(df, active_pods_df, ["sku"]).to_csv(
+        export_path / "sku_summary.csv",
+        index=False,
+    )
+
+    export_store_level_table(df, active_pods_df, []).to_csv(
+        export_path / "store_summary.csv",
+        index=False,
+    )
 
     # -------------------------
     # Zip files
@@ -61,7 +76,9 @@ def export_ai_package(org_id: str):
         path=str(zip_path),
         media_type="application/zip",
         filename="ai_package.zip",
-        background=BackgroundTask(lambda: shutil.rmtree(export_path, ignore_errors=True)),
+        background=BackgroundTask(
+            lambda: shutil.rmtree(export_path, ignore_errors=True)
+        ),
     )
 
 @router.get("/store_list")

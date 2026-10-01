@@ -81,6 +81,12 @@ def transform_kehe_fill_rate(
 
     df = apply_sku_map(df, org_id=org_id, match_mode="upc")
 
+    df["ordered_units"] = df["ordered"]
+    df["ordered_cases"] = df["ordered_units"] / df["units_per_case"]
+
+    df["shipped_units"] = df["shipped"]
+    df["shipped_cases"] = df["shipped_units"] / df["units_per_case"]
+
     # ---------------------------------------------------------
     # 7. Validation
     # ---------------------------------------------------------
@@ -114,8 +120,11 @@ def transform_kehe_fill_rate(
             "customer_name",
             "sku",
             "upc",
-            "ordered",
-            "shipped",
+            "units_per_case",
+            "ordered_cases",
+            "ordered_units",
+            "shipped_cases",
+            "shipped_units",
         ]
     ].copy()
 
@@ -164,8 +173,8 @@ def transform_kehe_fill_rate(
     # ---------------------------------------------------------
 
     df = df[
-        df["ordered"].notna()
-        & df["shipped"].notna()
+        df["ordered_cases"].notna()
+        & df["shipped_cases"].notna()
     ].copy()
 
     df["distributor"] = "KEHE"
@@ -189,13 +198,16 @@ def transform_kehe_fill_rate(
                 "chain_store_number",
                 "sku",
                 "upc",
+                "units_per_case",
             ],
             dropna=False,
             as_index=False,
         )
         .agg(
-            ordered=("ordered", "sum"),
-            shipped=("shipped", "sum"),
+            ordered_cases=("ordered_cases", "sum"),
+            ordered_units=("ordered_units", "sum"),
+            shipped_cases=("shipped_cases", "sum"),
+            shipped_units=("shipped_units", "sum"),
         )
     )
 

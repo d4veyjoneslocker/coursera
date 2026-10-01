@@ -69,6 +69,11 @@ def clean_group_cols(group_cols):
 
     return group_cols
 
+def clean_group_cols_new(group_cols):
+    if isinstance(group_cols, str):
+        group_cols = [group_cols]
+
+    return group_cols or []
 
 def get_current_period(include_current_month=False):
     today = pd.Timestamp.today()
@@ -79,30 +84,25 @@ def get_current_period(include_current_month=False):
 
     return current_period
 
-def calculate_avg_skus_per_store(df, grain):
-    result = (
-        df.groupby([grain, "coded_customer"])["sku"]
-        .nunique()
-        .reset_index(name="sku_count")
-    )
+def get_metric_value(result, column="value"):
+    if result.empty:
+        return None
 
-    result = (
-        result.groupby(grain, as_index=False)["sku_count"]
-        .mean()
-        .rename(columns={"sku_count": "avg_skus_per_store"})
-    )
+    value = result[column].iloc[0]
 
-    return result
+    return None if pd.isna(value) else value
 
-
-def resolve_period(period, year=None):
+def resolve_period(period, year=None, end_month=None):
     period = period.upper()
 
-    # Rolling periods ending at last completed month
+    # Rolling periods
     if period.startswith("L") and period.endswith("M"):
         months = int(period[1:-1])
 
-        end = get_current_period(include_current_month=False)
+        if end_month is None:
+            end_month = get_current_period(include_current_month=False)
+
+        end = pd.Period(end_month, freq="M")
         start = end - (months - 1)
 
         return {
@@ -128,21 +128,31 @@ def resolve_period(period, year=None):
     if period not in period_map:
         raise ValueError(f"Unsupported period: {period}")
 
-    start_month, end_month = period_map[period]
+    start_month, end_month_num = period_map[period]
 
     return {
         "label": f"{period} {year}",
         "start": pd.Period(f"{year}-{start_month:02d}", freq="M"),
-        "end": pd.Period(f"{year}-{end_month:02d}", freq="M"),
+        "end": pd.Period(f"{year}-{end_month_num:02d}", freq="M"),
     }
 
-
-def resolve_period_comparison(period, year, comparison):
-    current = resolve_period(period, year)
+def resolve_period_comparison(period, year=None, comparison="PP", end_month=None):
+    current = resolve_period(
+        period=period,
+        year=year,
+        end_month=end_month,
+        )
     comparison = comparison.upper()
 
     if comparison == "PY":
-        prior = resolve_period(period, year - 1)
+        prior_start = current["start"] - 12
+        prior_end = current["end"] - 12
+
+        prior = {
+            "label": label_period(prior_start, prior_end),
+            "start": prior_start,
+            "end": prior_end,
+        }
 
     elif comparison == "PP":
         months = len(
@@ -249,3 +259,18 @@ def get_period_completeness(
     months_present = period_df["month_year"].nunique()
 
     return months_present == expected_months
+
+def calculate_avg_skus_per_store(df, grain):
+    result = (
+        df.groupby([grain, "coded_customer"])["sku"]
+        .nunique()
+        .reset_index(name="sku_count")
+    )
+
+    result = (
+        result.groupby(grain, as_index=False)["sku_count"]
+        .mean()
+        .rename(columns={"sku_count": "avg_skus_per_store"})
+    )
+
+    return result

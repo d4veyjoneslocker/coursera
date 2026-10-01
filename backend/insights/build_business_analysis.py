@@ -1,9 +1,7 @@
 import pandas as pd
 
 from backend.insights.insights_helper import _build_3m_metrics
-from backend.insights.diagnostics import (
-    calculate_units_growth_decomposition_3m,
-)
+from backend.insights.diagnostics import calculate_units_growth_decomposition
 
 
 # ---------------------------------------------------------
@@ -849,16 +847,10 @@ def build_business_signals(
     return signals
 
 
-
-import pandas as pd
-
-from backend.insights.diagnostics import (
-    calculate_units_growth_decomposition_3m,
-)
-
-
 def build_business_stories(
     df: pd.DataFrame,
+    df_full: pd.DataFrame,
+    active_pods_df: pd.DataFrame,
     analysis: dict,
     signals: list[dict],
 ) -> list[dict]:
@@ -933,19 +925,28 @@ def build_business_stories(
 
         df_scope = df.copy()
 
+        df_full_scope = df_full.copy()
+        active_pods_scope = active_pods_df.copy()
+
         if "chain" in scope:
-            df_scope = df_scope[
-                df_scope["chain"] == scope["chain"]
+            df_scope = df_scope[df_scope["chain"] == scope["chain"]]
+            df_full_scope = df_full_scope[df_full_scope["chain"] == scope["chain"]]
+            active_pods_scope = active_pods_scope[
+                active_pods_scope["chain"] == scope["chain"]
             ]
 
         if "state" in scope:
-            df_scope = df_scope[
-                df_scope["state"] == scope["state"]
+            df_scope = df_scope[df_scope["state"] == scope["state"]]
+            df_full_scope = df_full_scope[df_full_scope["state"] == scope["state"]]
+            active_pods_scope = active_pods_scope[
+                active_pods_scope["state"] == scope["state"]
             ]
 
         if "sku" in scope:
-            df_scope = df_scope[
-                df_scope["sku"] == scope["sku"]
+            df_scope = df_scope[df_scope["sku"] == scope["sku"]]
+            df_full_scope = df_full_scope[df_full_scope["sku"] == scope["sku"]]
+            active_pods_scope = active_pods_scope[
+                active_pods_scope["sku"] == scope["sku"]
             ]
 
         # ---------------------------------------------
@@ -977,9 +978,10 @@ def build_business_stories(
             if "sku" in scope:
                 group_cols.append("sku")
 
-            decomp = calculate_units_growth_decomposition_3m(
-                df_filtered=df_scope,
-                df_full=df_scope,
+            decomp = calculate_units_growth_decomposition(
+                df=df_scope,
+                df_full=df_full_scope,
+                active_pods_df=active_pods_scope,
                 group_cols=group_cols,
             )
 

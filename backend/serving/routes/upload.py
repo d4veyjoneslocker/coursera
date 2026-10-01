@@ -239,7 +239,14 @@ async def upload_kehe(
         # DO NOT upload features_df yet.
         # =================================================
 
-        features_df, features_path = save_base_tables(
+        (
+            features_df,
+            active_pods_df,
+            fill_rate_df,
+            features_path,
+            active_pods_path,
+            fill_rate_path,
+        ) = save_base_tables(
             output_dir=f"backend/data/{org_id}",
             org_id=org_id,
             upload=False,
@@ -370,6 +377,31 @@ async def upload_kehe(
         )
 
         print("✅ features_df published")
+
+        upload_file(
+            local_path=str(
+                active_pods_path
+            ),
+            org_id=org_id,
+            remote_path=(
+                "processed/active_pods_df.parquet"
+            ),
+        )
+
+        print("✅ active_pods_df published")
+
+
+        upload_file(
+            local_path=str(
+                fill_rate_path
+            ),
+            org_id=org_id,
+            remote_path=(
+                "processed/fill_rate_df.parquet"
+            ),
+        )
+
+        print("✅ fill_rate_df published")
 
         # =================================================
         # Record uploaded month coverage
