@@ -346,17 +346,30 @@ def build_base_tables(
 
     # -------------------------------------------------
     # Build fill-rate table
-    # TEMPORARY: move source loading/transformation
-    # into the fill-rate pipeline later.
     # -------------------------------------------------
 
-    fill_rate_path = (
+
+    fill_rate_source_path = (
         Path(f"backend/data/{org_id}")
-        / "processed"
-        / "fill_rate"
+        / "processed_sources"
+        / "kehe_fill_rate.parquet"
     )
 
-    fill_rate_raw = pd.read_parquet(fill_rate_path)
+    fill_rate_source_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    if not fill_rate_source_path.exists():
+        print("⬇️ Downloading KeHE fill-rate source from Supabase...")
+
+        download_file(
+            org_id,
+            "processed_sources/kehe_fill_rate.parquet",
+            str(fill_rate_source_path),
+        )
+
+    fill_rate_raw = pd.read_parquet(fill_rate_source_path)
 
     kehe_fill_rate_df = transform_kehe_fill_rate(
         fill_rate_raw,
