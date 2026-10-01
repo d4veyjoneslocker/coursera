@@ -451,7 +451,9 @@ export default function EmailPreviewPage() {
 
                   {/* SECTION CONTENT */}
 
-                  {(section.insights ?? []).length === 0 ? (
+                  {section.key === "what_changed" ? (
+                    <BusinessNarrativeSummary orgId={org.id} />
+                  ) : (section.insights ?? []).length === 0 ? (
                     <div
                       className="rounded-2xl border px-5 py-4 text-[13px]"
                       style={{
