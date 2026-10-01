@@ -121,15 +121,6 @@ def _get_monthly_metric_table(
     df_filtered=df,
     active_pods_df=active_pods_df,
 )
-
-    if metric == "reorders":
-        print("\n=== REORDER CHART DEBUG ===")
-        print("features months:", sorted(df["month_year"].unique()))
-        print("active pod months:", sorted(active_pods_df["month_year"].unique()))
-        print("result:")
-        print(result.to_string(index=False))
-        print("===========================\n")
-
     result = result.rename(
         columns={"value": value_col}
     )
