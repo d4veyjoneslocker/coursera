@@ -149,6 +149,14 @@ def fill_rate(org_id: str = Query(...), filters: dict = Depends(get_filters)):
 
     df = filter_table(fill_rate_df, **fill_rate_filters)
 
+    print("\n=== FILL RATE ENDPOINT DEBUG ===")
+    print("df is None:", df is None)
+    print("df shape:", getattr(df, "shape", None))
+    print("df columns:", list(df.columns) if hasattr(df, "columns") else None)
+    print("================================\n")
+
+    result = fill_rate_metrics(df, grain=["month_year"])
+
     result = fill_rate_metrics(df, grain=["month_year"])
 
     result = result[["month_year", "fill_rate"]]
