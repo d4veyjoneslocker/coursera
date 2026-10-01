@@ -78,11 +78,11 @@ export default function StoreHealthMap({
   const { org } = useOrg()
 
   const statusColors: Record<string, string> = {
-    Healthy: org.primary_color ?? "#9A93B0",
-    Revived: org.secondary_color ?? "#C58E82",
-    New: org.accent_color ?? "#C8795A",
-    Struggling: "#D95C5C",
-    Inactive: "#A6A3A0",
+    Healthy: "#65A57B",
+    Struggling: "#C97474",
+    Revived: "#D39A5B",
+    New: org.primary_color ?? "#9A93B0",
+    Inactive: "#999A9D"
   }
 
   const getStatusColor = (status: string | null) => {
