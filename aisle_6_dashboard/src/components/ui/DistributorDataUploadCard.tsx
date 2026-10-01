@@ -271,18 +271,18 @@ export default function DistributorDataUploadCard({
           formData.append("files", file)
         })
 
-        formData.append("org_id", org.id)
-
-        url =
-          uploadMode === "free-trial"
-            ? `${apiBaseUrl}/free-trial/upload/kehe`
-            : `${apiBaseUrl}/upload/kehe`
+        if (uploadMode === "free-trial") {
+          formData.append("org_id", org.id)
+          url = `${apiBaseUrl}/free-trial/upload/kehe`
+        } else {
+          url = `${apiBaseUrl}/upload/kehe?org_id=${encodeURIComponent(org.id)}`
+        }
       }
 
       // =====================================================
       // UNFI
       // =====================================================
-
+      
       if (isUnfi) {
         formData.append("file", files[0])
         formData.append("org_id", org.id)
