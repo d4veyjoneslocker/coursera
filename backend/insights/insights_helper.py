@@ -125,7 +125,7 @@ def format_number(
     
 def get_last_full_month(today=None) -> pd.Period:
     if today is None:
-        today = pd.Timestamp.today()
+        today = pd.Timestamp.now(tz="America/New_York").tz_localize(None)
 
     current_month = pd.Period(today, freq="M")
 
