@@ -48,33 +48,9 @@ def _build_launch_event_table(
 
     table = monthly.merge(first_purchase, on=grain, how="left")
 
-    missing_launch = table[
-        table["month_year"].isna()
-        | table["launch_month"].isna()
-    ]
-
-    if not missing_launch.empty:
-        print("\n🚨 FAILURE TO LAUNCH: MISSING MONTH DATA")
-        print(f"Rows: {len(missing_launch):,}")
-        print(
-            missing_launch[
-                [
-                    col
-                    for col in [
-                        "month_year",
-                        "launch_month",
-                        "pod_helper",
-                        "chain",
-                        "sku",
-                        "distributor",
-                        "dc",
-                    ]
-                    if col in missing_launch.columns
-                ]
-            ]
-            .head(50)
-            .to_string(index=False)
-        )
+    # Exclude store × SKU combinations that have never recorded a positive purchase.
+    # They do not have a launch event to evaluate.
+    table = table[table["launch_month"].notna()].copy()
 
     # Determines months since launch and calculates it as an int
     table["months_after_launch"] = (table["month_year"] - table["launch_month"]).apply(lambda x: x.n)
