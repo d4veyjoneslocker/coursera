@@ -398,6 +398,27 @@ def build_base_tables(
     else:
         print("✅ Data validated")
 
+    sept = pd.Period("2026-09", freq="M")
+
+    print("\n=== FRESH BUILD SEPTEMBER CHECK ===")
+
+    print(
+        "features September PODs:",
+        features_df.loc[
+            features_df["month_year"] == sept,
+            "pod_helper",
+        ].nunique(),
+    )
+
+    sept_active = active_pods_df[
+        active_pods_df["month_year"] == sept
+    ]
+
+    print("active POD rows:", len(sept_active))
+    print("ordered=True:", sept_active["ordered"].sum())
+
+    print("===================================\n")
+
     return features_df, active_pods_df, fill_rate_df
 
 
