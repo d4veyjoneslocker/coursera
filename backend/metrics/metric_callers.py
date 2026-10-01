@@ -316,6 +316,18 @@ def compare_metric(
         end_month=end_month,
     )
 
+    if period in ("L1M", "L3M"):
+        print(
+            f"🔎 PERIOD DEBUG | "
+            f"metric={metric_name} | "
+            f"period={period} | "
+            f"end_month_arg={end_month} | "
+            f"current={current_period['start']} → {current_period['end']} | "
+            f"comparison={comparison_period['start']} → {comparison_period['end']} | "
+            f"df_min={df['month_year'].min()} | "
+            f"df_max={df['month_year'].max()}"
+        )
+
     current_start = current_period["start"]
     current_end = current_period["end"]
 
