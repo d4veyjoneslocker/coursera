@@ -282,15 +282,15 @@ def calculate_units_growth_decomposition(
     decomps = result.apply(
         lambda row: decompose_units_growth(
             units_current=row["units_current"],
-            units_prior=row["units_prior"],
+            units_prior=row["units_comparison"],
             active_pod_opportunities_current=row[
                 "active_pod_opportunities_current"
             ],
             active_pod_opportunities_prior=row[
-                "active_pod_opportunities_prior"
+                "active_pod_opportunities_comparison"
             ],
             vpo_current=row["vpo_current"],
-            vpo_prior=row["vpo_prior"],
+            vpo_prior=row["vpo_comparison"],
             weeks_per_month=4,
         ) or {},
         axis=1,
