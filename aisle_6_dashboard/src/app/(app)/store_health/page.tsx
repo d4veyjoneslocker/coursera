@@ -40,29 +40,29 @@ const STATUS_STYLES: Record<
   }
 > = {
   Healthy: {
-    bg: "#EEF6F0",
-    text: "#5F7F68",
-    border: "#D7E8DB",
+    bg: "#F0F6F2",
+    text: "#65A57B",
+    border: "#D8E8DD",
   },
   Struggling: {
-    bg: "#FFF4E8",
-    text: "#A56A2A",
-    border: "#EFD9BC",
-  },
-  Inactive: {
-    bg: "#F4F1EC",
-    text: "#7A746B",
-    border: "#E7DED2",
-  },
-  New: {
-    bg: "#EEF4F8",
-    text: "#4E6F8C",
-    border: "#D5E1EA",
+    bg: "#F9F0F0",
+    text: "#C97474",
+    border: "#ECD8D8",
   },
   Revived: {
-    bg: "#F3EEFF",
-    text: "#6B4FB3",
-    border: "#DDD3F5",
+    bg: "#FAF3EB",
+    text: "#D39A5B",
+    border: "#EDDDCA",
+  },
+  New: {
+    bg: "#F3F1F6",
+    text: "#9A93B0",
+    border: "#DFDCE7",
+  },
+  Inactive: {
+    bg: "#F3F3F2",
+    text: "#999A9D",
+    border: "#E2E2E0",
   },
 }
 
