@@ -133,7 +133,7 @@ def build_weekly_digest(df, df_full, active_pods_df, active_pods_full, filters=N
             "description": "Areas where the data points to additional growth.",
             "insights": sort_insights(
                 [insight for insight in insights if insight.get("section") == "opportunities"]
-            )[:3],
+            )[:4],
         },
         {
             "key": "at_risk",
