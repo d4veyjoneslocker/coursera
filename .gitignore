@@ -64,5 +64,13 @@ yarn-error.log*
 __pycache__/
 *.py[cod]
 
-backend/data
+# Customer data
+backend/data/*
+backend/data/*/active_pods_df.parquet
+backend/data/*/fill_rate_df.parquet
+backend/data/*/processed/*.parquet
 
+
+# Temp allow
+!backend/data/67a96381-5014-4a9b-bfe8-a14e6da5affe/
+!backend/data/67a96381-5014-4a9b-bfe8-a14e6da5affe/**
