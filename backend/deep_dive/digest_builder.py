@@ -1,7 +1,9 @@
 import math
 from typing import Any
 
+
 import numpy as np
+import pandas as pd
 
 from backend.insights.missed_replenishment_risk import build_order_cadence_risk_insight
 from backend.insights.failure_to_launch_new_store_risk import build_failure_to_launch_new_store_risk_insight
@@ -20,22 +22,38 @@ def make_json_safe(value: Any) -> Any:
     Converts:
     - NaN and positive/negative infinity to None
     - NumPy scalar values to native Python values
+    - pandas Period/Timestamp values to strings
     - Nested dictionaries, lists, and tuples recursively
     """
+
     if isinstance(value, dict):
-        return {key: make_json_safe(item) for key, item in value.items()}
+        return {
+            key: make_json_safe(item)
+            for key, item in value.items()
+        }
 
     if isinstance(value, (list, tuple)):
-        return [make_json_safe(item) for item in value]
+        return [
+            make_json_safe(item)
+            for item in value
+        ]
 
+    # Pandas time types
+    if isinstance(value, pd.Period):
+        return str(value)
+
+    if isinstance(value, pd.Timestamp):
+        return value.isoformat()
+
+    # NumPy scalar types
     if isinstance(value, np.generic):
         value = value.item()
 
+    # NaN / inf
     if isinstance(value, float) and not math.isfinite(value):
         return None
 
     return value
-
 
 def flatten_insights(items):
     flattened = []
