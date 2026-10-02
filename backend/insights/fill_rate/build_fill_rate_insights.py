@@ -22,6 +22,17 @@ def build_chain_story(chain_row, supporting_dcs):
         "supporting_dc_count": len(supporting_dcs),
     }
 
+def build_localized_dc_story(chain_row, supporting_dcs):
+    return {
+        "story_grain": "localized_dc",
+        "chain": chain_row["chain"],
+        "sku": chain_row["sku"],
+        "primary_driver": "localized_fulfillment",
+        "chain_diagnostic": chain_row.to_dict(),
+        "supporting_dcs": supporting_dcs.to_dict(orient="records"),
+        "supporting_dc_count": len(supporting_dcs),
+    }
+
 
 def build_dc_story(dc_row, chain_row):
     return {
@@ -69,20 +80,17 @@ def select_fill_rate_stories(chain_sku, dc_sku):
         # Chain-level diagnostic does not show a fill-rate issue,
         # but individual DC diagnostics do.
         else:
-            for _, dc_row in fill_rate_dcs.iterrows():
+            valid_fill_rate_dcs = fill_rate_dcs[
+                fill_rate_dcs["dc"].notna()
+            ]
 
-                # Keep unmapped DC rows in diagnostics,
-                # but don't create a DC story without a DC.
-                if pd.isna(dc_row["dc"]):
-                    continue
-
+            if not valid_fill_rate_dcs.empty:
                 stories.append(
-                    build_dc_story(
-                        dc_row=dc_row,
+                    build_localized_dc_story(
                         chain_row=chain_row,
+                        supporting_dcs=valid_fill_rate_dcs,
                     )
                 )
-
     return stories
 
 
@@ -136,19 +144,11 @@ def build_fill_rate_insights(
 
 def narrate_fill_rate_story(story):
     """
-    Turn a selected fill-rate story into user-facing narrative.
+    Turn a selected fill-rate story into concise user-facing narrative.
 
     This function does NOT make analytical decisions.
     Eligibility, driver classification, story grain, and materiality
     should already be determined upstream.
-
-    Returns:
-        {
-            "headline": str,
-            "summary": str,
-            "detail": str | None,
-            "action_context": str | None,
-        }
     """
 
     def format_pct(value):
@@ -161,11 +161,20 @@ def narrate_fill_rate_story(story):
             return None
         return f"{value:.1f}"
 
+    def format_dc_list(dc_names):
+        if not dc_names:
+            return ""
+        if len(dc_names) == 1:
+            return dc_names[0]
+        if len(dc_names) == 2:
+            return f"{dc_names[0]} and {dc_names[1]}"
+        return f"{', '.join(dc_names[:-1])}, and {dc_names[-1]}"
+
     def period_text(period):
         if period == "L3M":
-            return "over the last 3 months compared with the prior 3 months"
+            return "over the last 3 months"
         if period == "L2M":
-            return "over the last 2 months compared with the prior 2 months"
+            return "over the last 2 months"
         return "over the comparison period"
 
     # =====================================================
@@ -179,141 +188,136 @@ def narrate_fill_rate_story(story):
 
         chain = story["chain"]
         sku = story["sku"]
-
-        velocity_pct = diagnostic.get("velocity_pct_change")
-        order_pct = diagnostic.get("order_velocity_pct_change")
-        fill_pct = diagnostic.get("fill_rate_pct_change")
         driver = story["primary_driver"]
-        period = diagnostic.get("diagnostic_period")
 
-        velocity_text = format_pct(velocity_pct)
-        order_text = format_pct(order_pct)
-        fill_text = format_pct(fill_pct)
-        timeframe = period_text(period)
+        velocity_text = format_pct(
+            diagnostic.get("velocity_pct_change")
+        )
+        order_text = format_pct(
+            diagnostic.get("order_velocity_pct_change")
+        )
+        fill_text = format_pct(
+            diagnostic.get("fill_rate_pct_change")
+        )
+        timeframe = period_text(
+            diagnostic.get("diagnostic_period")
+        )
+
+        dc_names = [
+            str(row.get("dc"))
+            for row in supporting_dcs
+            if pd.notna(row.get("dc"))
+        ]
+        dc_list = format_dc_list(dc_names)
 
         # -----------------------------
         # Headline
         # -----------------------------
 
-        if len(supporting_dcs) == 1:
-            dc = supporting_dcs[0].get("dc")
-            headline = (
-                f"{sku} is slowing at {chain}, with fulfillment pressure "
-                f"concentrated at {dc}"
-            )
-        elif len(supporting_dcs) > 1:
-            headline = (
-                f"{sku} is slowing at {chain}, with fulfillment pressure "
-                f"across multiple DCs"
-            )
-        else:
-            headline = (
-                f"{sku} is slowing at {chain}, with lower fulfillment "
-                f"contributing"
-            )
+        headline = (
+            f"{sku} velocity at {chain} is down {velocity_text}"
+        )
 
         # -----------------------------
         # Summary
         # -----------------------------
 
-        summary = (
-            f"{sku} velocity at {chain} declined {velocity_text} {timeframe}."
-        )
-
         if driver == "ordering_and_fulfillment":
-            summary += (
-                f" The data points to both softer ordering and lower "
-                f"fulfillment, with order velocity down {order_text} and "
-                f"fill rate down {fill_text}."
+            summary = (
+                f"Ordering and fulfillment both weakened {timeframe}: "
+                f"order velocity fell {order_text} and fill rate fell "
+                f"{fill_text}."
             )
 
         elif driver == "fulfillment":
-            summary += (
-                f" The data points to lower fulfillment as a meaningful "
-                f"factor, with fill rate down {fill_text}."
+            summary = (
+                f"Fulfillment stands out as the main pressure point "
+                f"{timeframe}, with fill rate down {fill_text}."
+            )
+
+        else:
+            summary = (
+                f"Sales velocity declined {velocity_text} {timeframe}."
             )
 
         # -----------------------------
-        # DC detail
+        # Supporting DC evidence
         # -----------------------------
 
         detail = None
 
         if len(supporting_dcs) == 1:
-            dc_row = supporting_dcs[0]
+            row = supporting_dcs[0]
 
-            dc = dc_row.get("dc")
-            dc_fill_pct = format_pct(
-                dc_row.get("diagnostic_fill_rate_pct_change")
+            dc = row.get("dc")
+            dc_velocity_text = format_pct(
+                row.get("diagnostic_velocity_pct_change")
             )
-            dc_velocity_pct = format_pct(
-                dc_row.get("diagnostic_velocity_pct_change")
+            dc_fill_text = format_pct(
+                row.get("diagnostic_fill_rate_pct_change")
             )
 
             detail = (
-                f"The fulfillment issue appears concentrated at {dc}, "
-                f"where fill rate declined {dc_fill_pct} and sales velocity "
-                f"declined {dc_velocity_pct}."
+                f"The fulfillment issue is concentrated at {dc}, "
+                f"where fill rate fell {dc_fill_text} alongside a "
+                f"{dc_velocity_text} decline in sales velocity."
             )
 
         elif len(supporting_dcs) > 1:
-            dc_names = [
-                str(row.get("dc"))
-                for row in supporting_dcs
-                if pd.notna(row.get("dc"))
-            ]
+            dc_details = []
 
-            if dc_names:
-                detail = (
-                    f"Fulfillment pressure is showing up across "
-                    f"{len(dc_names)} DCs: {', '.join(dc_names)}."
+            for row in supporting_dcs:
+                dc = row.get("dc")
+                dc_fill_text = format_pct(
+                    row.get("diagnostic_fill_rate_pct_change")
+                )
+                dc_velocity_text = format_pct(
+                    row.get("diagnostic_velocity_pct_change")
                 )
 
+                dc_details.append(
+                    f"{dc} (fill rate -{dc_fill_text}, "
+                    f"sales velocity -{dc_velocity_text})"
+                )
+
+            detail = (
+                f"The fulfillment pressure is concentrated in "
+                f"{dc_list}: "
+                + "; ".join(dc_details)
+                + "."
+            )
+
         # -----------------------------
-        # Current inventory context
+        # Current inventory
         # -----------------------------
+
+        inventory_details = []
+
+        for row in supporting_dcs:
+            dc = row.get("dc")
+            inventory_status = row.get("inventory_status")
+            weeks_text = format_weeks(
+                row.get("estimated_weeks_on_hand")
+            )
+
+            if inventory_status == "action":
+                text = f"{dc} needs inventory attention now"
+            elif inventory_status == "monitor":
+                text = f"{dc} should be monitored"
+            elif inventory_status == "healthy":
+                text = f"{dc} inventory is currently healthy"
+            else:
+                continue
+
+            if weeks_text:
+                text += f" at {weeks_text} weeks on hand"
+
+            inventory_details.append(text)
 
         action_context = None
 
-        if len(supporting_dcs) == 1:
-            dc_row = supporting_dcs[0]
-
-            dc = dc_row.get("dc")
-            inventory_status = dc_row.get("inventory_status")
-            weeks_on_hand = dc_row.get("estimated_weeks_on_hand")
-            weeks_text = format_weeks(weeks_on_hand)
-
-            if inventory_status == "action":
-                action_context = (
-                    f"{dc} also currently requires inventory action"
-                    + (
-                        f", with approximately {weeks_text} weeks on hand."
-                        if weeks_text
-                        else "."
-                    )
-                )
-
-            elif inventory_status == "monitor":
-                action_context = (
-                    f"{dc} is currently being monitored for inventory risk"
-                    + (
-                        f", with approximately {weeks_text} weeks on hand."
-                        if weeks_text
-                        else "."
-                    )
-                )
-
-            elif inventory_status == "healthy":
-                action_context = (
-                    f"{dc} currently has healthy inventory"
-                    + (
-                        f" at approximately {weeks_text} weeks on hand, "
-                        f"so the historical fulfillment pressure does not "
-                        f"appear to reflect a current inventory shortage."
-                        if weeks_text
-                        else "."
-                    )
-                )
+        if inventory_details:
+            action_context = ". ".join(inventory_details) + "."
 
         return {
             "headline": headline,
@@ -323,7 +327,117 @@ def narrate_fill_rate_story(story):
         }
 
     # =====================================================
-    # DC STORY
+    # LOCALIZED DC STORY
+    # =====================================================
+
+    if story["story_grain"] == "localized_dc":
+
+        chain = story["chain"]
+        sku = story["sku"]
+        supporting_dcs = story["supporting_dcs"]
+
+        dc_names = [
+            str(row.get("dc"))
+            for row in supporting_dcs
+            if pd.notna(row.get("dc"))
+        ]
+        dc_list = format_dc_list(dc_names)
+
+        # -----------------------------
+        # Headline
+        # -----------------------------
+
+        if len(dc_names) == 1:
+            headline = (
+                f"{sku} has a localized fulfillment issue at "
+                f"{dc_list}"
+            )
+        else:
+            headline = (
+                f"{sku} has localized fulfillment issues at "
+                f"{dc_list}"
+            )
+
+        # -----------------------------
+        # Summary
+        # -----------------------------
+
+        summary = (
+            f"The issue is not broad across {chain}; fulfillment "
+            f"pressure is concentrated at {dc_list}."
+        )
+
+        # -----------------------------
+        # Supporting DC evidence
+        # -----------------------------
+
+        dc_details = []
+
+        for row in supporting_dcs:
+            dc = row.get("dc")
+
+            velocity_text = format_pct(
+                row.get("diagnostic_velocity_pct_change")
+            )
+            order_text = format_pct(
+                row.get("diagnostic_order_velocity_pct_change")
+            )
+            fill_text = format_pct(
+                row.get("diagnostic_fill_rate_pct_change")
+            )
+            timeframe = period_text(
+                row.get("diagnostic_period")
+            )
+
+            dc_details.append(
+                f"{dc}: sales velocity fell {velocity_text} "
+                f"{timeframe}, with ordering down {order_text} "
+                f"and fill rate down {fill_text}"
+            )
+
+        detail = ". ".join(dc_details) + "."
+
+        # -----------------------------
+        # Current inventory
+        # -----------------------------
+
+        inventory_details = []
+
+        for row in supporting_dcs:
+            dc = row.get("dc")
+            inventory_status = row.get("inventory_status")
+            weeks_text = format_weeks(
+                row.get("estimated_weeks_on_hand")
+            )
+
+            if inventory_status == "action":
+                text = f"{dc} needs inventory attention now"
+            elif inventory_status == "monitor":
+                text = f"{dc} should be monitored"
+            elif inventory_status == "healthy":
+                text = f"{dc} inventory is currently healthy"
+            else:
+                continue
+
+            if weeks_text:
+                text += f" at {weeks_text} weeks on hand"
+
+            inventory_details.append(text)
+
+        action_context = None
+
+        if inventory_details:
+            action_context = ". ".join(inventory_details) + "."
+
+        return {
+            "headline": headline,
+            "summary": summary,
+            "detail": detail,
+            "action_context": action_context,
+        }
+
+    # =====================================================
+    # LEGACY SINGLE-DC STORY
     # =====================================================
 
     if story["story_grain"] == "dc":
@@ -333,106 +447,61 @@ def narrate_fill_rate_story(story):
         chain = story["chain"]
         sku = story["sku"]
         dc = story["dc"]
-
-        velocity_pct = diagnostic.get("velocity_pct_change")
-        order_pct = diagnostic.get("order_velocity_pct_change")
-        fill_pct = diagnostic.get("fill_rate_pct_change")
-
         driver = story["primary_driver"]
-        period = diagnostic.get("diagnostic_period")
 
-        velocity_text = format_pct(velocity_pct)
-        order_text = format_pct(order_pct)
-        fill_text = format_pct(fill_pct)
-        timeframe = period_text(period)
+        velocity_text = format_pct(
+            diagnostic.get("velocity_pct_change")
+        )
+        order_text = format_pct(
+            diagnostic.get("order_velocity_pct_change")
+        )
+        fill_text = format_pct(
+            diagnostic.get("fill_rate_pct_change")
+        )
+        timeframe = period_text(
+            diagnostic.get("diagnostic_period")
+        )
 
-        # -----------------------------
-        # Headline
-        # -----------------------------
+        headline = (
+            f"{sku} has a localized fulfillment issue at {dc}"
+        )
 
         if driver == "ordering_and_fulfillment":
-            headline = (
-                f"{dc} is showing both ordering and fulfillment pressure "
-                f"for {sku}"
+            summary = (
+                f"Sales velocity through {dc} fell {velocity_text} "
+                f"{timeframe}, with ordering down {order_text} and "
+                f"fill rate down {fill_text}."
             )
         else:
-            headline = (
-                f"{dc} stands out as a fulfillment issue for {sku}"
+            summary = (
+                f"Sales velocity through {dc} fell {velocity_text} "
+                f"{timeframe}, while fill rate declined {fill_text}."
             )
-
-        # -----------------------------
-        # Summary
-        # -----------------------------
-
-        summary = (
-            f"{sku} velocity at {chain} through {dc} declined "
-            f"{velocity_text} {timeframe}."
-        )
-
-        if driver == "ordering_and_fulfillment":
-            summary += (
-                f" Order velocity declined {order_text} while fill rate "
-                f"declined {fill_text}, suggesting both weaker ordering "
-                f"and fulfillment contributed."
-            )
-
-        elif driver == "fulfillment":
-            summary += (
-                f" Fill rate declined {fill_text}, while ordering did not "
-                f"show the same deterioration, pointing to fulfillment "
-                f"as the stronger signal."
-            )
-
-        # -----------------------------
-        # Detail
-        # -----------------------------
 
         detail = (
-            f"The broader {chain} × {sku} trend does not show the same "
-            f"fulfillment signal, making {dc} a localized issue."
+            f"The broader {chain} trend does not show the same "
+            f"fulfillment pressure, making {dc} the localized issue."
         )
 
-        # -----------------------------
-        # Current inventory context
-        # -----------------------------
-
         inventory_status = diagnostic.get("inventory_status")
-        weeks_on_hand = diagnostic.get("estimated_weeks_on_hand")
-        weeks_text = format_weeks(weeks_on_hand)
+        weeks_text = format_weeks(
+            diagnostic.get("estimated_weeks_on_hand")
+        )
 
         action_context = None
 
         if inventory_status == "action":
-            action_context = (
-                f"{dc} currently requires inventory action"
-                + (
-                    f", with approximately {weeks_text} weeks on hand."
-                    if weeks_text
-                    else "."
-                )
-            )
-
+            action_context = f"{dc} needs inventory attention now"
         elif inventory_status == "monitor":
-            action_context = (
-                f"{dc} is currently being monitored for inventory risk"
-                + (
-                    f", with approximately {weeks_text} weeks on hand."
-                    if weeks_text
-                    else "."
-                )
-            )
-
+            action_context = f"{dc} should be monitored"
         elif inventory_status == "healthy":
-            action_context = (
-                f"{dc} currently has healthy inventory"
-                + (
-                    f" at approximately {weeks_text} weeks on hand, "
-                    f"suggesting the historical fulfillment issue is not "
-                    f"a current inventory shortage."
-                    if weeks_text
-                    else "."
-                )
-            )
+            action_context = f"{dc} inventory is currently healthy"
+
+        if action_context and weeks_text:
+            action_context += f" at {weeks_text} weeks on hand."
+
+        elif action_context:
+            action_context += "."
 
         return {
             "headline": headline,
@@ -444,7 +513,6 @@ def narrate_fill_rate_story(story):
     raise ValueError(
         f"Unknown story_grain: {story.get('story_grain')}"
     )
-
 
 
 def main():
@@ -528,7 +596,7 @@ def main():
         print(f"SKU: {story['sku']}")
         print(f"Driver: {story['primary_driver']}")
 
-        if story["story_grain"] == "chain":
+        if story["story_grain"] in {"chain", "localized_dc"}:
 
             diagnostic = story["chain_diagnostic"]
 
