@@ -15,6 +15,7 @@ import {
   SignOut,
   CalendarBlank,
   X,
+  Percent,
 } from "@phosphor-icons/react"
 
 import { supabase } from "@/lib/supabase"
@@ -25,6 +26,7 @@ import DistributorDataUploadCard from "@/components/ui/DistributorDataUploadCard
 type DashboardPage =
   | "insights"
   | "dashboard"
+  | "fill-rate"
   | "stores"
   | "inventory"
   | "inventory-dashboard"
@@ -72,6 +74,12 @@ const salesPages = [
     value: "dashboard",
     href: "/",
     icon: ChartBar,
+  },
+  {
+    label: "Fill Rate",
+    value: "fill-rate",
+    href: "/fill-rate",
+    icon: Percent,
   },
   {
     label: "Stores",
