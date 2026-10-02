@@ -393,17 +393,17 @@ async def upload_kehe(
         print("✅ active_pods_df published")
 
 
-        upload_file(
-            local_path=str(
-                fill_rate_path
-            ),
-            org_id=org_id,
-            remote_path=(
-                "processed/fill_rate_df.parquet"
-            ),
-        )
+        #upload_file(
+        #    local_path=str(
+        #        fill_rate_path
+        #    ),
+        #    org_id=org_id,
+        #    remote_path=(
+        #        "processed/fill_rate_df.parquet"
+        #    ),
+        # )
 
-        print("✅ fill_rate_df published")
+        #print("✅ fill_rate_df published")
 
         # =================================================
         # Record uploaded month coverage
@@ -687,6 +687,9 @@ async def upload_kehe_fill_rate(
         # ---------------------------------------------
         # Commit only after rebuild succeeds
         # ---------------------------------------------
+        # ---------------------------------------------
+        # Commit fill-rate artifacts only
+        # ---------------------------------------------
 
         upload_file(
             local_path=str(source_path),
@@ -694,17 +697,19 @@ async def upload_kehe_fill_rate(
             remote_path="processed_sources/kehe_fill_rate.parquet",
         )
 
-        upload_file(
-            local_path=str(features_path),
-            org_id=org_id,
-            remote_path="processed/features_df.parquet",
-        )
+        # DO NOT publish features_df during a fill-rate upload
+        # upload_file(
+        #     local_path=str(features_path),
+        #     org_id=org_id,
+        #     remote_path="processed/features_df.parquet",
+        # )
 
-        upload_file(
-            local_path=str(active_pods_path),
-            org_id=org_id,
-            remote_path="processed/active_pods_df.parquet",
-        )
+        # DO NOT publish active_pods_df during a fill-rate upload
+        # upload_file(
+        #     local_path=str(active_pods_path),
+        #     org_id=org_id,
+        #     remote_path="processed/active_pods_df.parquet",
+        # )
 
         upload_file(
             local_path=str(fill_rate_path),
