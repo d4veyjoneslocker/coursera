@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 
+from backend.data_pipeline.table_loader import load_org_tables
+
 from backend.insights.inventory.order_assessment_3 import (
     assess_inventory,
     get_inventory_relevance,
@@ -2523,7 +2525,6 @@ def get_inventory_projection(
     
     return _json_safe(assessment)
 
-
 @router.get("/dcs")
 def get_dc_network(
     org_id: str = Query(...),
@@ -2558,120 +2559,113 @@ def get_dc_network(
     # Network map data
     # ------------------------------------------------------------------
 
-    features_path = (
-        org_dir
-        / "processed"
-        / "features_df.parquet"
-    )
-
     coordinates_path = (
         org_dir
         / "maps"
         / "store_coordinates.csv"
     )
 
+    # Canonical features loader:
+    # loads from cache when available, otherwise downloads from Supabase.
+    features_df = load_org_tables(org_id)
+
     map_data = []
 
-    if features_path.exists():
-        features_df = pd.read_parquet(
-            features_path
+    for dc_row in snapshot.get(
+        "distribution_centers",
+        [],
+    ):
+        distributor = (
+            str(
+                dc_row.get(
+                    "distributor",
+                    "",
+                )
+            )
+            .upper()
+            .strip()
         )
 
-        for dc_row in snapshot.get(
-            "distribution_centers",
-            [],
-        ):
-            distributor = (
-                str(
-                    dc_row.get(
-                        "distributor",
-                        "",
-                    )
+        dc = (
+            str(
+                dc_row.get(
+                    "dc",
+                    "",
                 )
-                .upper()
-                .strip()
             )
+            .upper()
+            .strip()
+        )
 
-            dc = (
-                str(
-                    dc_row.get(
-                        "dc",
-                        "",
-                    )
+        if not distributor or not dc:
+            continue
+
+        stores = _add_store_coordinates(
+            _get_active_stores(
+                features_df=features_df,
+                distributor=distributor,
+                dc=dc,
+            ),
+            coordinates_path=coordinates_path,
+        )
+
+        store_rows = []
+
+        if not stores.empty:
+            for _, store in stores.iterrows():
+                store_rows.append({
+                    "coded_customer": store.get(
+                        "coded_customer"
+                    ),
+                    "chain": store.get(
+                        "chain"
+                    ),
+                    "channel": store.get(
+                        "channel"
+                    ),
+                    "state": store.get(
+                        "state"
+                    ),
+                    "latitude": _safe_float(
+                        store.get(
+                            "latitude"
+                        )
+                    ),
+                    "longitude": _safe_float(
+                        store.get(
+                            "longitude"
+                        )
+                    ),
+                })
+
+        dc_location = DC_LOCATIONS.get(
+            (distributor, dc),
+            {},
+        )
+
+        map_data.append({
+            "distributor": distributor,
+            "dc": dc,
+            "dc_name": dc_location.get(
+                "name",
+                dc,
+            ),
+            "dc_latitude": dc_location.get(
+                "latitude"
+            ),
+            "dc_longitude": dc_location.get(
+                "longitude"
+            ),
+            "dc_location_precision": (
+                dc_location.get(
+                    "location_precision"
                 )
-                .upper()
-                .strip()
-            )
-
-            if not distributor or not dc:
-                continue
-
-            stores = _add_store_coordinates(
-                _get_active_stores(
-                    features_df=features_df,
-                    distributor=distributor,
-                    dc=dc,
-                ),
-                coordinates_path=coordinates_path,
-            )
-
-            store_rows = []
-
-            if not stores.empty:
-                for _, store in stores.iterrows():
-                    store_rows.append({
-                        "coded_customer": store.get(
-                            "coded_customer"
-                        ),
-                        "chain": store.get(
-                            "chain"
-                        ),
-                        "channel": store.get(
-                            "channel"
-                        ),
-                        "state": store.get(
-                            "state"
-                        ),
-                        "latitude": _safe_float(
-                            store.get(
-                                "latitude"
-                            )
-                        ),
-                        "longitude": _safe_float(
-                            store.get(
-                                "longitude"
-                            )
-                        ),
-                    })
-
-            dc_location = DC_LOCATIONS.get(
-                (distributor, dc),
-                {},
-            )
-
-            map_data.append({
-                "distributor": distributor,
-                "dc": dc,
-                "dc_name": dc_location.get(
-                    "name",
-                    dc,
-                ),
-                "dc_latitude": dc_location.get(
-                    "latitude"
-                ),
-                "dc_longitude": dc_location.get(
-                    "longitude"
-                ),
-                "dc_location_precision": (
-                    dc_location.get(
-                        "location_precision"
-                    )
-                ),
-                "active_store_count": len(
-                    stores
-                ),
-                "stores": store_rows,
-            })
+            ),
+            "active_store_count": len(
+                stores
+            ),
+            "stores": store_rows,
+        })
 
     snapshot["map_data"] = map_data
 
