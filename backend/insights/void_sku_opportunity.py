@@ -356,7 +356,7 @@ def _calculate_channel_avg_skus(universe_df):
 
 def analyze_void_opportunity(
     table: pd.DataFrame,
-    limit: int = 2,
+    limit: int = 5,
 ) -> pd.DataFrame | None:
     """
     Applies insight criteria and selects the strongest
