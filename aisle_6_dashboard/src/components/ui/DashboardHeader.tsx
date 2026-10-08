@@ -524,7 +524,7 @@ export default function DashboardHeader({
               src={org.logo_wordmark_url}
               alt={org.name}
               className="
-                h-[32px]
+                h-[60px]
                 w-auto
                 max-w-[175px]
                 object-contain
