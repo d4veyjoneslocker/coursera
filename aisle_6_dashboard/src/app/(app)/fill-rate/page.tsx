@@ -2,8 +2,11 @@
 
 import DashboardHeader from "@/components/ui/DashboardHeader"
 import FillRateDeepDive from "@/components/fill-rate/FillRateDeepDive"
+import { useOrg } from "@/components/OrgContext"
 
 export default function FillRatePage() {
+  const { org } = useOrg()
+
   return (
     <main className="min-h-screen bg-[#F6F2EA]">
       <DashboardHeader
@@ -25,7 +28,7 @@ export default function FillRatePage() {
             </p>
           </div>
 
-          <FillRateDeepDive />
+          <FillRateDeepDive orgId={org.id} />
         </div>
       </div>
     </main>
