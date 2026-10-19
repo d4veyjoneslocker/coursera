@@ -2507,6 +2507,9 @@ def get_inventory_projection(
         org_id=org_id,
     )
 
+    print("LOOKUP:", (distributor, dc, sku))
+    print("AVAILABLE KEYS:", list(cache["by_sku"].keys())[:100])
+
     assessment = cache["by_sku"].get(
         (
             distributor,
@@ -2554,6 +2557,47 @@ def get_dc_network(
         features_df=inventory_features,
         purchase_orders=purchase_orders,
     )
+
+    # Use the projection engine's current WOH for the colored bars.
+    cache = _load_cached_inventory_assessments(
+        org_dir=org_dir,
+        org_id=org_id,
+    )
+
+    assessments_by_dc = {}
+
+    for row in cache["rows"]:
+        key = (row["distributor"], row["dc"])
+        assessments_by_dc.setdefault(key, []).append(row)
+
+    for dc_row in snapshot.get("distribution_centers", []):
+        key = (dc_row["distributor"], dc_row["dc"])
+        skus = assessments_by_dc.get(key, [])
+
+        counts = {
+            "skus_oos": 0,
+            "skus_below_3_woh": 0,
+            "skus_3_to_4_woh": 0,
+            "skus_4_plus_woh": 0,
+            "skus_woh_unavailable": 0,
+        }
+
+        for sku in skus:
+            woh = sku.get("estimated_weeks_on_hand")
+
+            if woh is None or not math.isfinite(float(woh)):
+                counts["skus_woh_unavailable"] += 1
+            elif woh <= 0:
+                counts["skus_oos"] += 1
+            elif woh < 3:
+                counts["skus_below_3_woh"] += 1
+            elif woh < 4:
+                counts["skus_3_to_4_woh"] += 1
+            else:
+                counts["skus_4_plus_woh"] += 1
+
+        if skus:
+            dc_row.update(counts)
 
     # ------------------------------------------------------------------
     # Network map data
