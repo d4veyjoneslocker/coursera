@@ -10,7 +10,7 @@ from backend.transforms.inventory.unfi import (
 )
 
 
-ORG_ID = "default_org"
+ORG_ID = "67a96381-5014-4a9b-bfe8-a14e6da5affe"
 
 DATA_DIR = Path("backend/data") / ORG_ID
 
