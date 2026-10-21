@@ -95,7 +95,7 @@ def get_metric_value(result, column="value"):
 def resolve_period(period, year=None, end_month=None):
     period = period.upper()
 
-    # Rolling periods
+    # Rolling months
     if period.startswith("L") and period.endswith("M"):
         months = int(period[1:-1])
 
@@ -111,9 +111,36 @@ def resolve_period(period, year=None, end_month=None):
             "end": end,
         }
 
-    # Calendar periods require a year
+    # Rolling quarters
+    if period.startswith("L") and period.endswith("Q"):
+        quarters = int(period[1:-1])
+
+        if end_month is None:
+            end_month = get_current_period(include_current_month=False)
+
+        latest_month = pd.Period(end_month, freq="M")
+
+        # Find the most recent completed quarter
+        current_quarter = latest_month.asfreq("Q")
+
+        # If latest_month is not the final month of its quarter,
+        # use the previous quarter as the most recent completed quarter
+        if latest_month != current_quarter.end_time.to_period("M"):
+            current_quarter -= 1
+
+        end = current_quarter.end_time.to_period("M")
+        start_quarter = current_quarter - (quarters - 1)
+        start = start_quarter.start_time.to_period("M")
+
+        return {
+            "label": label_period(start, end),
+            "start": start,
+            "end": end,
+        }
+
+    # Calendar periods default to current year
     if year is None:
-        raise ValueError(f"year is required for period: {period}")
+        year = pd.Timestamp.now().year
 
     period_map = {
         "Q1": (1, 3),
@@ -274,3 +301,30 @@ def calculate_avg_skus_per_store(df, grain):
     )
 
     return result
+
+def resolve_default_comparison_period(
+    df,
+    comparison_type: str,
+):
+    for period in ["L3M", "L1M"]:
+        current_period, comparison_period = resolve_period_comparison(
+            period=period,
+            comparison=comparison_type,
+        )
+
+        current_df = filter_to_period(
+            df,
+            current_period["start"],
+            current_period["end"],
+        )
+
+        comparison_df = filter_to_period(
+            df,
+            comparison_period["start"],
+            comparison_period["end"],
+        )
+
+        if not current_df.empty and not comparison_df.empty:
+            return period
+
+    return "L1M"

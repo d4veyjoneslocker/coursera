@@ -4,7 +4,6 @@ import backend.metrics as metric
 from backend.metrics.fill_rate.metrics import calculate_order_velocity, calculate_fill_rate
 from backend.metrics.metric_helpers import resolve_period_comparison, filter_to_period, pct_change
 
-#ADD CLACULATE_ORDER_VPO
 
 METRIC_CALCULATORS = {
     "units": {
@@ -16,6 +15,17 @@ METRIC_CALCULATORS = {
         "column": "units",
         "zero_if_missing": True,
         "eligibility": "standard",
+        "display_name": "Units",
+        "formatter": "integer",
+        "change_type": "percent",
+        "description": None,
+        "caveats": None,
+        "interpretation": {
+            "directionality": "higher_better",
+        },
+        "available_distributors": None,
+        "additive": True,
+        "related_metrics": None,
     },
 
     "buying_stores": {
@@ -27,6 +37,17 @@ METRIC_CALCULATORS = {
         "column": "buying_stores",
         "zero_if_missing": True,
         "eligibility": "standard",
+        "display_name": "Buying Stores",
+        "formatter": "integer",
+        "change_type": "percent",
+        "description": None,
+        "caveats": None,
+        "interpretation": {
+            "directionality": "higher_better",
+        },
+        "available_distributors": None,
+        "additive": False,
+        "related_metrics": None,
     },
 
     "active_pods": {
@@ -38,6 +59,17 @@ METRIC_CALCULATORS = {
         "column": "active_pods",
         "zero_if_missing": False,
         "eligibility": "standard",
+        "display_name": "Active PODs",
+        "formatter": "integer",
+        "change_type": "percent",
+        "description": None,
+        "caveats": None,
+        "interpretation": {
+            "directionality": "higher_better",
+        },
+        "available_distributors": None,
+        "additive": False,
+        "related_metrics": None,
     },
 
     "active_pod_opportunities": {
@@ -48,6 +80,17 @@ METRIC_CALCULATORS = {
         "column": "active_pod_opportunities",
         "zero_if_missing": False,
         "eligibility": "standard",
+        "display_name": "Active POD Opportunities",
+        "formatter": "integer",
+        "change_type": "percent",
+        "description": None,
+        "caveats": None,
+        "interpretation": {
+            "directionality": "neutral",
+        },
+        "available_distributors": None,
+        "additive": False,
+        "related_metrics": None,
     },
 
     "velocity": {
@@ -60,6 +103,17 @@ METRIC_CALCULATORS = {
         "column": "vpo",
         "zero_if_missing": False,
         "eligibility": "standard",
+        "display_name": "Velocity",
+        "formatter": "decimal_1",
+        "change_type": "percent",
+        "description": None,
+        "caveats": None,
+        "interpretation": {
+            "directionality": "higher_better",
+        },
+        "available_distributors": None,
+        "additive": False,
+        "related_metrics": None,
     },
 
     "reorder_rate": {
@@ -71,6 +125,17 @@ METRIC_CALCULATORS = {
         "column": "reorder_rate",
         "zero_if_missing": False,
         "eligibility": "reorder",
+        "display_name": "Reorder Rate",
+        "formatter": "percent",
+        "change_type": "points",
+        "description": None,
+        "caveats": None,
+        "interpretation": {
+            "directionality": "higher_better",
+        },
+        "available_distributors": None,
+        "additive": False,
+        "related_metrics": None,
     },
 
     "pod_reorder_rate": {
@@ -82,6 +147,17 @@ METRIC_CALCULATORS = {
         "column": "reorder_rate",
         "zero_if_missing": False,
         "eligibility": "reorder",
+        "display_name": "POD Reorder Rate",
+        "formatter": "percent",
+        "change_type": "points",
+        "description": None,
+        "caveats": None,
+        "interpretation": {
+            "directionality": "higher_better",
+        },
+        "available_distributors": None,
+        "additive": False,
+        "related_metrics": None,
     },
 
     "fill_rate": {
@@ -93,7 +169,29 @@ METRIC_CALCULATORS = {
         "column": "fill_rate",
         "zero_if_missing": False,
         "eligibility": "fill_rate_coverage",
+        "display_name": "Fill Rate",
+        "formatter": "percent",
+        "change_type": "points",
+        "description": (
+            "Cases shipped from the distributor DC as a share of cases ordered."
+        ),
+        "caveats": [
+            "Only reflects periods and accounts with fill-rate coverage.",
+            "A lower fill rate may indicate fulfillment issues, but does not by itself establish the cause of a sales decline.",
+        ],
+        "interpretation": {
+            "directionality": "higher_better",
+        },
+        "available_distributors": ["KEHE"],
+        "additive": False,
+        "related_metrics": [
+            "units",
+            "order_velocity",
+            "velocity",
+            "active_pods",
+        ],
     },
+
     "average_skus_per_store": {
         "calculator": lambda df_filtered, active_pods_df, group_cols:
             metric.calculate_average_skus_per_store(
@@ -103,17 +201,19 @@ METRIC_CALCULATORS = {
         "column": "average_skus_per_store",
         "zero_if_missing": False,
         "eligibility": "standard",
+        "display_name": "Average SKUs per Store",
+        "formatter": "decimal_1",
+        "change_type": "percent",
+        "description": None,
+        "caveats": None,
+        "interpretation": {
+            "directionality": "neutral",
+        },
+        "available_distributors": None,
+        "additive": False,
+        "related_metrics": None,
     },
-    "average_skus_per_store": {
-        "calculator": lambda df_filtered, active_pods_df, group_cols:
-            metric.calculate_average_skus_per_store(
-                df=df_filtered,
-                group_cols=group_cols,
-            ),
-        "column": "average_skus_per_store",
-        "zero_if_missing": False,
-        "eligibility": "standard",
-    },
+
     "new_pods": {
         "calculator": lambda df_filtered, active_pods_df, group_cols:
             metric.calculate_new_pods(
@@ -123,7 +223,19 @@ METRIC_CALCULATORS = {
         "column": "new_pods",
         "zero_if_missing": True,
         "eligibility": "standard",
+        "display_name": "New PODs",
+        "formatter": "integer",
+        "change_type": "percent",
+        "description": None,
+        "caveats": None,
+        "interpretation": {
+            "directionality": "higher_better",
+        },
+        "available_distributors": None,
+        "additive": False,
+        "related_metrics": None,
     },
+
     "active_skus": {
         "calculator": lambda df_filtered, active_pods_df, group_cols: metric.calculate_active_skus(
             active_pods_df,
@@ -132,7 +244,19 @@ METRIC_CALCULATORS = {
         "column": "active_skus",
         "zero_if_missing": False,
         "eligibility": "standard",
+        "display_name": "Active SKUs",
+        "formatter": "integer",
+        "change_type": "percent",
+        "description": None,
+        "caveats": None,
+        "interpretation": {
+            "directionality": "neutral",
+        },
+        "available_distributors": None,
+        "additive": False,
+        "related_metrics": None,
     },
+
     "skus_selling": {
         "calculator": lambda df_filtered, active_pods_df, group_cols:
             metric.calculate_skus_selling(
@@ -142,7 +266,19 @@ METRIC_CALCULATORS = {
         "column": "skus_selling",
         "zero_if_missing": True,
         "eligibility": None,
+        "display_name": "SKUs Selling",
+        "formatter": "integer",
+        "change_type": "percent",
+        "description": None,
+        "caveats": None,
+        "interpretation": {
+            "directionality": "neutral",
+        },
+        "available_distributors": None,
+        "additive": False,
+        "related_metrics": None,
     },
+
     "order_velocity": {
         "calculator": lambda df_filtered, active_pods_df, group_cols: calculate_order_velocity(
             fill_rate_df=df_filtered,
@@ -152,6 +288,17 @@ METRIC_CALCULATORS = {
         "column": "order_vpo",
         "zero_if_missing": False,
         "eligibility": "fill_rate_coverage",
+        "display_name": "Order Velocity",
+        "formatter": "decimal_1",
+        "change_type": "percent",
+        "description": None,
+        "caveats": None,
+        "interpretation": {
+            "directionality": "neutral",
+        },
+        "available_distributors": ["KEHE"],
+        "additive": False,
+        "related_metrics": None,
     },
 }
 
