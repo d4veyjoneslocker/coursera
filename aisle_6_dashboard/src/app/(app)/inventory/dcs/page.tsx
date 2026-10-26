@@ -30,6 +30,7 @@ import LoadingScreen from "@/components/LoadingScreen"
 import DashboardHeader from "@/components/ui/DashboardHeader"
 import { useOrg } from "@/components/OrgContext"
 import DcDetailContent from "@/components/inventory/DcDetailContent"
+import InventoryRiskPopover from "@/components/inventory/InventoryRiskPopover"
 
 const theme = {
   primary: "#9A93B0",
@@ -1218,6 +1219,7 @@ const mapDistributionCenters =
         </div>
       </div>
     )}
+    <InventoryRiskPopover orgId={org?.id} />
   </main>
 )
 }
