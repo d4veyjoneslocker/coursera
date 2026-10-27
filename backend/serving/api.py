@@ -17,6 +17,7 @@ from backend.serving.routes.free_trial import router as free_trial
 from backend.serving.routes.onboarding import router as onboarding
 from backend.serving.routes.business_review import router as business_review
 from backend.serving.routes.inventory.inventory import (router as inventory, _load_cached_inventory_assessments)
+from backend.serving.routes.chat import router as chat
 
 load_dotenv()
 
@@ -77,6 +78,7 @@ app.include_router(free_trial)
 app.include_router(onboarding)
 app.include_router(business_review)
 app.include_router(inventory)
+app.include_router(chat)
 
 
 ADMIN_REFRESH_SECRET = os.getenv("ADMIN_REFRESH_SECRET")
